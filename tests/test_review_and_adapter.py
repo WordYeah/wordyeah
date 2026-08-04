@@ -1,6 +1,6 @@
 import unittest
 
-from wy_core.contracts import ModerationResult
+from wy_core.contracts import Finding, ModerationResult
 from wy_cravatar.adapter import CravatarAdapter
 from wy_cravatar.shadow import CravatarShadowConnector
 from wy_review.store import ReviewStore
@@ -26,7 +26,49 @@ class ReviewAndAdapterTest(unittest.TestCase):
         self.assertEqual(len(store.list_pending()), 1)
         decided = store.decide(first.item_id, "approve", "tester", "safe")
         self.assertEqual(decided.status, "approved")
+        self.assertEqual(decided.avatar_action, "keep")
         self.assertEqual(decided.reviewer, "tester")
+
+    def test_reject_replaces_default_while_blacklist_uses_the_ban_state(self) -> None:
+        store = ReviewStore()
+        ordinary = store.enqueue(result("review", "e" * 64), "media://ordinary.png")
+        malicious = store.enqueue(result("review", "f" * 64), "media://malicious.png")
+        replaced = store.decide(ordinary.item_id, "reject", "tester")
+        blacklisted = store.decide(malicious.item_id, "blacklist", "tester")
+        self.assertEqual(replaced.avatar_action, "replace_default")
+        self.assertEqual(blacklisted.avatar_action, "blacklist")
+        event = store.list_events(malicious.item_id)[0]
+        self.assertIsNone(event.before_avatar_action)
+        self.assertEqual(event.after_avatar_action, "blacklist")
+
+    def test_auto_reject_blacklists_only_explicit_severe_categories(self) -> None:
+        store = ReviewStore()
+        ordinary = store.enqueue(result("block", "7" * 64), "media://ordinary.png")
+        severe = store.enqueue(
+            ModerationResult(
+                request_id="req-severe",
+                content_sha256="8" * 64,
+                media_type="image",
+                decision="block",
+                reasons=("policy_block",),
+                findings=(Finding(category="terrorism", label="match", score=0.99),),
+            ),
+            "media://severe.png",
+        )
+        ordinary = store.apply_route(
+            ordinary.item_id,
+            stage="auto_rejected",
+            final_decision="block",
+            reason_code="high_confidence_block",
+        )
+        severe = store.apply_route(
+            severe.item_id,
+            stage="auto_rejected",
+            final_decision="block",
+            reason_code="high_confidence_block",
+        )
+        self.assertEqual(ordinary.avatar_action, "replace_default")
+        self.assertEqual(severe.avatar_action, "blacklist")
 
     def test_review_items_are_isolated_by_consumer_and_events_are_optimistic(self) -> None:
         store = ReviewStore()
@@ -72,7 +114,12 @@ class ReviewAndAdapterTest(unittest.TestCase):
         review_action = CravatarAdapter("review").translate(block)
         self.assertEqual(review_action.action, "queue_review")
         self.assertFalse(review_action.mutates_avatar)
-        self.assertTrue(CravatarAdapter("enforce").translate(block).mutates_avatar)
+        replacement = CravatarAdapter("enforce").translate(block)
+        self.assertEqual(replacement.action, "replace_default")
+        self.assertTrue(replacement.mutates_avatar)
+        blacklist = CravatarAdapter("enforce").translate(block, "blacklist")
+        self.assertEqual(blacklist.action, "blacklist")
+        self.assertEqual(blacklist.avatar_action, "blacklist")
 
     def test_shadow_connector_is_disabled_by_default_and_records_only(self) -> None:
         block = result("block", "b" * 64)

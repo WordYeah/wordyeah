@@ -11,7 +11,12 @@ from wy_core.contracts import ModerationResult
 from wy_core.database import open_database
 
 ReviewStatus = Literal["pending", "approved", "rejected", "held"]
-ReviewAction = Literal["approve", "reject", "hold", "retry"]
+ReviewAction = Literal["approve", "reject", "blacklist", "hold", "retry"]
+AvatarAction = Literal["keep", "replace_default", "blacklist"]
+
+SEVERE_BLACKLIST_CATEGORIES = frozenset(
+    {"csam", "sexual_minors", "terrorism", "violent_extremism", "illegal_abuse"}
+)
 
 
 class ReviewConflictError(RuntimeError):
@@ -44,6 +49,7 @@ class ReviewItem:
     reviewed_at: str | None = None
     stage: str = "human_required"
     final_decision: str | None = None
+    avatar_action: AvatarAction | None = None
     due_at: str | None = None
     assignee: str | None = None
     claim_until: str | None = None
@@ -74,6 +80,7 @@ class ReviewItem:
             "reviewed_at": self.reviewed_at,
             "stage": self.stage,
             "final_decision": self.final_decision,
+            "avatar_action": self.avatar_action,
             "due_at": self.due_at,
             "assignee": self.assignee,
             "claim_until": self.claim_until,
@@ -104,6 +111,8 @@ class ReviewEvent:
     before_decision: str | None = None
     after_decision: str | None = None
     reason_code: str | None = None
+    before_avatar_action: str | None = None
+    after_avatar_action: str | None = None
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -125,6 +134,8 @@ class ReviewEvent:
             "before_decision": self.before_decision,
             "after_decision": self.after_decision,
             "reason_code": self.reason_code,
+            "before_avatar_action": self.before_avatar_action,
+            "after_avatar_action": self.after_avatar_action,
         }
 
 
@@ -351,33 +362,38 @@ class ReviewStore:
                 status = "held"
             elif stage == "human_required" and status not in {"approved", "rejected"}:
                 status = "pending"
+            avatar_action = _route_avatar_action(row, stage)
             if (
                 row["stage"] == stage
                 and row["final_decision"] == final_decision
                 and row["status"] == status
+                and row["avatar_action"] == avatar_action
             ):
                 self.connection.commit()
                 return self._row(row)
             cursor.execute(
                 """
                 UPDATE review_items
-                SET stage = ?, final_decision = ?, status = ?, updated_at = ?, version = version + 1
+                SET stage = ?, final_decision = ?, status = ?, avatar_action = ?,
+                    updated_at = ?, version = version + 1
                 WHERE item_id = ?
                 """,
-                (stage, final_decision, status, now, item_id),
+                (stage, final_decision, status, avatar_action, now, item_id),
             )
             cursor.execute(
                 """
                 INSERT INTO review_events
                   (event_id, item_id, action, reviewer, note, before_status, after_status,
                    policy_version, request_id, created_at, actor_type, actor_id,
-                   before_stage, after_stage, before_decision, after_decision, reason_code)
-                VALUES (?, ?, 'route', ?, NULL, ?, ?, ?, ?, ?, 'agent', ?, ?, ?, ?, ?, ?)
+                   before_stage, after_stage, before_decision, after_decision, reason_code,
+                   before_avatar_action, after_avatar_action)
+                VALUES (?, ?, 'route', ?, NULL, ?, ?, ?, ?, ?, 'agent', ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     uuid4().hex, item_id, actor_id, row["status"], status,
                     row["policy_version"], row["request_id"], now, actor_id,
                     row["stage"], stage, row["final_decision"], final_decision, reason_code,
+                    row["avatar_action"], avatar_action,
                 ),
             )
             self.connection.commit()
@@ -397,7 +413,7 @@ class ReviewStore:
         request_id: str | None = None,
         ip_hash: str | None = None,
     ) -> ReviewItem:
-        if action not in {"approve", "reject", "hold", "retry"}:
+        if action not in {"approve", "reject", "blacklist", "hold", "retry"}:
             raise ValueError("unknown review action")
         if not reviewer or len(reviewer) > 128:
             raise ValueError("reviewer must be between 1 and 128 characters")
@@ -422,12 +438,13 @@ class ReviewStore:
             if expected_version is not None and expected_version != current_version:
                 raise ReviewConflictError("review item version is stale")
             before_status = row["status"]
-            if action in {"approve", "reject", "hold"}:
+            if action in {"approve", "reject", "blacklist", "hold"}:
                 if before_status != "pending":
                     raise ReviewConflictError("review item is no longer pending")
                 after_status: ReviewStatus = {
                     "approve": "approved",
                     "reject": "rejected",
+                    "blacklist": "rejected",
                     "hold": "held",
                 }[action]
                 reviewer_value: str | None = reviewer
@@ -442,6 +459,12 @@ class ReviewStore:
                 reviewed_at = None
 
             now = _now()
+            avatar_action: AvatarAction | None = None if action == "retry" else {
+                "approve": "keep",
+                "reject": "replace_default",
+                "blacklist": "blacklist",
+                "hold": None,
+            }[action]
             where = "item_id = ? AND status = ? AND version = ?"
             parameters: list[object] = [
                 after_status,
@@ -460,13 +483,14 @@ class ReviewStore:
                 f"""
                 UPDATE review_items
                 SET status = ?, reviewer = ?, review_note = ?, reviewed_at = ?, version = ?,
-                    stage = ?, final_decision = ?, updated_at = ?
+                    stage = ?, final_decision = ?, avatar_action = ?, updated_at = ?
                 WHERE {where}
                 """,
                 [
                     *parameters[:5],
                     "human_required" if action == "retry" else "human_decided",
-                    None if action == "retry" else {"approve": "allow", "reject": "block", "hold": None}[action],
+                    None if action == "retry" else {"approve": "allow", "reject": "block", "blacklist": "block", "hold": None}[action],
+                    avatar_action,
                     now,
                     *parameters[5:],
                 ],
@@ -478,8 +502,9 @@ class ReviewStore:
                 INSERT INTO review_events
                   (event_id, item_id, action, reviewer, note, before_status, after_status,
                    policy_version, request_id, ip_hash, created_at, actor_type, actor_id,
-                   before_stage, after_stage, before_decision, after_decision, reason_code)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'reviewer', ?, ?, ?, ?, ?, ?)
+                   before_stage, after_stage, before_decision, after_decision, reason_code,
+                   before_avatar_action, after_avatar_action)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'reviewer', ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     uuid4().hex,
@@ -497,8 +522,10 @@ class ReviewStore:
                     row["stage"],
                     "human_required" if action == "retry" else "human_decided",
                     row["final_decision"],
-                    None if action == "retry" else {"approve": "allow", "reject": "block", "hold": None}[action],
+                    None if action == "retry" else {"approve": "allow", "reject": "block", "blacklist": "block", "hold": None}[action],
                     f"human_{action}",
+                    row["avatar_action"],
+                    avatar_action,
                 ),
             )
             self.connection.commit()
@@ -529,6 +556,7 @@ class ReviewStore:
             reviewed_at=row["reviewed_at"],
             stage=row["stage"],
             final_decision=row["final_decision"],
+            avatar_action=row["avatar_action"],
             due_at=row["due_at"],
             assignee=row["assignee"],
             claim_until=row["claim_until"],
@@ -559,4 +587,20 @@ class ReviewStore:
             before_decision=row["before_decision"],
             after_decision=row["after_decision"],
             reason_code=row["reason_code"],
+            before_avatar_action=row["before_avatar_action"],
+            after_avatar_action=row["after_avatar_action"],
         )
+
+
+def _route_avatar_action(row: sqlite3.Row, stage: str) -> AvatarAction | None:
+    if stage == "auto_approved":
+        return "keep"
+    if stage != "auto_rejected":
+        return row["avatar_action"]
+    categories = {
+        str(finding.get("category", "")).strip().lower()
+        for finding in json.loads(row["findings_json"] or "[]")
+        if isinstance(finding, dict)
+    }
+    reasons = {str(reason).strip().lower() for reason in json.loads(row["reasons_json"] or "[]")}
+    return "blacklist" if (categories | reasons) & SEVERE_BLACKLIST_CATEGORIES else "replace_default"

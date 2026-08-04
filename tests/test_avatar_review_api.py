@@ -246,7 +246,7 @@ class AvatarReviewApiTest(unittest.TestCase):
 
                 focus = client.get("/review?view=focus")
                 self.assertEqual(focus.status_code, 200)
-                self.assertIn("A 通过 · R 拒绝 · H 留置", focus.text)
+                self.assertIn("A 通过 · R 替换默认头像 · H 留置", focus.text)
 
                 batch = client.post(
                     "/review/batch",
@@ -334,6 +334,7 @@ class AvatarReviewApiTest(unittest.TestCase):
                 self.assertIn("Model finding summary", page.text)
                 self.assertIn("Agent action log", page.text)
                 self.assertIn("留置人工复核", page.text)
+                self.assertIn("加入全网黑名单", page.text)
                 self.assertIn('name="csrf_token"', page.text)
                 self.assertIn('action="/review/logout"', page.text)
 
@@ -354,6 +355,7 @@ class AvatarReviewApiTest(unittest.TestCase):
                 )
                 self.assertEqual(approved.status_code, 200)
                 self.assertEqual(approved.json()["status"], "approved")
+                self.assertEqual(approved.json()["avatar_action"], "keep")
                 self.assertEqual(approved.json()["version"], item["version"] + 1)
 
                 stale = client.post(
@@ -373,6 +375,67 @@ class AvatarReviewApiTest(unittest.TestCase):
             result_store = ResultStore(database)
             self.assertEqual(result_store.count_runs("default"), 1)
             result_store.close()
+
+    def test_blacklist_endpoint_persists_ban_action_and_hides_original_preview(self) -> None:
+        try:
+            from fastapi.testclient import TestClient
+        except ImportError as exc:  # pragma: no cover - optional api extra
+            self.skipTest(str(exc))
+
+        with tempfile.TemporaryDirectory() as directory:
+            database = str(Path(directory) / "wordyeah.sqlite3")
+            store = ReviewStore(database)
+            item = store.enqueue(
+                ModerationResult(
+                    request_id="malicious-avatar",
+                    content_sha256="9" * 64,
+                    media_type="image",
+                    decision="review",
+                    reasons=("manual_review",),
+                ),
+                "media://review/malicious.png",
+            )
+            item = store.apply_route(
+                item.item_id,
+                stage="human_required",
+                final_decision=None,
+                reason_code="manual_review_queue",
+            )
+            settings = ApiSettings(
+                database_path=database,
+                media_root=Path(directory) / "media",
+                reviewer_token="review-secret",
+                review_session_secret="session-secret",
+                reviewer_id="alice",
+            )
+            app = create_app(
+                settings=settings,
+                service=MediaModerationService(BlockClassifier()),
+                review_store=store,
+            )
+            with TestClient(app) as client:
+                login = client.post("/review/login", json={"token": "review-secret"})
+                csrf = login.json()["csrf_token"]
+                response = client.post(
+                    f"/review/items/{item.item_id}/blacklist",
+                    json={"version": item.version, "note": "malicious network-wide block"},
+                    headers={"X-CSRF-Token": csrf, "X-Request-ID": "blacklist-action-1"},
+                )
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.json()["status"], "rejected")
+                self.assertEqual(response.json()["final_decision"], "block")
+                self.assertEqual(response.json()["avatar_action"], "blacklist")
+
+                detail = client.get(f"/review/items/{item.item_id}").json()
+                blacklist_event = [event for event in detail["events"] if event["action"] == "blacklist"][0]
+                self.assertEqual(blacklist_event["after_avatar_action"], "blacklist")
+                self.assertEqual(blacklist_event["request_id"], "blacklist-action-1")
+
+                page = client.get(f"/review?status=reviewed&focus={item.item_id}")
+                self.assertEqual(page.status_code, 200)
+                self.assertIn(_blocked_avatar_url(), page.text)
+                self.assertIn("Cravatar 全网黑名单", page.text)
+                self.assertNotIn("/review/items/" + item.item_id + "/media", page.text)
 
     def test_high_confidence_block_is_rejected_without_human_review(self) -> None:
         try:
@@ -403,6 +466,7 @@ class AvatarReviewApiTest(unittest.TestCase):
                 self.assertEqual(item["status"], "rejected")
                 self.assertEqual(item["stage"], "auto_rejected")
                 self.assertEqual(item["final_decision"], "block")
+                self.assertEqual(item["avatar_action"], "replace_default")
                 attempts = client.get(f"/review/items/{item['item_id']}/attempts").json()
                 self.assertEqual(attempts["count"], 1)
                 self.assertEqual(attempts["attempts"][0]["stage"], "fast_scan")
@@ -446,6 +510,7 @@ class AvatarReviewApiTest(unittest.TestCase):
                 self.assertEqual(second.json()["route"]["state"], "auto_approved")
                 self.assertEqual(second.json()["item"]["status"], "approved")
                 self.assertEqual(second.json()["item"]["final_decision"], "allow")
+                self.assertEqual(second.json()["item"]["avatar_action"], "keep")
 
     def test_review_media_serves_only_safe_controlled_image(self) -> None:
         try:

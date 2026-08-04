@@ -1162,6 +1162,10 @@ def create_app(
     async def reject_review_item(item_id: str, request: Request) -> JSONResponse | RedirectResponse:
         return await _review_action(request, item_id, "reject")
 
+    @app.post("/review/items/{item_id}/blacklist", response_model=None)
+    async def blacklist_review_item(item_id: str, request: Request) -> JSONResponse | RedirectResponse:
+        return await _review_action(request, item_id, "blacklist")
+
     @app.post("/review/items/{item_id}/hold", response_model=None)
     async def hold_review_item(item_id: str, request: Request) -> JSONResponse | RedirectResponse:
         return await _review_action(request, item_id, "hold")
@@ -1182,7 +1186,7 @@ def create_app(
             raise HTTPException(status_code=400, detail="invalid review form") from exc
         require_csrf(request, (values.get("csrf_token") or [None])[-1], session_csrf)
         action = (values.get("action") or [""])[-1]
-        if action not in {"approve", "reject", "hold"}:
+        if action not in {"approve", "reject", "blacklist", "hold"}:
             raise HTTPException(status_code=400, detail="unknown batch review action")
         selected = values.get("selected", [])
         if not selected:

@@ -39,6 +39,9 @@ CSS = """
   --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.05);
   --shadow-md: 0 4px 16px rgba(15, 23, 42, 0.07);
   --shadow-app: 0 24px 64px rgba(15, 23, 42, 0.08);
+  --shadow-sticky: 0 8px 22px rgba(15, 23, 42, 0.08);
+  --shadow-floating: 0 12px 30px rgba(15, 23, 42, 0.16);
+  --shadow-overlay: 0 28px 72px rgba(0, 0, 0, 0.28);
   --radius-app: 24px;
   --radius-panel: 14px;
   --radius-card: 12px;
@@ -82,6 +85,9 @@ CSS = """
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.35);
   --shadow-app: 0 24px 64px rgba(0, 0, 0, 0.5);
+  --shadow-sticky: 0 8px 22px rgba(0, 0, 0, 0.28);
+  --shadow-floating: 0 12px 30px rgba(0, 0, 0, 0.38);
+  --shadow-overlay: 0 28px 72px rgba(0, 0, 0, 0.56);
 }
 
 * { box-sizing: border-box; }
@@ -144,16 +150,18 @@ button, a { -webkit-tap-highlight-color: transparent; }
   border-radius: 0;
   background: var(--app);
   box-shadow: none;
-  transition: width 200ms ease, margin 200ms ease, border-radius 200ms ease;
+  isolation: isolate;
+  transition: width 200ms ease, margin 200ms ease, border-radius 200ms ease, box-shadow 200ms ease;
 }
 
 :root[data-layout="boxed"] .app-frame {
   width: min(1360px, calc(100vw - 48px));
   min-height: calc(100vh - 48px);
   margin: 24px auto;
+  overflow: clip;
   border: 1px solid var(--line);
   border-radius: var(--radius-app);
-  box-shadow: none;
+  box-shadow: var(--shadow-app);
 }
 
 :root[data-layout="boxed"] .queue-list[data-view="grid"] {
@@ -615,7 +623,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   border: 1px solid var(--line);
   border-radius: 14px;
   background: var(--panel);
-  box-shadow: none;
+  box-shadow: var(--shadow-floating);
 }
 .account-popover p { margin: 0 0 10px; color: var(--muted); font-size: 12px; }
 .account-popover .toolbar-logout button { width: 100%; justify-content: center; border-radius: 10px; }
@@ -1073,7 +1081,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   border: 1px solid var(--line-strong);
   border-radius: 13px;
   background: var(--panel-soft);
-  box-shadow: none;
+  box-shadow: var(--shadow-sticky);
   backdrop-filter: blur(12px);
 }
 
@@ -1092,7 +1100,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
   cursor: pointer;
 }
 .batch-actions button[value="approve"] { color: var(--green); }
-.batch-actions button[value="reject"] { color: var(--red); }
+.batch-actions button[value="reject"] { color: var(--amber); }
+.batch-actions button[value="blacklist"] { color: var(--red); }
 .batch-actions button[value="hold"] { color: var(--amber); }
 
 .filtered-count {
@@ -1850,7 +1859,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   border: 1px solid var(--line);
   border-radius: 18px;
   background: var(--panel);
-  box-shadow: none;
+  box-shadow: var(--shadow-overlay);
 }
 .lightbox-toolbar {
   display: flex;
@@ -1958,7 +1967,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   border-radius: 14px;
   background: var(--panel);
   backdrop-filter: blur(16px);
-  box-shadow: none;
+  box-shadow: var(--shadow-floating);
 }
 .keyboard-popover-content strong { display: block; margin-bottom: 8px; font-size: 12px; color: var(--text); }
 .keyboard-popover-content ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
@@ -2017,7 +2026,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   border: 1px solid var(--line-strong);
   border-radius: 14px;
   background: var(--panel);
-  box-shadow: none;
+  box-shadow: var(--shadow-floating);
   backdrop-filter: blur(16px);
   color: var(--text);
   font-size: 12px;
@@ -2134,7 +2143,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   grid-row: 1 / span 3;
   align-self: center;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -2162,8 +2171,14 @@ button, a { -webkit-tap-highlight-color: transparent; }
 
 .action-buttons button[data-action="reject"] {
   border-color: var(--line);
-  background: var(--panel);
-  color: var(--red);
+  background: var(--panel-soft);
+  color: var(--amber);
+}
+
+.action-buttons button[data-action="blacklist"] {
+  border-color: transparent;
+  background: var(--red);
+  color: #ffffff;
 }
 
 .action-buttons button[data-action="hold"] {
@@ -2430,12 +2445,12 @@ button, a { -webkit-tap-highlight-color: transparent; }
     display: block;
     padding: 5px;
     border-radius: 10px;
-    box-shadow: none;
+    box-shadow: 0 -8px 26px rgba(15, 23, 42, 0.12);
   }
   .action-form > label,
   .action-form > input[type="text"],
   .action-form > .action-caption { display: none; }
-  .action-buttons { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .action-buttons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .action-buttons button { min-width: 0; min-height: 34px; padding-inline: 6px; font-size: 12px; }
   .lightbox-modal { padding: 8px; }
   .lightbox-content { width: calc(100vw - 16px); height: calc(100vh - 16px); border-radius: 14px; }
@@ -2895,7 +2910,8 @@ def render_review_workbench(
             <label class="batch-summary"><input type="checkbox" data-select-all> <strong><span data-selected-count>0</span> 项已选</strong><span>单次最多 50 项，后端逐项写审计事件</span></label>
             <div class="batch-actions">
               <button type="submit" name="action" value="approve">批量通过</button>
-              <button type="submit" name="action" value="reject">批量拒绝</button>
+              <button type="submit" name="action" value="reject">批量替换默认头像</button>
+              <button type="submit" name="action" value="blacklist">批量加入黑名单</button>
               <button type="submit" name="action" value="hold">批量留置</button>
             </div>
           </div>
@@ -3363,7 +3379,7 @@ def _detail_panel(
     return f"""
     <div class="focus-nav">
       <div class="focus-nav-group">{return_link}{previous_link}{next_link}</div>
-      <span class="focus-shortcuts">A 通过 · R 拒绝 · H 留置 · J/K 切换</span>
+      <span class="focus-shortcuts">A 通过 · R 替换默认头像 · H 留置 · J/K 切换</span>
     </div>
     <section class="review-detail" id="review-detail" aria-labelledby="detail-title">
       <header class="detail-header">
@@ -3384,6 +3400,7 @@ def _detail_panel(
               <div class="detail-fact"><div class="label">AI 建议</div><div class="value">{escape(_decision_label(item.decision_hint))}</div></div>
               <div class="detail-fact"><div class="label">风险等级</div><div class="value"><span class="risk-label risk-{escape(risk_band)}">{escape(_risk_label(risk_band))}</span></div></div>
               <div class="detail-fact"><div class="label">模型置信度</div><div class="value">{escape(confidence_text)}</div></div>
+              <div class="detail-fact"><div class="label">头像处置</div><div class="value">{escape(_avatar_action_label(_effective_avatar_action(item)))}</div></div>
             </div>
           </section>
 
@@ -3438,9 +3455,12 @@ def _detail_panel(
 
 
 def _media_thumbnail(item: ReviewItem) -> str:
-    if item.status == "rejected":
+    avatar_action = _effective_avatar_action(item)
+    if avatar_action == "blacklist":
         blocked_source = _cravatar_preview_url(item, size=160) or _blocked_avatar_url()
         return _avatar_state("blocked", size=160, source=blocked_source)
+    if avatar_action == "replace_default":
+        return _avatar_state("default", size=160)
     cravatar_url = _cravatar_preview_url(item, size=160)
     if cravatar_url is not None:
         return (
@@ -3469,7 +3489,9 @@ def _media_preview(item: ReviewItem) -> str:
       <button type="button" data-preview-background title="纯黑背景" aria-pressed="false" onclick="setPreviewBackground(this, 'black')">纯黑</button>
     </div>
     """
-    blocked = item.status == "rejected"
+    avatar_action = _effective_avatar_action(item)
+    blocked = avatar_action == "blacklist"
+    replaced = avatar_action == "replace_default"
     cravatar_url = _cravatar_preview_url(item, size=512)
     if item.media_type != "image" and cravatar_url is None:
         return (
@@ -3479,11 +3501,13 @@ def _media_preview(item: ReviewItem) -> str:
     img_src = (
         escape(cravatar_url or _blocked_avatar_url())
         if blocked
+        else escape(_default_avatar_url(size=512))
+        if replaced
         else escape(cravatar_url)
         if cravatar_url is not None
         else f"/review/items/{escape(item.item_id)}/media"
     )
-    note_text = "已屏蔽头像显示 Cravatar 源站 ban 状态图，不再展示原始违规头像。" if blocked else "预览按 Cravatar 官方 API 生成 <code>cn.cravatar.com/avatar/&lt;hash&gt;</code> 地址，仅允许尺寸与 404 默认图参数。" if cravatar_url is not None else "预览通过 reviewer session 和 allowlisted <code>media://</code> 引用提供；浏览器不会收到原始存储路径。"
+    note_text = "黑名单头像显示 Cravatar 源站 ban 状态图，不再展示原始恶意头像。" if blocked else "一般违规头像已替换为 Cravatar 默认头像，不再展示原图。" if replaced else "预览按 Cravatar 官方 API 生成 <code>cn.cravatar.com/avatar/&lt;hash&gt;</code> 地址，仅允许尺寸与 404 默认图参数。" if cravatar_url is not None else "预览通过 reviewer session 和 allowlisted <code>media://</code> 引用提供；浏览器不会收到原始存储路径。"
     preview_image = (
         f'<div class="avatar-state is-blocked"><img src="{img_src}" alt="已屏蔽头像" loading="eager" decoding="async" id="preview-img-target"></div>'
         if blocked
@@ -3539,7 +3563,8 @@ def _manual_actions(item: ReviewItem, csrf_token: str) -> str:
     return "".join(
         [
             _action_button(item, "approve", "approve", "通过"),
-            _action_button(item, "reject", "reject", "拒绝"),
+            _action_button(item, "reject", "reject", "替换默认头像"),
+            _action_button(item, "blacklist", "blacklist", "加入全网黑名单"),
             _action_button(item, "hold", "hold", "留置人工复核"),
         ]
     )
@@ -3557,6 +3582,13 @@ def _detail_events(events: tuple[ReviewEvent, ...], current_ts: datetime) -> str
         return "<li class='event-item'><div class='sub'>这张图片还没有记录过审核动作。</div></li>"
     rows = []
     for event in events:
+        avatar_transition = ""
+        if event.before_avatar_action != event.after_avatar_action:
+            avatar_transition = (
+                '<div class="sub">头像处置：'
+                f'{escape(_avatar_action_label(event.before_avatar_action))} → '
+                f'{escape(_avatar_action_label(event.after_avatar_action))}</div>'
+            )
         rows.append(
             f"""<li class="event-item">
               <div class="top">
@@ -3565,6 +3597,7 @@ def _detail_events(events: tuple[ReviewEvent, ...], current_ts: datetime) -> str
               </div>
               <div class="sub">审核员：{escape(event.reviewer)} · request <code>{escape(event.request_id or "—")}</code></div>
               <div class="sub">{escape(event.before_status or "—")} → {escape(event.after_status or "—")}</div>
+              {avatar_transition}
               {f'<div class="sub">备注：{escape(event.note)}</div>' if event.note else ""}
             </li>"""
         )
@@ -3739,7 +3772,24 @@ def _time_text(iso_text: str, now: datetime | None = None) -> str:
 
 
 def _event_tone(action: str) -> str:
-    return action if action in {"approve", "reject", "hold", "retry"} else "noop"
+    return action if action in {"approve", "reject", "blacklist", "hold", "retry"} else "noop"
+
+
+def _effective_avatar_action(item: ReviewItem) -> str | None:
+    if item.avatar_action is not None:
+        return item.avatar_action
+    if item.status == "rejected":
+        return "replace_default"
+    return "keep" if item.status == "approved" else None
+
+
+def _avatar_action_label(action: str | None) -> str:
+    return {
+        "keep": "保留原头像",
+        "replace_default": "替换默认头像",
+        "blacklist": "Cravatar 全网黑名单",
+        None: "待决定",
+    }.get(action, str(action))
 
 
 def _status_label(status: str) -> str:

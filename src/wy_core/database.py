@@ -4,7 +4,7 @@ import sqlite3
 from pathlib import Path
 
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 
 def open_database(database: str) -> sqlite3.Connection:
@@ -153,7 +153,7 @@ def open_database(database: str) -> sqlite3.Connection:
             created_at TEXT NOT NULL
         );
 
-        INSERT OR IGNORE INTO schema_migrations(version) VALUES (1), (2), (3);
+        INSERT OR IGNORE INTO schema_migrations(version) VALUES (1), (2), (3), (4);
         """
     )
     _ensure_columns(
@@ -169,6 +169,7 @@ def open_database(database: str) -> sqlite3.Connection:
             "version": "INTEGER NOT NULL DEFAULT 1",
             "stage": "TEXT NOT NULL DEFAULT 'human_required'",
             "final_decision": "TEXT",
+            "avatar_action": "TEXT",
             "due_at": "TEXT",
             "assignee": "TEXT",
             "claim_until": "TEXT",
@@ -194,7 +195,17 @@ def open_database(database: str) -> sqlite3.Connection:
             "before_decision": "TEXT",
             "after_decision": "TEXT",
             "reason_code": "TEXT",
+            "before_avatar_action": "TEXT",
+            "after_avatar_action": "TEXT",
         },
+    )
+    connection.execute(
+        "UPDATE review_items SET avatar_action = 'keep' "
+        "WHERE avatar_action IS NULL AND status = 'approved'"
+    )
+    connection.execute(
+        "UPDATE review_items SET avatar_action = 'replace_default' "
+        "WHERE avatar_action IS NULL AND status = 'rejected'"
     )
     connection.execute(
         "CREATE INDEX IF NOT EXISTS idx_review_items_consumer_status "
