@@ -203,6 +203,7 @@ def render_quality_body(data: object = None) -> str:
                 f'<form class="pq-case-action" method="post" action="{_e(action_url)}">'
                 f'<input type="hidden" name="csrf_token" value="{_e(csrf_token)}">'
                 '<button type="submit" name="decision" value="allow">通过</button>'
+                '<button type="submit" name="decision" value="review">需复核</button>'
                 '<button type="submit" name="decision" value="block">拒绝</button></form>'
             )
         else:

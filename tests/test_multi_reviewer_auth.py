@@ -77,6 +77,8 @@ def test_three_reviewer_sessions_complete_independent_dual_review_and_arbitratio
             quality_page = client.get("/review/quality")
             assert f'/review/quality/samples/{sample_id}/decision' in quality_page.text
             assert 'name="decision" value="allow"' in quality_page.text
+            assert 'name="decision" value="review"' in quality_page.text
+            assert 'name="decision" value="block"' in quality_page.text
             first = client.post(
                 f"/review/quality/samples/{sample_id}/decision",
                 json={"decision": "allow", "csrf_token": csrf_a},

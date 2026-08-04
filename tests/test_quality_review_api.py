@@ -77,7 +77,7 @@ def test_reviewer_quality_sampling_labels_and_report_are_workspace_scoped() -> N
 
             first_review = client.post(
                 f"/review/quality/samples/{sample_id}/decision",
-                json={"decision": "allow", "csrf_token": csrf},
+                json={"decision": "review", "csrf_token": csrf},
                 headers=headers,
             )
             assert first_review.status_code == 200

@@ -19,7 +19,7 @@ QualityLabel = Literal[
     "model_failure",
     "quality_sample",
 ]
-QualityDecisionValue = Literal["allow", "block"]
+QualityDecisionValue = Literal["allow", "review", "block"]
 SampleStatus = Literal["awaiting_reviews", "arbitration_required", "resolved"]
 
 CONTROLLED_QUALITY_LABELS: tuple[QualityLabel, ...] = (
@@ -32,7 +32,7 @@ CONTROLLED_QUALITY_LABELS: tuple[QualityLabel, ...] = (
     "quality_sample",
 )
 _CONTROLLED_LABEL_SET = frozenset(CONTROLLED_QUALITY_LABELS)
-_DECISIONS = frozenset({"allow", "block"})
+_DECISIONS = frozenset({"allow", "review", "block"})
 
 
 class QualityConflictError(RuntimeError):
@@ -174,7 +174,7 @@ class QualityStore:
                     ('awaiting_reviews','arbitration_required','resolved')),
                 arbitration_required INTEGER NOT NULL DEFAULT 0
                     CHECK(arbitration_required IN (0, 1)),
-                final_decision TEXT CHECK(final_decision IN ('allow','block')),
+                final_decision TEXT CHECK(final_decision IN ('allow','review','block')),
                 policy_version TEXT,
                 model_versions_json TEXT NOT NULL DEFAULT '{}',
                 request_id TEXT,
@@ -193,7 +193,7 @@ class QualityStore:
                 sample_id TEXT NOT NULL,
                 consumer_id TEXT NOT NULL,
                 reviewer_id TEXT NOT NULL,
-                decision TEXT NOT NULL CHECK(decision IN ('allow','block')),
+                decision TEXT NOT NULL CHECK(decision IN ('allow','review','block')),
                 policy_version TEXT,
                 model_versions_json TEXT NOT NULL DEFAULT '{}',
                 request_id TEXT,
@@ -211,7 +211,7 @@ class QualityStore:
                 sample_id TEXT NOT NULL UNIQUE,
                 consumer_id TEXT NOT NULL,
                 arbitrator_id TEXT NOT NULL,
-                decision TEXT NOT NULL CHECK(decision IN ('allow','block')),
+                decision TEXT NOT NULL CHECK(decision IN ('allow','review','block')),
                 before_status TEXT NOT NULL,
                 after_status TEXT NOT NULL,
                 policy_version TEXT,
@@ -224,6 +224,7 @@ class QualityStore:
             """
         )
         self.connection.commit()
+        self._migrate_review_decision_schema()
 
     def close(self) -> None:
         self.connection.close()
@@ -532,7 +533,7 @@ class QualityStore:
     ) -> QualitySample:
         _required(reviewer_id, "reviewer_id", 128)
         if decision not in _DECISIONS:
-            raise ValueError("decision must be allow or block")
+            raise ValueError("decision must be allow, review or block")
         cursor = self.connection.cursor()
         try:
             cursor.execute("BEGIN IMMEDIATE")
@@ -620,7 +621,7 @@ class QualityStore:
     ) -> QualitySample:
         _required(arbitrator_id, "arbitrator_id", 128)
         if decision not in _DECISIONS:
-            raise ValueError("decision must be allow or block")
+            raise ValueError("decision must be allow, review or block")
         cursor = self.connection.cursor()
         try:
             cursor.execute("BEGIN IMMEDIATE")
@@ -698,7 +699,7 @@ class QualityStore:
                 "reason": "zero_samples",
             }
         status_counts = {name: 0 for name in ("awaiting_reviews", "arbitration_required", "resolved")}
-        final_counts = {name: 0 for name in ("allow", "block")}
+        final_counts = {name: 0 for name in ("allow", "review", "block")}
         for row in rows:
             status_counts[row["status"]] += int(row["count"])
             if row["final_decision"] is not None:
@@ -713,6 +714,146 @@ class QualityStore:
         }
 
     quality_report = report
+
+    def _migrate_review_decision_schema(self) -> None:
+        """Preserve quality data while widening decisions to allow/review/block."""
+
+        definitions = {
+            row["name"]: row["sql"] or ""
+            for row in self.connection.execute(
+                """
+                SELECT name, sql FROM sqlite_master
+                WHERE type = 'table' AND name IN
+                  ('quality_samples', 'quality_decisions', 'quality_arbitrations')
+                """
+            ).fetchall()
+        }
+        marker = "('allow','review','block')"
+        if definitions and all(marker in sql.replace(" ", "") for sql in definitions.values()):
+            return
+        if len(definitions) != 3:
+            raise RuntimeError("quality decision schema is incomplete")
+
+        self.connection.execute("PRAGMA foreign_keys = OFF")
+        try:
+            cursor = self.connection.cursor()
+            cursor.execute("BEGIN IMMEDIATE")
+            cursor.execute("DROP INDEX IF EXISTS idx_quality_samples_consumer_status")
+            cursor.execute("DROP INDEX IF EXISTS idx_quality_decisions_consumer_sample")
+            cursor.execute(
+                "ALTER TABLE quality_arbitrations RENAME TO quality_arbitrations_legacy"
+            )
+            cursor.execute("ALTER TABLE quality_decisions RENAME TO quality_decisions_legacy")
+            cursor.execute("ALTER TABLE quality_samples RENAME TO quality_samples_legacy")
+            cursor.execute(
+                """CREATE TABLE quality_samples (
+                    sample_id TEXT PRIMARY KEY,
+                    consumer_id TEXT NOT NULL,
+                    item_id TEXT NOT NULL,
+                    content_sha256 TEXT NOT NULL,
+                    media_ref TEXT NOT NULL,
+                    reason TEXT NOT NULL,
+                    vocabulary_version TEXT NOT NULL,
+                    stratum TEXT,
+                    retention_status TEXT NOT NULL,
+                    status TEXT NOT NULL CHECK(status IN
+                        ('awaiting_reviews','arbitration_required','resolved')),
+                    arbitration_required INTEGER NOT NULL DEFAULT 0
+                        CHECK(arbitration_required IN (0, 1)),
+                    final_decision TEXT CHECK(final_decision IN ('allow','review','block')),
+                    policy_version TEXT,
+                    model_versions_json TEXT NOT NULL DEFAULT '{}',
+                    request_id TEXT,
+                    created_at TEXT NOT NULL,
+                    resolved_at TEXT,
+                    UNIQUE (consumer_id, item_id),
+                    FOREIGN KEY (consumer_id, vocabulary_version, reason)
+                        REFERENCES quality_label_terms(consumer_id, vocabulary_version, label)
+                )"""
+            )
+            cursor.execute(
+                """CREATE TABLE quality_decisions (
+                    decision_id TEXT PRIMARY KEY,
+                    sample_id TEXT NOT NULL,
+                    consumer_id TEXT NOT NULL,
+                    reviewer_id TEXT NOT NULL,
+                    decision TEXT NOT NULL CHECK(decision IN ('allow','review','block')),
+                    policy_version TEXT,
+                    model_versions_json TEXT NOT NULL DEFAULT '{}',
+                    request_id TEXT,
+                    note TEXT,
+                    created_at TEXT NOT NULL,
+                    UNIQUE (sample_id, reviewer_id),
+                    FOREIGN KEY (sample_id) REFERENCES quality_samples(sample_id)
+                )"""
+            )
+            cursor.execute(
+                """CREATE TABLE quality_arbitrations (
+                    arbitration_id TEXT PRIMARY KEY,
+                    sample_id TEXT NOT NULL UNIQUE,
+                    consumer_id TEXT NOT NULL,
+                    arbitrator_id TEXT NOT NULL,
+                    decision TEXT NOT NULL CHECK(decision IN ('allow','review','block')),
+                    before_status TEXT NOT NULL,
+                    after_status TEXT NOT NULL,
+                    policy_version TEXT,
+                    model_versions_json TEXT NOT NULL DEFAULT '{}',
+                    request_id TEXT,
+                    note TEXT,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY (sample_id) REFERENCES quality_samples(sample_id)
+                )"""
+            )
+
+            sample_columns = (
+                "sample_id, consumer_id, item_id, content_sha256, media_ref, reason, "
+                "vocabulary_version, stratum, retention_status, status, "
+                "arbitration_required, final_decision, policy_version, model_versions_json, "
+                "request_id, created_at, resolved_at"
+            )
+            decision_columns = (
+                "decision_id, sample_id, consumer_id, reviewer_id, decision, policy_version, "
+                "model_versions_json, request_id, note, created_at"
+            )
+            arbitration_columns = (
+                "arbitration_id, sample_id, consumer_id, arbitrator_id, decision, "
+                "before_status, after_status, policy_version, model_versions_json, "
+                "request_id, note, created_at"
+            )
+            cursor.execute(
+                f"INSERT INTO quality_samples ({sample_columns}) "
+                f"SELECT {sample_columns} FROM quality_samples_legacy"
+            )
+            cursor.execute(
+                f"INSERT INTO quality_decisions ({decision_columns}) "
+                f"SELECT {decision_columns} FROM quality_decisions_legacy"
+            )
+            cursor.execute(
+                f"INSERT INTO quality_arbitrations ({arbitration_columns}) "
+                f"SELECT {arbitration_columns} FROM quality_arbitrations_legacy"
+            )
+            violations = cursor.execute("PRAGMA foreign_key_check").fetchall()
+            if violations:
+                raise RuntimeError("quality decision migration failed foreign key check")
+
+            cursor.execute("DROP TABLE quality_arbitrations_legacy")
+            cursor.execute("DROP TABLE quality_decisions_legacy")
+            cursor.execute("DROP TABLE quality_samples_legacy")
+            cursor.execute(
+                """CREATE INDEX idx_quality_samples_consumer_status
+                ON quality_samples(consumer_id, status, created_at, sample_id)"""
+            )
+            cursor.execute(
+                """CREATE INDEX idx_quality_decisions_consumer_sample
+                ON quality_decisions(consumer_id, sample_id, created_at, decision_id)"""
+            )
+            self.connection.commit()
+        except Exception:
+            if self.connection.in_transaction:
+                self.connection.rollback()
+            raise
+        finally:
+            self.connection.execute("PRAGMA foreign_keys = ON")
 
     def _ensure_item_scope(self, consumer_id: str, item_id: str) -> None:
         """Reject a cross-consumer reference when the review item exists."""

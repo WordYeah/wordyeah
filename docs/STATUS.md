@@ -19,12 +19,12 @@
 - [CX] 已验证：Cravatar 生产只读快照确认真实队列为 `wp_cavalcade_jobs`；5 条 bypass-completed canary 本地复审均为 allow，样本量不足，不作为准确率通过
 - [CX] 已实现：审核队列紧凑列表、视觉网格、快速标记和显式批量模式；批量动作最多 50 项并逐项写审计事件
 - [CX] 已实现：`cravatar://<32 位 MD5>` 预览引用只拼接到 allowlisted `https://cn.cravatar.com/avatar/`，不接受任意远程图片 URL
-- [CX] 已实现：版本化质量标签、受控样本留存、双人复核和最小仲裁持久对象、reviewer API 与质量页直接操作；多 reviewer 会话保证双审和仲裁身份独立，代表性样本仍未收集
+- [CX] 已实现：版本化质量标签、受控样本留存、`allow/review/block` 三态双人复核和最小仲裁持久对象、reviewer API 与质量页直接操作；多 reviewer 会话保证双审和仲裁身份独立，旧双态文件库升级失败时事务回滚；候选仍未形成正式双审标签
 - [CX] 已实现：provider-neutral 高级视觉 worker、自动一审/二审任务、幂等、lease 回收、指数退避、死信和人工 retry 新建任务；G2A 私网 HTTP 仅在显式开关且 endpoint 为私网 IP/loopback 时允许
 - [CX] 已实现：服务端 cursor 分页、工作区切换、consumer 约束、最多 50 项的批量 API 与特殊风险服务端禁批
 - [CX] 已实现：Cravatar 增量 cursor、幂等、暂停/恢复、失败重放、水位和持续 watch CLI；仅允许 loopback WordYeah endpoint；已提供默认禁用的 systemd hardening 模板，未安装或启用
 - [CX] 已实现：有界只读 Cavalcade PHP 导出器与本地受控采集器；导出器只执行 `SELECT`，采集器严格限制 Cravatar 源、校验图片并原子发布 manifest，不改变任务或头像状态
-- [CX] 已验证：198 个 pytest、12 个 subtest、compileall、PHP syntax 和 diff check 通过；真实 reviewer session 验证 1440×900 三种队列视图、显式批量模式、快速标记四种动作且零弹窗，1280×800 紧凑列表，以及 390×844 质量页与工作区菜单无横向溢出
+- [CX] 已验证：201 个 pytest、12 个 subtest、compileall、PHP syntax 和 diff check 通过；真实 reviewer session 验证 1440×900 三种队列视图、显式批量模式、快速标记四种动作且零弹窗，1280×800 紧凑列表，以及 390×844 质量页与工作区菜单无横向溢出；质量页三态按钮直接提交且不弹窗
 - [CX] 已验证：持久队列以 50 jobs/s 连续运行 900 秒，完成 45,000 项、零 active 残留、49.9998 jobs/s、cycle p95 1.02ms，15 分钟时长和速率门槛均 PASS
 - [CX] 已验证：可复现故障演练覆盖数据库重启、过期 lease 回收、死信、provider 关闭、429、无效响应和 Cravatar shadow 非写入；错误路径均不产生 allow
 - [CX] 已实现：头像 MVP 聚合验收脚本统一核对代表性 corpus、15 分钟队列负载、故障演练、浏览器路径、至少 1,100 条 shadow、真实高级视觉响应和 `enforce=false`；缺失或 SKIP 保持 INCOMPLETE
