@@ -7,7 +7,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from .falconsai import FalconsaiClassifier
 from .service import MediaModerationService
-from wy_word.service import TextModerationService
+from wy_word.service import TextModerationService, load_text_rules
 
 MAX_BODY_BYTES = int(os.getenv("WORDYEAH_MAX_BODY_BYTES", str(10 * 1024 * 1024)))
 API_KEY = os.getenv("WORDYEAH_API_KEY")
@@ -23,9 +23,16 @@ def build_service() -> MediaModerationService:
     )
 
 
+def build_text_service() -> TextModerationService:
+    rules_path = os.getenv("WORDYEAH_TEXT_RULES")
+    if not rules_path:
+        return TextModerationService()
+    return TextModerationService(load_text_rules(rules_path))
+
+
 class Handler(BaseHTTPRequestHandler):
     service = build_service()
-    text_service = TextModerationService()
+    text_service = build_text_service()
 
     def _authorized(self) -> bool:
         if not API_KEY:

@@ -39,16 +39,28 @@ Example response shape:
 ## `POST /v1/moderate/text`
 
 Accepts a bounded JSON body such as `{"text":"..."}` and returns the same
-result contract. The PoC has no built-in sensitive-word list; configured
-`wy-word` rules are used through the Python service and will be wired to the
-HTTP configuration after the rule format is finalized.
+result contract. The PoC has no built-in sensitive-word list. To load a local
+rule file at startup, set `WORDYEAH_TEXT_RULES=/private/path/text-rules.json`.
+The file must have the versioned shape shown below; a missing or invalid file
+aborts startup rather than silently allowing all text.
+
+```json
+{
+  "version": 1,
+  "rules": [
+    {"label": "example_block", "terms": ["example-token"], "decision": "block"},
+    {"label": "example_review", "terms": ["review-token"], "decision": "review"}
+  ]
+}
+```
+
+The example terms are placeholders, not a production sensitive-word list.
 
 `error` is fail-closed at the API boundary. The Cravatar adapter is not part
 of this PoC and no production decision is changed.
 
 ## Text baseline
 
-The `wy-word` module currently exposes a deterministic rule service for tests
-and local integration. It intentionally has no built-in sensitive-word list;
-callers must provide configured `TextRule` values. OCR and semantic models are
-separate future adapters and are not implied by a rule match.
+The `wy-word` module exposes a deterministic rule service for tests and local
+integration. OCR and semantic models are separate future adapters and are not
+implied by a rule match.

@@ -4,10 +4,10 @@
 
 ## 模块
 
-- `wy-core`：统一审查协议、策略、哈希、队列和审计
+- `wy-core`：统一审查协议、策略、哈希和批测指标
 - `wy-word`：文字、敏感词、OCR、语义和政治内容
 - `wy-media`：图片、视频、音频及视觉内容
-- `wy-review`：人工复核页面和审核记录
+- `wy-review`：人工复核队列、页面边界和审核记录
 - `wy-cravatar`：Cravatar 接入适配器
 
 The current PoC includes a metadata-only SQLite review queue and a pure

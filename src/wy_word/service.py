@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
+from pathlib import Path
 from time import perf_counter
+from typing import Any
 from uuid import uuid4
 
 from wy_core.contracts import Finding, ModerationResult, sha256_bytes
@@ -16,8 +19,45 @@ class TextRule:
     def __post_init__(self) -> None:
         if self.decision not in {"review", "block"}:
             raise ValueError("text rule decision must be review or block")
-        if not self.terms:
-            raise ValueError("text rule must contain at least one term")
+        if not self.terms or any(not isinstance(term, str) or not term.strip() for term in self.terms):
+            raise ValueError("text rule must contain non-empty terms")
+
+    @classmethod
+    def from_dict(cls, value: dict[str, Any]) -> "TextRule":
+        """Build a rule from the versioned, local JSON configuration shape."""
+
+        if not isinstance(value, dict):
+            raise ValueError("text rule must be an object")
+        label = value.get("label")
+        terms = value.get("terms")
+        decision = value.get("decision", "review")
+        if not isinstance(label, str) or not label.strip():
+            raise ValueError("text rule label must be a non-empty string")
+        if not isinstance(terms, list) or any(not isinstance(term, str) for term in terms):
+            raise ValueError("text rule terms must be a list of strings")
+        if not isinstance(decision, str):
+            raise ValueError("text rule decision must be a string")
+        return cls(label=label, terms=tuple(terms), decision=decision)
+
+
+def load_text_rules(path: str | Path) -> tuple[TextRule, ...]:
+    """Load only local JSON rules; invalid configuration fails closed at startup."""
+
+    config_path = Path(path)
+    try:
+        payload = json.loads(config_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError(f"unable to load text rules from {config_path}: {exc}") from exc
+
+    if isinstance(payload, dict):
+        if payload.get("version") != 1:
+            raise ValueError("text rule config version must be 1")
+        raw_rules = payload.get("rules")
+    else:
+        raise ValueError("text rule config must be an object")
+    if not isinstance(raw_rules, list):
+        raise ValueError("text rule config rules must be a list")
+    return tuple(TextRule.from_dict(rule) for rule in raw_rules)
 
 
 class TextModerationService:

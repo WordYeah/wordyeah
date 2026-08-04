@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "rules": [
+    {
+      "label": "example_block",
+      "terms": ["example-token"],
+      "decision": "block"
+    },
+    {
+      "label": "example_review",
+      "terms": ["review-token"],
+      "decision": "review"
+    }
+  ]
+}
