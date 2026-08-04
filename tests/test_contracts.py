@@ -50,6 +50,11 @@ class ContractsTest(unittest.TestCase):
         self.assertIsNone(metrics["block_recall"])
         self.assertEqual(metrics["block_recall_status"], "SKIP_NO_EXPECTED_BLOCK")
 
+    def test_metrics_calculate_block_recall_not_false_negative_rate(self) -> None:
+        metrics = evaluate_decisions(("block", "block"), ("block", "allow")).to_dict()
+        self.assertEqual(metrics["block_recall"], 0.5)
+        self.assertEqual(metrics["block_false_negative_rate"], 0.5)
+
     def test_media_service_deduplicates_by_content_hash(self) -> None:
         class FakeClassifier:
             model_version = "fake/1"

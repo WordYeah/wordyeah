@@ -20,7 +20,14 @@ class DecisionMetrics:
         value["false_positive_rate"] = (
             self.false_positive / self.expected_allow if self.expected_allow else None
         )
-        value["block_recall"] = self.false_negative / self.expected_block if self.expected_block else None
+        value["block_recall"] = (
+            (self.expected_block - self.false_negative) / self.expected_block
+            if self.expected_block
+            else None
+        )
+        value["block_false_negative_rate"] = (
+            self.false_negative / self.expected_block if self.expected_block else None
+        )
         value["block_recall_status"] = "MEASURED" if self.expected_block else "SKIP_NO_EXPECTED_BLOCK"
         return value
 

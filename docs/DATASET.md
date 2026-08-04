@@ -14,5 +14,7 @@ model outputs. It reports false-positive rate for expected `allow` samples and
 block recall for expected `block` samples. If a class has zero samples, the
 metric is `null` with a `SKIP_*` status; zero samples are not a pass.
 
-The current `falconsai-smoke-manifest.jsonl` contains generated safe fixtures
-only. It is a pipeline check, not a real-avatar or production accuracy set.
+The committed smoke manifest contains generated safe fixtures only. A separate
+local-only benchmark may add a small public dataset subset, but its labels and
+domain must be recorded separately; it is not a real-avatar or production
+accuracy set.
