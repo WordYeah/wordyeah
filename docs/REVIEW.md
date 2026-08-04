@@ -47,6 +47,11 @@ POST /review/items/{id}/retry
 POST /review/items/batch
 GET  /review/workspaces
 POST /review/workspaces/{workspace_id}/select
+GET  /review/quality/samples
+POST /review/items/{id}/quality-label
+POST /review/items/{id}/quality-sample
+POST /review/quality/samples/{sample_id}/decision
+POST /review/quality/samples/{sample_id}/arbitrate
 ```
 
 所有动作写入 `review_events`，并保留 reviewer、时间、原始 decision hint

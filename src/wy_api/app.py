@@ -7,7 +7,7 @@ import json
 import os
 import time
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -26,6 +26,11 @@ from wy_media.vision_provider import AdvancedVisionProvider, VisionProviderError
 from wy_review.store import ReviewConflictError, ReviewStore
 from wy_review.attempt_store import AttemptConflictError, ReviewAttemptStore
 from wy_review.router import ReviewRouter
+from wy_review.quality import (
+    CONTROLLED_QUALITY_LABELS,
+    QualityConflictError,
+    QualityStore,
+)
 from wy_review.workspace import Workspace, WorkspaceStore
 from wy_api.login_ui import render_login_page
 from wy_api.review_pages import ReviewPageContext, render_review_page
@@ -159,6 +164,7 @@ def create_app(
     result_store: ResultStore | None = None,
     advanced_vision_provider: AdvancedVisionProvider | None = None,
     workspace_store: WorkspaceStore | None = None,
+    quality_store: QualityStore | None = None,
 ):
     """Create the avatar API without loading a model at import time."""
 
@@ -190,6 +196,7 @@ def create_app(
     job_store = job_store or JobStore(settings.database_path)
     result_store = result_store or ResultStore(settings.database_path)
     workspace_store = workspace_store or WorkspaceStore(settings.database_path)
+    quality_store = quality_store or QualityStore(settings.database_path)
     try:
         workspace_store.get(settings.consumer_id, settings.consumer_id)
     except KeyError:
@@ -218,6 +225,7 @@ def create_app(
         job_store.close()
         result_store.close()
         workspace_store.close()
+        quality_store.close()
 
     app = FastAPI(title="WordYeah Avatar Moderation API", version=APP_VERSION, lifespan=lifespan)
     app.state.settings = settings
@@ -228,6 +236,7 @@ def create_app(
     app.state.job_store = job_store
     app.state.result_store = result_store
     app.state.workspace_store = workspace_store
+    app.state.quality_store = quality_store
     app.state.advanced_vision_provider = advanced_vision_provider
     app.state.ready = False
     app.state.ready_error = None
@@ -364,6 +373,15 @@ def create_app(
         if not workspace.enabled:
             raise HTTPException(status_code=403, detail="review workspace is disabled")
         return workspace
+
+    def _quality_vocabulary(consumer_id: str) -> None:
+        """Create the immutable built-in vocabulary on first use per workspace."""
+
+        quality_store.create_vocabulary(
+            consumer_id=consumer_id,
+            version="v1",
+            actor_id="wordyeah-system",
+        )
 
     async def read_review_payload(request: Request) -> dict[str, Any]:
         body = await request.body()
@@ -1153,17 +1171,47 @@ def create_app(
                 ],
             }
         if page == "quality":
-            samples = [item for item in items if item.quality_sample]
+            _quality_vocabulary(consumer_id)
+            samples = quality_store.list_samples(consumer_id=consumer_id)
+            report = quality_store.report(consumer_id=consumer_id)
+            sample_rows = []
+            for sample in samples:
+                decisions = quality_store.list_decisions(
+                    sample_id=sample.sample_id,
+                    consumer_id=consumer_id,
+                )
+                sample_rows.append(
+                    {
+                        "id": sample.sample_id[:12],
+                        "model": sample.reason,
+                        "review": " / ".join(
+                            f"{decision.reviewer_id}:{decision.decision}"
+                            for decision in decisions
+                        ) or "待双人复核",
+                        "disagreement": "是" if sample.arbitration_required else "否",
+                        "verdict": sample.final_decision or sample.status,
+                        "tone": "warning" if sample.arbitration_required else "quiet",
+                    }
+                )
             return {
                 "exceptions": common_exceptions,
                 "metrics": [
-                    {"label": "抽检样本", "value": len(samples), "detail": "0 样本显示 SKIP"},
-                    {"label": "误报率", "value": "SKIP" if not samples else "待标注", "detail": "不得以 0 样本判通过"},
-                    {"label": "漏报率", "value": "SKIP" if not samples else "待标注", "detail": "不得以 0 样本判通过"},
+                    {"label": "抽检样本", "value": len(samples), "detail": f"报告状态 {report['status']}"},
+                    {"label": "待双审", "value": sum(sample.status == "awaiting_reviews" for sample in samples), "detail": "需要两个独立 reviewer"},
+                    {"label": "待仲裁", "value": sum(sample.arbitration_required for sample in samples), "detail": "双审结论不一致"},
                 ],
-                "cases": {"columns": ("项目", "阶段", "最终决定", "仲裁"), "rows": [
-                    (item.item_id, item.stage, item.final_decision or "—", "是" if item.arbitration_required else "否") for item in samples
-                ]},
+                "sampling": {
+                    "coverage": f"{len(samples)} 样本",
+                    "false_positive": "待标注" if samples else "SKIP",
+                    "disagreement": sum(sample.arbitration_required for sample in samples),
+                },
+                "samples": sample_rows,
+                "labels": CONTROLLED_QUALITY_LABELS,
+                "retention": {
+                    "duration": "由接入方策略定义",
+                    "deidentified": True,
+                    "dataset": consumer_id,
+                },
             }
         if page == "history":
             return {
@@ -1237,6 +1285,125 @@ def create_app(
     @app.get("/review/quality", response_class=HTMLResponse, response_model=None)
     async def review_quality_page(request: Request):
         return _render_support_page("quality", request)
+
+    @app.get("/review/quality/samples")
+    async def list_quality_samples(request: Request, status: str | None = None) -> dict[str, object]:
+        require_reviewer(request)
+        workspace = _review_workspace(request)
+        _quality_vocabulary(workspace.workspace_id)
+        try:
+            samples = quality_store.list_samples(
+                consumer_id=workspace.workspace_id,
+                status=status,  # type: ignore[arg-type]
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {
+            "report": quality_store.report(consumer_id=workspace.workspace_id),
+            "samples": [asdict(sample) for sample in samples],
+        }
+
+    @app.post("/review/items/{item_id}/quality-label")
+    async def label_review_item(item_id: str, request: Request) -> JSONResponse:
+        reviewer, session_csrf = require_reviewer(request)
+        workspace = _review_workspace(request)
+        payload = await read_review_payload(request)
+        require_csrf(request, payload.get("csrf_token"), session_csrf)
+        try:
+            review_store.get(item_id, consumer_id=workspace.workspace_id)
+            _quality_vocabulary(workspace.workspace_id)
+            event = quality_store.append_item_label(
+                consumer_id=workspace.workspace_id,
+                item_id=item_id,
+                label=str(payload.get("label") or ""),
+                actor_id=reviewer,
+                vocabulary_version="v1",
+                request_id=request.headers.get("X-Request-ID"),
+                note=str(payload.get("note") or "") or None,
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except (QualityConflictError, ValueError) as exc:
+            raise HTTPException(
+                status_code=409 if isinstance(exc, QualityConflictError) else 400,
+                detail=str(exc),
+            ) from exc
+        return JSONResponse(asdict(event), status_code=201)
+
+    @app.post("/review/items/{item_id}/quality-sample")
+    async def sample_review_item(item_id: str, request: Request) -> JSONResponse:
+        reviewer, session_csrf = require_reviewer(request)
+        workspace = _review_workspace(request)
+        payload = await read_review_payload(request)
+        require_csrf(request, payload.get("csrf_token"), session_csrf)
+        try:
+            review_store.get(item_id, consumer_id=workspace.workspace_id)
+            _quality_vocabulary(workspace.workspace_id)
+            sample = quality_store.create_sample(
+                consumer_id=workspace.workspace_id,
+                item_id=item_id,
+                reason=str(payload.get("reason") or "quality_sample"),
+                vocabulary_version="v1",
+                stratum=str(payload.get("stratum") or "") or None,
+                actor_id=reviewer,
+                request_id=request.headers.get("X-Request-ID"),
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except (QualityConflictError, ValueError) as exc:
+            raise HTTPException(
+                status_code=409 if isinstance(exc, QualityConflictError) else 400,
+                detail=str(exc),
+            ) from exc
+        return JSONResponse(asdict(sample), status_code=201)
+
+    @app.post("/review/quality/samples/{sample_id}/decision")
+    async def decide_quality_sample(sample_id: str, request: Request) -> JSONResponse:
+        reviewer, session_csrf = require_reviewer(request)
+        workspace = _review_workspace(request)
+        payload = await read_review_payload(request)
+        require_csrf(request, payload.get("csrf_token"), session_csrf)
+        try:
+            sample = quality_store.submit_decision(
+                sample_id=sample_id,
+                consumer_id=workspace.workspace_id,
+                reviewer_id=reviewer,
+                decision=str(payload.get("decision") or ""),  # type: ignore[arg-type]
+                request_id=request.headers.get("X-Request-ID"),
+                note=str(payload.get("note") or "") or None,
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except (QualityConflictError, ValueError) as exc:
+            raise HTTPException(
+                status_code=409 if isinstance(exc, QualityConflictError) else 400,
+                detail=str(exc),
+            ) from exc
+        return JSONResponse(asdict(sample))
+
+    @app.post("/review/quality/samples/{sample_id}/arbitrate")
+    async def arbitrate_quality_sample(sample_id: str, request: Request) -> JSONResponse:
+        reviewer, session_csrf = require_reviewer(request)
+        workspace = _review_workspace(request)
+        payload = await read_review_payload(request)
+        require_csrf(request, payload.get("csrf_token"), session_csrf)
+        try:
+            sample = quality_store.arbitrate(
+                sample_id=sample_id,
+                consumer_id=workspace.workspace_id,
+                arbitrator_id=reviewer,
+                decision=str(payload.get("decision") or ""),  # type: ignore[arg-type]
+                request_id=request.headers.get("X-Request-ID"),
+                note=str(payload.get("note") or "") or None,
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except (QualityConflictError, ValueError) as exc:
+            raise HTTPException(
+                status_code=409 if isinstance(exc, QualityConflictError) else 400,
+                detail=str(exc),
+            ) from exc
+        return JSONResponse(asdict(sample))
 
     @app.get("/review/history", response_class=HTMLResponse, response_model=None)
     async def review_history_page(request: Request):

@@ -19,7 +19,7 @@
 - [CX] 已验证：Cravatar 生产只读快照确认真实队列为 `wp_cavalcade_jobs`；5 条 bypass-completed canary 本地复审均为 allow，样本量不足，不作为准确率通过
 - [CX] 已实现：审核队列紧凑列表、视觉网格、快速标记和显式批量模式；批量动作最多 50 项并逐项写审计事件
 - [CX] 已实现：`cravatar://<32 位 MD5>` 预览引用只拼接到 allowlisted `https://cn.cravatar.com/avatar/`，不接受任意远程图片 URL
-- [CX] 已实现：版本化质量标签、受控样本留存、双人复核和最小仲裁持久对象；代表性样本仍未收集，质量页尚未成为完整标注工具
+- [CX] 已实现：版本化质量标签、受控样本留存、双人复核和最小仲裁持久对象及 reviewer API；质量页读取真实 workspace 报告，代表性样本仍未收集
 - [CX] 已实现：provider-neutral 高级视觉 worker、自动一审/二审任务、幂等、lease 回收、指数退避、死信和人工 retry 新建任务；G2A 私网 HTTP 仅在显式开关且 endpoint 为私网 IP/loopback 时允许
 - [CX] 已实现：服务端 cursor 分页、工作区切换、consumer 约束、最多 50 项的批量 API 与特殊风险服务端禁批
 - [CX] 已实现：Cravatar 增量 cursor、幂等、暂停/恢复、失败重放和水位 CLI；仅允许 loopback WordYeah endpoint
