@@ -529,6 +529,21 @@ button, a { -webkit-tap-highlight-color: transparent; }
   font: inherit;
   text-align: left;
 }
+.mobile-workspace-switcher { display: none; position: relative; }
+.mobile-workspace-switcher summary {
+  list-style: none;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--muted);
+}
+.mobile-workspace-switcher summary::-webkit-details-marker { display: none; }
+.mobile-workspace-switcher .consumer-popover-menu {
+  top: calc(100% + 8px);
+  right: 0;
+  bottom: auto;
+  left: auto;
+}
 .consumer-popover-item {
   display: flex;
   align-items: center;
@@ -2288,15 +2303,17 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 
 @media (max-width: 760px) {
-  .side-nav { position: static; padding: 8px 12px; }
+  .app-frame { grid-template-rows: auto minmax(0, 1fr); }
+  .side-nav {
+    position: static;
+    min-height: 46px;
+    height: 46px;
+    padding: 8px 12px;
+  }
   .brand span:last-child { display: none; }
   .brand { padding: 0; }
   .brand-mark { width: 30px; height: 30px; }
-  .nav-scroll .nav-section:nth-child(2) { display: none; }
-  .nav-scroll .nav-section {
-    flex: 0 0 auto;
-    overflow: visible;
-  }
+  .nav-scroll { display: none; }
 
   .nav-label,
   .nav-spacer,
@@ -2313,6 +2330,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   }
 
   .toolbar-actions { width: 100%; justify-content: flex-start; }
+  .mobile-workspace-switcher { display: block; margin-left: auto; }
   .toolbar-actions .topbar-icon { display: none; }
   .shell { padding: 18px 16px 28px; }
   .detail-header { align-items: flex-start; }
@@ -2953,6 +2971,13 @@ def render_review_workbench(
           </nav>
         </div>
         <div class="toolbar-actions">
+          <details class="mobile-workspace-switcher">
+            <summary aria-label="切换工作区">{escape(consumer_id)}⌄</summary>
+            <div class="consumer-popover-menu">
+              <div class="consumer-popover-header">切换工作区</div>
+              <div class="consumer-popover-list">{workspace_menu}</div>
+            </div>
+          </details>
           <button class="theme-toggle-btn" type="button" data-action="toggle-layout" title="切换全宽/盒装居中" aria-label="切换全宽/盒装居中">
             {_top_icon('layout')}
           </button>
