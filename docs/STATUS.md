@@ -23,9 +23,10 @@
 - [CX] 已实现：provider-neutral 高级视觉 worker、自动一审/二审任务、幂等、lease 回收、指数退避、死信和人工 retry 新建任务；G2A 私网 HTTP 仅在显式开关且 endpoint 为私网 IP/loopback 时允许
 - [CX] 已实现：服务端 cursor 分页、工作区切换、consumer 约束、最多 50 项的批量 API 与特殊风险服务端禁批
 - [CX] 已实现：Cravatar 增量 cursor、幂等、暂停/恢复、失败重放和水位 CLI；仅允许 loopback WordYeah endpoint
-- [CX] 已验证：162 个 pytest、12 个 subtest 和 diff check 通过；真实浏览器验证 1280×800 批量限制、390×844 工作区切换、队列和详情，无审核动作弹窗
+- [CX] 已验证：163 个 pytest、12 个 subtest、compileall 和 diff check 通过；真实浏览器验证 1280×800 批量限制与质量页、390×844 工作区切换、队列和详情，无审核动作弹窗
+- [CX] 已验证：持久队列以 50 jobs/s 连续运行 900 秒，完成 45,000 项、零 active 残留、49.9998 jobs/s、cycle p95 1.02ms，15 分钟时长和速率门槛均 PASS
 - [CX] 已完成 UI 细节复查：审核队列与八个支持页已统一导航、顶栏、间距、线条和组件样式；详情首屏可见图片与人工动作，历史表格长值已压缩显示，移动端导航收为单行横向滚动；结构化视觉复核 92/100
-- [CX] 未完成：代表性头像 corpus、10% 双人复核、15 分钟两倍峰值压测、大规模 Cravatar shadow、质量标注 UI 和生产级调度服务
+- [CX] 未完成：代表性头像 corpus、10% 双人复核、大规模 Cravatar shadow、质量标注表单 UI 和生产级调度服务
 - [CX] 外部限制：G2A 实际 canary 已到达网关，但 `grok-4.5` 与 `grok-4.3` 均返回 HTTP 429；重试分类有效，尚不能验证真实视觉响应、准确率或延迟
 - 生产接入：只读 canary 已完成；未写回 WordPress/头像/队列
 - 外部审查 API：禁止
