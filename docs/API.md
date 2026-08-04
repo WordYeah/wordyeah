@@ -33,6 +33,13 @@ Example response shape:
 }
 ```
 
+## `POST /v1/moderate/text`
+
+Accepts a bounded JSON body such as `{"text":"..."}` and returns the same
+result contract. The PoC has no built-in sensitive-word list; configured
+`wy-word` rules are used through the Python service and will be wired to the
+HTTP configuration after the rule format is finalized.
+
 `error` is fail-closed at the API boundary. The Cravatar adapter is not part
 of this PoC and no production decision is changed.
 

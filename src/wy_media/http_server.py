@@ -7,6 +7,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from .falconsai import FalconsaiClassifier
 from .service import MediaModerationService
+from wy_word.service import TextModerationService
 
 MAX_BODY_BYTES = int(os.getenv("WORDYEAH_MAX_BODY_BYTES", str(10 * 1024 * 1024)))
 API_KEY = os.getenv("WORDYEAH_API_KEY")
@@ -23,6 +24,7 @@ def build_service() -> MediaModerationService:
 
 class Handler(BaseHTTPRequestHandler):
     service = build_service()
+    text_service = TextModerationService()
 
     def _authorized(self) -> bool:
         if not API_KEY:
@@ -51,7 +53,7 @@ class Handler(BaseHTTPRequestHandler):
         self._json(HTTPStatus.NOT_FOUND, {"error": "not_found"})
 
     def do_POST(self) -> None:  # noqa: N802
-        if self.path != "/v1/moderate/image":
+        if self.path not in {"/v1/moderate/image", "/v1/moderate/text"}:
             self._json(HTTPStatus.NOT_FOUND, {"error": "not_found"})
             return
         if not self._authorized():
@@ -61,8 +63,19 @@ class Handler(BaseHTTPRequestHandler):
         if not declared or not declared.isdigit() or int(declared) > MAX_BODY_BYTES:
             self._json(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, {"error": "invalid_or_oversized_body"})
             return
-        image_bytes = self.rfile.read(int(declared))
-        result = self.service.moderate_image(image_bytes)
+        body = self.rfile.read(int(declared))
+        if self.path == "/v1/moderate/text":
+            try:
+                payload = json.loads(body.decode("utf-8"))
+                text = payload["text"]
+                if not isinstance(text, str):
+                    raise ValueError("text must be a string")
+            except (UnicodeDecodeError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+                self._json(HTTPStatus.BAD_REQUEST, {"error": f"invalid_text_request: {exc}"})
+                return
+            result = self.text_service.moderate(text)
+        else:
+            result = self.service.moderate_image(body)
         status = HTTPStatus.OK if result.decision != "error" else HTTPStatus.UNPROCESSABLE_ENTITY
         self._json(status, result.to_dict())
 
