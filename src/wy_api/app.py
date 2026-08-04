@@ -1006,7 +1006,22 @@ def create_app(
             raise HTTPException(status_code=403, detail="review workspace is disabled")
         response: JSONResponse | RedirectResponse
         if "text/html" in request.headers.get("Accept", ""):
-            response = RedirectResponse("/review", status_code=303)
+            return_to = payload.get("return_to")
+            allowed_returns = {
+                "/review",
+                "/review/overview",
+                "/review/agents",
+                "/review/policies",
+                "/review/quality",
+                "/review/history",
+                "/review/health",
+                "/review/account",
+                "/review/guide",
+            }
+            response = RedirectResponse(
+                return_to if isinstance(return_to, str) and return_to in allowed_returns else "/review",
+                status_code=303,
+            )
         else:
             response = JSONResponse({"active_workspace_id": workspace.workspace_id})
         response.set_cookie(
@@ -1328,6 +1343,11 @@ def create_app(
                     csrf_token=csrf_token,
                     service_ready=bool(app.state.ready),
                     service_error=app.state.ready_error,
+                    workspaces=tuple(
+                        (candidate.workspace_id, candidate.name)
+                        for candidate in workspace_store.list_for_consumer(settings.consumer_id)
+                        if candidate.enabled
+                    ),
                 ),
             )
         )

@@ -85,14 +85,18 @@ def test_reviewer_can_switch_between_isolated_workspace_queues() -> None:
             assert client.get("/review/items").json()["items"][0]["item_id"] == default_item.item_id
             page = client.get("/review")
             assert "/review/workspaces/motucloud/select" in page.text
+            support_page = client.get("/review/quality")
+            assert "/review/workspaces/motucloud/select" in support_page.text
+            assert 'name="return_to" value="/review/quality"' in support_page.text
 
             selected = client.post(
                 "/review/workspaces/motucloud/select",
-                json={"csrf_token": csrf},
-                headers={"X-CSRF-Token": csrf},
+                data={"csrf_token": csrf, "return_to": "/review/quality"},
+                headers={"Accept": "text/html"},
+                follow_redirects=False,
             )
-            assert selected.status_code == 200
-            assert selected.json()["active_workspace_id"] == "motucloud"
+            assert selected.status_code == 303
+            assert selected.headers["location"] == "/review/quality"
             items = client.get("/review/items").json()["items"]
             assert [item["item_id"] for item in items] == [motu_item.item_id]
             assert client.get("/review/items/" + default_item.item_id).status_code == 404

@@ -73,6 +73,9 @@ def test_three_reviewer_sessions_complete_independent_dual_review_and_arbitratio
             )
             assert sample_response.status_code == 201
             sample_id = sample_response.json()["sample_id"]
+            quality_page = client.get("/review/quality")
+            assert f'/review/quality/samples/{sample_id}/decision' in quality_page.text
+            assert 'name="decision" value="allow"' in quality_page.text
             first = client.post(
                 f"/review/quality/samples/{sample_id}/decision",
                 json={"decision": "allow", "csrf_token": csrf_a},
@@ -92,6 +95,8 @@ def test_three_reviewer_sessions_complete_independent_dual_review_and_arbitratio
 
             csrf_c = _login(client, "arbitrator", credentials["arbitrator"])
             assert "arbitrator" in client.get("/review/account").text
+            arbitration_page = client.get("/review/quality")
+            assert f'/review/quality/samples/{sample_id}/arbitrate' in arbitration_page.text
             final = client.post(
                 f"/review/quality/samples/{sample_id}/arbitrate",
                 json={"decision": "allow", "csrf_token": csrf_c},

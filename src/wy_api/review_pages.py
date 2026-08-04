@@ -28,6 +28,7 @@ class ReviewPageContext:
     csrf_token: str | None = None
     service_ready: bool = True
     service_error: str | None = None
+    workspaces: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -900,6 +901,11 @@ def _coerce_context(context: ReviewPageContext | Mapping[str, object] | None) ->
         csrf_token=None if raw.get("csrf_token") is None else _text(raw.get("csrf_token")),
         service_ready=bool(raw.get("service_ready", True)),
         service_error=None if raw.get("service_error") is None else _text(raw.get("service_error")),
+        workspaces=tuple(
+            (_text(item[0]), _text(item[1]))
+            for item in _sequence(raw.get("workspaces"))
+            if isinstance(item, Sequence) and not isinstance(item, (str, bytes)) and len(item) >= 2
+        ),
     )
 
 
@@ -1134,6 +1140,24 @@ def render_review_page(
     intent = _PAGE_INTENTS[page]
     service_icon = _icon('<path d="M12 3l1.4 4.1 4.1 1.4-4.1 1.4L12 14l-1.4-4.1-4.1-1.4 4.1-1.4z"></path>')
     help_icon = _icon(_NAV_ICONS["guide"])
+    workspace_choices = ctx.workspaces or ((ctx.consumer_id, ctx.consumer_id),)
+    workspace_items = "".join(
+        (
+            '<div class="consumer-popover-item is-active"><div class="item-info">'
+            f'<strong>{escape(name)}</strong><small>当前审核工作区</small></div>'
+            '<span class="check-icon">✓</span></div>'
+            if workspace_id == ctx.consumer_id
+            else '<form method="post" action="/review/workspaces/'
+            + escape(workspace_id, quote=True)
+            + '/select"><input type="hidden" name="csrf_token" value="'
+            + escape(ctx.csrf_token or "", quote=True)
+            + '"><input type="hidden" name="return_to" value="/review/'
+            + escape(page, quote=True)
+            + '"><button class="consumer-popover-item" type="submit"><span class="item-info">'
+            + f'<strong>{escape(name)}</strong><small>{escape(workspace_id)}</small></span></button></form>'
+        )
+        for workspace_id, name in workspace_choices
+    )
     return f'''<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light dark"><title>{escape(title)} · WordYeah</title>{THEME_INIT_JS}<style>{_CSS}</style></head>
@@ -1170,13 +1194,7 @@ def render_review_page(
   <div class="consumer-popover-menu">
     <div class="consumer-popover-header">Reviewer: {escape(ctx.reviewer_id)}</div>
     <div class="consumer-popover-list">
-      <div class="consumer-popover-item is-active">
-        <div class="item-info">
-          <strong>{escape(ctx.consumer_id)}</strong>
-          <small>当前审核工作区</small>
-        </div>
-        <span class="check-icon">✓</span>
-      </div>
+      {workspace_items}
     </div>
     <div class="consumer-popover-actions">
       <a class="popover-action-btn" href="/review/account">账户与会话</a>
