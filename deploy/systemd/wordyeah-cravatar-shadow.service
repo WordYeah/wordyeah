@@ -1,0 +1,30 @@
+[Unit]
+Description=WordYeah Cravatar incremental shadow runner
+After=network-online.target wordyeah-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=wordyeah
+Group=wordyeah
+WorkingDirectory=/opt/wordyeah
+EnvironmentFile=/etc/wordyeah/cravatar-shadow.env
+ExecStart=/opt/wordyeah/.venv/bin/wordyeah-cravatar watch --workspace ${CRAVATAR_WORKSPACE} --source cravatar --state /var/lib/wordyeah/state/cravatar-cursor.json --manifest ${CRAVATAR_MANIFEST} --root ${CRAVATAR_ROOT} --endpoint ${WORDYEAH_ENDPOINT} --poll-seconds ${CRAVATAR_POLL_SECONDS} --limit ${CRAVATAR_BATCH_LIMIT} --output /var/lib/wordyeah/status/cravatar-shadow.json
+Restart=on-failure
+RestartSec=10s
+TimeoutStopSec=30s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadOnlyPaths=/var/lib/wordyeah/inbox
+ReadWritePaths=/var/lib/wordyeah/state /var/lib/wordyeah/status
+
+[Install]
+WantedBy=multi-user.target

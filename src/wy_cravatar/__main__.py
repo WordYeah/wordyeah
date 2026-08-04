@@ -4,6 +4,7 @@ import argparse
 import io
 import json
 import os
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -78,9 +79,22 @@ def _render(command: str, importer: CravatarIncrementalImporter, run=None) -> st
     return json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
 
 
+def _write_status(rendered: str, output: Path | None) -> None:
+    if output is None:
+        print(rendered, end="")
+        return
+    output.parent.mkdir(parents=True, exist_ok=True)
+    temporary = output.with_name(f".{output.name}.{os.getpid()}.tmp")
+    temporary.write_text(rendered, encoding="utf-8")
+    temporary.chmod(0o600)
+    temporary.replace(output)
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run incremental Cravatar shadow ingestion")
-    parser.add_argument("command", choices=("run", "replay", "pause", "resume", "watermark"))
+    parser.add_argument(
+        "command", choices=("run", "replay", "watch", "pause", "resume", "watermark")
+    )
     parser.add_argument("--workspace", required=True)
     parser.add_argument("--source", default="cravatar")
     parser.add_argument("--state", type=Path, required=True)
@@ -88,6 +102,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--root", type=Path)
     parser.add_argument("--endpoint", default="http://127.0.0.1:8000")
     parser.add_argument("--limit", type=int)
+    parser.add_argument("--poll-seconds", type=float, default=30.0)
+    parser.add_argument("--max-cycles", type=int)
     parser.add_argument("--output", type=Path)
     args = parser.parse_args(argv)
 
@@ -100,11 +116,43 @@ def main(argv: Sequence[str] | None = None) -> int:
             importer.pause()
         elif args.command == "resume":
             importer.resume()
-        elif args.command in {"run", "replay"}:
+        elif args.command in {"run", "replay", "watch"}:
             if args.manifest is None or args.root is None:
-                raise ValueError("run and replay require --manifest and --root")
-            backlog = import_cravatar_backlog(args.manifest, controlled_root=args.root)
+                raise ValueError("run, replay and watch require --manifest and --root")
+            if args.poll_seconds <= 0:
+                raise ValueError("poll-seconds must be positive")
+            if args.max_cycles is not None and args.max_cycles < 1:
+                raise ValueError("max-cycles must be positive")
             callback = _submitter(_endpoint(args.endpoint))
+            if args.command == "watch":
+                cycles = 0
+                try:
+                    while True:
+                        backlog = import_cravatar_backlog(
+                            args.manifest, controlled_root=args.root
+                        )
+                        if importer.watermark().failed_count:
+                            importer.replay_failed(
+                                backlog,
+                                controlled_root=args.root,
+                                callback=callback,
+                                limit=args.limit,
+                            )
+                        run = importer.run(
+                            backlog,
+                            controlled_root=args.root,
+                            callback=callback,
+                            limit=args.limit,
+                        )
+                        _write_status(_render("watch", importer, run), args.output)
+                        cycles += 1
+                        if args.max_cycles is not None and cycles >= args.max_cycles:
+                            return 0 if not run.watermark.failed_count else 2
+                        time.sleep(args.poll_seconds)
+                except KeyboardInterrupt:
+                    _write_status(_render("watch", importer), args.output)
+                    return 0
+            backlog = import_cravatar_backlog(args.manifest, controlled_root=args.root)
             operation = importer.run if args.command == "run" else importer.replay_failed
             run = operation(
                 backlog,
@@ -113,12 +161,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 limit=args.limit,
             )
         rendered = _render(args.command, importer, run)
-        if args.output:
-            args.output.parent.mkdir(parents=True, exist_ok=True)
-            args.output.write_text(rendered, encoding="utf-8")
-            args.output.chmod(0o600)
-        else:
-            print(rendered, end="")
+        _write_status(rendered, args.output)
         return 0 if run is None or not run.watermark.failed_count else 2
     except (OSError, RuntimeError, ValueError) as exc:
         print(json.dumps({"kind": "cravatar_incremental_shadow", "error": str(exc)}))

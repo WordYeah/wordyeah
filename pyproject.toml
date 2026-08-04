@@ -20,6 +20,7 @@ api = ["fastapi>=0.110,<1", "uvicorn>=0.29,<1", "python-multipart>=0.0.9"]
 [project.scripts]
 wordyeah-api = "wy_api.__main__:main"
 wordyeah-worker = "wy_jobs.__main__:main"
+wordyeah-cravatar = "wy_cravatar.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

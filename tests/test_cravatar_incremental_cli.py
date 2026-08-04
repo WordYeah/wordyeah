@@ -87,3 +87,42 @@ def test_failed_submission_returns_nonzero_and_is_replayable(tmp_path: Path, mon
     )
     assert cli.main(["replay", *arguments[1:]]) == 0
     assert json.loads(capsys.readouterr().out)["watermark"]["failed_count"] == 0
+
+
+def test_watch_refreshes_manifest_and_writes_atomic_status(tmp_path: Path, monkeypatch) -> None:
+    root, manifest = fixture(tmp_path)
+    state = tmp_path / "cursor.json"
+    status = tmp_path / "status.json"
+    submitted: list[str] = []
+    monkeypatch.setattr(
+        cli,
+        "_submitter",
+        lambda _endpoint: lambda record, _payload: submitted.append(record.source_id)
+        or {"mutates_avatar": False},
+    )
+
+    assert cli.main(
+        [
+            "watch",
+            "--workspace",
+            "cravatar",
+            "--state",
+            str(state),
+            "--manifest",
+            str(manifest),
+            "--root",
+            str(root),
+            "--poll-seconds",
+            "0.001",
+            "--max-cycles",
+            "2",
+            "--output",
+            str(status),
+        ]
+    ) == 0
+    payload = json.loads(status.read_text(encoding="utf-8"))
+    assert payload["command"] == "watch"
+    assert payload["mutates_avatar"] is False
+    assert payload["watermark"]["completed_count"] == 1
+    assert submitted and len(submitted) == 1
+    assert status.stat().st_mode & 0o777 == 0o600
