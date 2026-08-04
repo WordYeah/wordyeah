@@ -2164,7 +2164,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   grid-column: 1 / -1;
   grid-row: 3;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr)) 40px 40px;
   gap: 8px;
 }
 
@@ -2183,6 +2183,15 @@ button, a { -webkit-tap-highlight-color: transparent; }
 
 .action-buttons button:hover,
 .action-buttons button:focus-visible { border-color: var(--line-strong); }
+
+.action-buttons .is-icon-only {
+  padding: 0;
+}
+
+.action-buttons .is-icon-only svg {
+  width: 17px;
+  height: 17px;
+}
 
 .action-buttons button[data-action="approve"] {
   border-color: transparent;
@@ -2471,7 +2480,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .action-form > label,
   .action-form > input[type="text"],
   .action-form > .action-caption { display: none; }
-  .action-buttons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .action-buttons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)) 38px 38px; gap: 8px; }
   .action-buttons button { min-width: 0; min-height: 34px; padding-inline: 6px; font-size: 12px; }
   .lightbox-modal { padding: 8px; }
   .lightbox-content { width: calc(100vw - 16px); height: calc(100vh - 16px); border-radius: 14px; }
@@ -3586,14 +3595,21 @@ def _manual_actions(item: ReviewItem, csrf_token: str) -> str:
     return "".join(
         [
             _action_button(item, "approve", "approve", "通过"),
-            _action_button(item, "reject", "reject", "替换默认"),
-            _action_button(item, "blacklist", "blacklist", "黑名单"),
-            _action_button(item, "hold", "hold", "留置"),
+            _action_button(item, "reject", "reject", "拒绝"),
+            _action_button(item, "blacklist", "blacklist", "", icon="ban"),
+            _action_button(item, "hold", "hold", "", icon="pause"),
         ]
     )
 
 
-def _action_button(item: ReviewItem, action: str, data_action: str, label: str) -> str:
+def _action_button(
+    item: ReviewItem,
+    action: str,
+    data_action: str,
+    label: str,
+    *,
+    icon: str | None = None,
+) -> str:
     accessible_label = {
         "approve": "通过并保留原头像",
         "reject": "拒绝并替换为默认头像",
@@ -3601,10 +3617,12 @@ def _action_button(item: ReviewItem, action: str, data_action: str, label: str) 
         "hold": "留置人工复核",
         "retry": "重新检查",
     }.get(action, label)
+    button_class = ' class="is-icon-only"' if icon else ""
+    content = _top_icon(icon) if icon else escape(label)
     return (
-        f'<button type="submit" formaction="/review/items/{escape(item.item_id)}/{action}" '
+        f'<button type="submit"{button_class} formaction="/review/items/{escape(item.item_id)}/{action}" '
         f'data-action="{escape(data_action)}" aria-label="{escape(accessible_label)}" '
-        f'title="{escape(accessible_label)}">{escape(label)}</button>'
+        f'title="{escape(accessible_label)}">{content}</button>'
     )
 
 
@@ -3928,5 +3946,7 @@ def _top_icon(name: str) -> str:
         "keyboard": '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M6 12h.01M10 12h.01M14 12h.01M18 12h.01M7 16h10"/>',
         "eye": '<path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.5"/>',
         "zoom": '<circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4M10.5 7.5v6M7.5 10.5h6"/>',
+        "ban": '<circle cx="12" cy="12" r="9"/><path d="m5.6 5.6 12.8 12.8"/>',
+        "pause": '<path d="M9 5v14M15 5v14"/>',
     }
     return f'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{paths.get(name, paths["help"])}</svg>'
