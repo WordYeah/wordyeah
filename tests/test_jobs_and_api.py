@@ -199,7 +199,7 @@ class JobsAndApiTest(unittest.TestCase):
                 }
                 <= columns
             )
-            self.assertEqual(connection.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0], 4)
+            self.assertEqual(connection.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0], 5)
             connection.close()
 
 

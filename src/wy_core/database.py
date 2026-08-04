@@ -4,7 +4,7 @@ import sqlite3
 from pathlib import Path
 
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 
 def open_database(database: str) -> sqlite3.Connection:
@@ -139,6 +139,11 @@ def open_database(database: str) -> sqlite3.Connection:
             worker_id TEXT,
             lease_until TEXT,
             error TEXT,
+            idempotency_key TEXT,
+            available_at TEXT,
+            error_kind TEXT,
+            retryable INTEGER,
+            dead_lettered_at TEXT,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL
         );
@@ -153,7 +158,7 @@ def open_database(database: str) -> sqlite3.Connection:
             created_at TEXT NOT NULL
         );
 
-        INSERT OR IGNORE INTO schema_migrations(version) VALUES (1), (2), (3), (4);
+        INSERT OR IGNORE INTO schema_migrations(version) VALUES (1), (2), (3), (4), (5);
         """
     )
     _ensure_columns(
@@ -199,6 +204,17 @@ def open_database(database: str) -> sqlite3.Connection:
             "after_avatar_action": "TEXT",
         },
     )
+    _ensure_columns(
+        connection,
+        "jobs",
+        {
+            "idempotency_key": "TEXT",
+            "available_at": "TEXT",
+            "error_kind": "TEXT",
+            "retryable": "INTEGER",
+            "dead_lettered_at": "TEXT",
+        },
+    )
     connection.execute(
         "UPDATE review_items SET avatar_action = 'keep' "
         "WHERE avatar_action IS NULL AND status = 'approved'"
@@ -214,6 +230,14 @@ def open_database(database: str) -> sqlite3.Connection:
     connection.execute(
         "CREATE INDEX IF NOT EXISTS idx_review_items_consumer_stage "
         "ON review_items(consumer_id, stage, created_at)"
+    )
+    connection.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_idempotency "
+        "ON jobs(consumer_id, idempotency_key) WHERE idempotency_key IS NOT NULL"
+    )
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS idx_jobs_available "
+        "ON jobs(status, available_at, created_at)"
     )
     connection.commit()
     return connection
