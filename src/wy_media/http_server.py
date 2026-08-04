@@ -11,6 +11,7 @@ from wy_word.service import TextModerationService
 
 MAX_BODY_BYTES = int(os.getenv("WORDYEAH_MAX_BODY_BYTES", str(10 * 1024 * 1024)))
 API_KEY = os.getenv("WORDYEAH_API_KEY")
+IMAGE_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif", "image/bmp"}
 
 
 def build_service() -> MediaModerationService:
@@ -47,6 +48,7 @@ class Handler(BaseHTTPRequestHandler):
                     "status": "ok",
                     "ready": Handler.service.classifier._model is not None,
                     "external_model_calls": False,
+                    "cache_hits": Handler.service.cache_hits,
                 },
             )
             return
@@ -75,6 +77,10 @@ class Handler(BaseHTTPRequestHandler):
                 return
             result = self.text_service.moderate(text)
         else:
+            content_type = self.headers.get("Content-Type", "").split(";", 1)[0].strip().lower()
+            if content_type not in IMAGE_CONTENT_TYPES:
+                self._json(HTTPStatus.UNSUPPORTED_MEDIA_TYPE, {"error": "unsupported_image_content_type"})
+                return
             result = self.service.moderate_image(body)
         status = HTTPStatus.OK if result.decision != "error" else HTTPStatus.UNPROCESSABLE_ENTITY
         self._json(status, result.to_dict())

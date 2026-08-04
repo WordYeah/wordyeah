@@ -3,6 +3,8 @@ import unittest
 from wy_core.contracts import Finding, ModerationResult, sha256_bytes
 from wy_core.metrics import evaluate_decisions
 from wy_core.policy import MediaPolicy
+from wy_media.falconsai import ImageScores
+from wy_media.service import MediaModerationService
 from wy_word.service import TextModerationService, TextRule
 
 
@@ -47,6 +49,25 @@ class ContractsTest(unittest.TestCase):
         self.assertEqual(metrics["false_positive_rate"], 0.5)
         self.assertIsNone(metrics["block_recall"])
         self.assertEqual(metrics["block_recall_status"], "SKIP_NO_EXPECTED_BLOCK")
+
+    def test_media_service_deduplicates_by_content_hash(self) -> None:
+        class FakeClassifier:
+            model_version = "fake/1"
+
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def classify(self, image_bytes: bytes) -> ImageScores:
+                self.calls += 1
+                return ImageScores(normal=0.99, nsfw=0.01)
+
+        classifier = FakeClassifier()
+        service = MediaModerationService(classifier)
+        first = service.moderate_image(b"same-image")
+        second = service.moderate_image(b"same-image")
+        self.assertEqual(first.to_dict(), second.to_dict())
+        self.assertEqual(classifier.calls, 1)
+        self.assertEqual(service.cache_hits, 1)
 
 
 if __name__ == "__main__":
