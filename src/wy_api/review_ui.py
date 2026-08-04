@@ -39,10 +39,10 @@ CSS = """
   --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.05);
   --shadow-md: 0 4px 16px rgba(15, 23, 42, 0.07);
   --shadow-app: 0 24px 64px rgba(15, 23, 42, 0.08);
-  --radius-app: 24px;
-  --radius-panel: 18px;
-  --radius-card: 14px;
-  --radius-control: 10px;
+  --radius-app: 20px;
+  --radius-panel: 12px;
+  --radius-card: 10px;
+  --radius-control: 8px;
   --space-3xs: 2px;
   --space-2xs: 4px;
   --space-xs: 8px;
@@ -188,7 +188,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   height: 32px;
   place-items: center;
   border-radius: 10px;
-  background: linear-gradient(135deg, var(--accent) 0%, #7d82ff 100%);
+  background: var(--accent);
   color: #ffffff;
   font-size: 11px;
   font-weight: 800;
@@ -345,7 +345,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, var(--accent) 0%, #897dff 100%);
+  background: var(--accent);
 }
 
 .usage-upgrade-btn {
@@ -382,22 +382,31 @@ button, a { -webkit-tap-highlight-color: transparent; }
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
+  width: 38px;
+  height: 38px;
   padding: 0;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--panel);
-  color: var(--text);
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
   font-size: 13px;
   cursor: pointer;
   transition: background-color 140ms ease, border-color 140ms ease;
 }
-.theme-toggle-btn:hover { border-color: var(--line-strong); background: var(--panel-soft); }
+.theme-toggle-btn:hover { background: var(--panel-soft); color: var(--text); }
 :root[data-theme="dark"] .theme-icon-moon { display: none; }
 :root[data-theme="dark"] .theme-icon-sun { display: inline; }
 :root:not([data-theme="dark"]) .theme-icon-sun { display: none; }
 :root:not([data-theme="dark"]) .theme-icon-moon { display: inline; }
+.theme-icon-sun,
+.theme-icon-moon {
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  line-height: 0;
+}
+:root[data-theme="dark"] .theme-icon-sun,
+:root:not([data-theme="dark"]) .theme-icon-moon { display: grid; }
 
 .consumer-switcher {
   display: flex;
@@ -544,13 +553,13 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 
 .pipeline-chip[data-tone="ready"] {
-  border-color: var(--accent);
+  border-color: var(--line);
   background: var(--accent-soft);
   color: var(--accent);
 }
 
 .pipeline-chip[data-tone="danger"] {
-  border-color: var(--red);
+  border-color: var(--line);
   background: var(--red-soft);
   color: var(--red);
 }
@@ -690,12 +699,12 @@ button, a { -webkit-tap-highlight-color: transparent; }
   background: var(--red);
 }
 .status-pill[data-tone="success"] {
-  border-color: var(--green);
+  border-color: var(--line);
   background: var(--green-soft);
   color: var(--green);
 }
 .status-pill[data-tone="danger"] {
-  border-color: var(--red);
+  border-color: var(--line);
   background: var(--red-soft);
   color: var(--red);
 }
@@ -889,16 +898,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .page-tabs a:hover,
 .page-tabs a.is-active { color: var(--text); }
 
-.page-tabs a.is-active::after {
-  position: absolute;
-  right: 0;
-  bottom: -3px;
-  left: 0;
-  height: 2px;
-  border-radius: 2px;
-  background: var(--accent);
-  content: "";
-}
+.page-tabs a.is-active { background: var(--panel-muted); border-radius: 8px; }
 
 .page-tabs span {
   min-width: 22px;
@@ -911,8 +911,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 
 .page-tabs a.is-active span {
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--panel);
+  color: var(--text);
 }
 
 .filter-bar {
@@ -1047,7 +1047,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 
 .batch-toggle:hover,
-.batch-toggle.is-active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.batch-toggle.is-active { border-color: var(--line-strong); background: var(--panel-muted); color: var(--text); }
 
 .batch-bar {
   position: sticky;
@@ -1131,8 +1131,9 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 
 .review-card.is-focused {
-  border-color: var(--accent);
+  border-color: var(--line-strong);
   background: var(--panel-soft);
+  box-shadow: inset 3px 0 0 var(--line-strong);
 }
 
 .row-identity { display: grid; gap: 2px; }
@@ -1378,7 +1379,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   margin-top: 16px;
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 24px;
+  border-radius: 14px;
   background: var(--panel);
 }
 
@@ -1539,7 +1540,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   position: relative;
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 20px;
+  border-radius: 10px;
   background: var(--panel-muted);
 }
 
@@ -1555,7 +1556,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   width: 100%;
   max-height: clamp(280px, calc(100vh - 580px), 380px);
   object-fit: contain;
-  background: var(--panel-muted);
+  background: transparent;
   transition: filter 200ms ease;
 }
 
@@ -1570,7 +1571,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   right: 14px;
   padding: 6px 12px;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: 7px;
   background: var(--panel-soft);
   color: var(--text);
   font-size: 11px;
@@ -1626,11 +1627,10 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .inline-analytics-strip .sep { color: var(--line-strong); opacity: 0.6; }
 
 .control-dock {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) auto auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 14px;
+  gap: 16px;
   margin-bottom: 16px;
 }
 
@@ -1658,7 +1658,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   pointer-events: none;
 }
 .search-box input {
-  min-height: 32px;
+  min-height: 36px;
   width: 200px;
   padding: 0 28px 0 30px;
   border: 1px solid var(--line);
@@ -1670,7 +1670,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   transition: border-color 140ms ease, width 140ms ease;
 }
 .search-box input:focus {
-  border-color: var(--accent);
+  border-color: var(--line-strong);
   width: 240px;
 }
 .search-kbd {
@@ -1687,7 +1687,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 
 .select-pill {
-  min-height: 32px;
+  min-height: 36px;
   padding: 0 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -1712,7 +1712,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .finding-badge.badge-divergence {
   background: var(--amber-soft);
   color: var(--amber);
-  border: 1px solid var(--amber);
+  border: 1px solid var(--line);
 }
 
 .preview-header-tools {
@@ -1746,6 +1746,11 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 
 .bg-mode-bar button:hover { color: var(--text); background: var(--panel-muted); }
+.bg-mode-bar button.is-active {
+  background: var(--panel-muted);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+}
 
 .lightbox-trigger {
   padding: 4px 10px;
@@ -1759,12 +1764,75 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 
 .media-preview.bg-grid .preview-wrapper {
-  background:
-    linear-gradient(45deg, var(--line) 25%, transparent 25%) 0 0 / 16px 16px,
-    linear-gradient(315deg, var(--line) 25%, var(--panel-soft) 25%) 0 0 / 16px 16px;
+  background: #ffffff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath fill='%23eef1f5' d='M0 0h8v8H0zM8 8h8v8H8z'/%3E%3C/svg%3E") 0 0 / 16px 16px;
 }
 .media-preview.bg-white .preview-wrapper { background: #ffffff; }
 .media-preview.bg-black .preview-wrapper { background: #090a0f; }
+
+.lightbox-modal {
+  position: fixed;
+  z-index: 200;
+  inset: 0;
+  display: none;
+  place-items: center;
+  padding: 24px;
+  background: rgba(9, 10, 15, 0.78);
+  backdrop-filter: blur(8px);
+}
+.lightbox-modal.is-open { display: grid; }
+.lightbox-content {
+  width: min(1180px, calc(100vw - 48px));
+  height: min(820px, calc(100vh - 48px));
+  display: grid;
+  grid-template-rows: 52px minmax(0, 1fr);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--panel);
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.35);
+}
+.lightbox-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 12px 0 18px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+.lightbox-toolbar strong { font-size: 13px; font-weight: 700; }
+.lightbox-toolbar-actions { display: flex; align-items: center; gap: 4px; }
+.lightbox-toolbar button {
+  min-width: 34px;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--muted);
+  cursor: pointer;
+}
+.lightbox-toolbar button:hover { background: var(--panel-muted); color: var(--text); }
+.lightbox-close { font-size: 18px; line-height: 1; }
+.lightbox-stage {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  overflow: auto;
+  padding: 28px;
+  background-color: var(--panel-muted);
+}
+.lightbox-stage img {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  transform-origin: center center;
+  transition: transform 120ms ease;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+}
 
 .keyboard-help-popover { position: relative; display: inline-block; }
 .keyboard-help-btn {
@@ -1783,12 +1851,17 @@ button, a { -webkit-tap-highlight-color: transparent; }
   transition: all 140ms ease;
 }
 .keyboard-help-btn svg,
-.view-switch a svg,
-.theme-toggle-btn svg {
+.view-switch a svg {
   width: 14px;
   height: 14px;
   stroke: currentColor;
   flex: 0 0 14px;
+}
+.theme-toggle-btn svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  flex: 0 0 18px;
 }
 .keyboard-help-btn::-webkit-details-marker { display: none; }
 .keyboard-help-btn:hover { border-color: var(--line-strong); color: var(--text); background: var(--panel-muted); }
@@ -1838,17 +1911,17 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .replacement-badge[data-type="purple"] {
   background: rgba(108, 114, 244, 0.12);
   color: var(--accent);
-  border-color: rgba(108, 114, 244, 0.25);
+  border-color: var(--line);
 }
 .replacement-badge[data-type="pink"] {
   background: rgba(224, 91, 109, 0.12);
   color: var(--red);
-  border-color: rgba(224, 91, 109, 0.25);
+  border-color: var(--line);
 }
 .replacement-badge[data-type="amber"] {
   background: rgba(217, 142, 50, 0.12);
   color: var(--amber);
-  border-color: rgba(217, 142, 50, 0.25);
+  border-color: var(--line);
 }
 
 .floating-status-dock {
@@ -1935,54 +2008,61 @@ button, a { -webkit-tap-highlight-color: transparent; }
   z-index: 4;
   bottom: 16px;
   display: grid;
-  gap: 12px;
-  padding: 16px;
+  grid-template-columns: minmax(220px, 1fr) minmax(360px, 1.15fr);
+  gap: 8px 16px;
+  padding: 12px;
   border: 1px solid var(--line);
-  border-radius: 20px;
+  border-radius: var(--radius-panel);
   background: var(--panel);
-  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.15);
+  box-shadow: none;
 }
 
 .action-form label {
+  grid-column: 1;
   color: var(--quiet);
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0;
 }
 
 .action-form input[type="text"] {
+  grid-column: 1;
   width: 100%;
   min-height: 42px;
   padding: 0 14px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-control);
   outline: 0;
   background: var(--panel-soft);
   color: var(--text);
 }
 
 .action-form input[type="text"]:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
+  border-color: var(--line-strong);
+  box-shadow: 0 0 0 3px var(--panel-muted);
 }
 
 .action-caption {
+  grid-column: 1;
   color: var(--muted);
   font-size: 12px;
 }
 
 .action-buttons {
-  display: flex;
-  flex-wrap: wrap;
+  grid-column: 2;
+  grid-row: 1 / span 3;
+  align-self: center;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
 }
 
 .action-buttons button {
+  width: 100%;
   min-height: 40px;
   padding: 0 16px;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: var(--radius-control);
   background: var(--panel);
   color: var(--text);
   font-size: 13px;
@@ -1994,13 +2074,13 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .action-buttons button:focus-visible { border-color: var(--line-strong); }
 
 .action-buttons button[data-action="approve"] {
-  border-color: var(--green);
+  border-color: transparent;
   background: var(--green);
   color: white;
 }
 
 .action-buttons button[data-action="reject"] {
-  border-color: color-mix(in srgb, var(--red) 55%, var(--line));
+  border-color: var(--line);
   background: var(--panel);
   color: var(--red);
 }
@@ -2029,15 +2109,16 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .lightbox-trigger kbd { margin-left: 3px; }
 
 .action-buttons button[data-action="retry"] {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-  color: var(--accent);
+  grid-column: 1 / -1;
+  border-color: var(--line);
+  background: var(--panel-muted);
+  color: var(--text);
 }
 
 .evidence-block {
   padding: 20px;
   border: 1px solid var(--line);
-  border-radius: 20px;
+  border-radius: 10px;
   background: var(--panel-soft);
 }
 
@@ -2054,7 +2135,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .event-item {
   padding: 12px 14px;
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: 8px;
   background: var(--panel);
 }
 
@@ -2081,7 +2162,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .guide {
   margin-top: 24px;
   border: 1px solid var(--line);
-  border-radius: 20px;
+  border-radius: 10px;
   background: var(--panel);
 }
 
@@ -2251,7 +2332,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .nav-item { flex: 0 0 auto; }
   .nav-count { display: none; }
   .shell { padding-inline: 24px; }
-  .control-dock { align-items: flex-start; flex-wrap: wrap; }
+  .control-dock { grid-template-columns: 1fr auto; align-items: center; }
+  .control-dock .page-tabs { grid-column: 1 / -1; }
 }
 
 @media (max-width: 760px) {
@@ -2291,6 +2373,15 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .search-control { flex-basis: 100%; }
   .filter-control, .filter-submit { flex: 1; min-width: 0; }
   .page-tabs { gap: 16px; overflow-x: auto; }
+  .control-dock { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .control-dock > .page-tabs,
+  .control-dock > .filter-bar,
+  .control-dock > .view-switch { grid-column: 1; width: 100%; }
+  .control-dock > .filter-bar { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+  .control-dock .search-box,
+  .control-dock .search-box input { width: 100%; min-width: 0; }
+  .control-dock > .view-switch { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .control-dock > .view-switch a { justify-content: center; }
   .queue-list-head { display: none; }
   .queue-list { overflow: visible; }
   .review-row-link {
@@ -2328,14 +2419,19 @@ button, a { -webkit-tap-highlight-color: transparent; }
     left: 12px;
     display: block;
     padding: 5px;
-    border-radius: 14px;
-    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.14);
+    border-radius: 10px;
+    box-shadow: none;
   }
   .action-form > label,
   .action-form > input[type="text"],
   .action-form > .action-caption { display: none; }
   .action-buttons { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
   .action-buttons button { min-width: 0; min-height: 34px; padding-inline: 6px; font-size: 12px; }
+  .lightbox-modal { padding: 8px; }
+  .lightbox-content { width: calc(100vw - 16px); height: calc(100vh - 16px); border-radius: 14px; }
+  .lightbox-toolbar { padding-left: 12px; }
+  .lightbox-toolbar strong { display: none; }
+  .lightbox-stage { padding: 12px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2449,7 +2545,50 @@ WORKBENCH_JS = r"""
     sync();
   }
 
-  // Lightbox Modal
+  window.setPreviewBackground = (button, mode) => {
+    const preview = button?.closest('.media-preview');
+    if (!preview || !['grid', 'white', 'black'].includes(mode)) return;
+    preview.classList.remove('bg-grid', 'bg-white', 'bg-black');
+    preview.classList.add(`bg-${mode}`);
+    preview.querySelectorAll('[data-preview-background]').forEach((entry) => {
+      const active = entry === button;
+      entry.classList.toggle('is-active', active);
+      entry.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
+  };
+
+  window.lightboxScale = 1;
+  let lightboxBaseWidth = 0;
+
+  window.setLightboxScale = (nextScale) => {
+    const img = document.querySelector('#lightbox-img');
+    if (!img) return;
+    window.lightboxScale = Math.min(4, Math.max(0.5, Number(nextScale) || 1));
+    if (!lightboxBaseWidth) lightboxBaseWidth = img.getBoundingClientRect().width || img.naturalWidth;
+    img.style.maxWidth = 'none';
+    img.style.maxHeight = 'none';
+    img.style.width = `${Math.round(lightboxBaseWidth * window.lightboxScale)}px`;
+    img.style.height = 'auto';
+    const label = document.querySelector('[data-lightbox-scale]');
+    if (label) label.textContent = `${Math.round(window.lightboxScale * 100)}%`;
+  };
+
+  window.resetLightboxScale = () => {
+    const img = document.querySelector('#lightbox-img');
+    if (!img) return;
+    window.lightboxScale = 1;
+    img.style.width = '';
+    img.style.height = '';
+    img.style.maxWidth = '100%';
+    img.style.maxHeight = '100%';
+    requestAnimationFrame(() => {
+      lightboxBaseWidth = img.getBoundingClientRect().width || img.naturalWidth;
+      const label = document.querySelector('[data-lightbox-scale]');
+      if (label) label.textContent = '适应';
+    });
+  };
+
+  // Controlled media lightbox
   window.openLightbox = (src) => {
     let modal = document.querySelector('.lightbox-modal');
     if (!modal) {
@@ -2457,8 +2596,16 @@ WORKBENCH_JS = r"""
       modal.className = 'lightbox-modal';
       modal.innerHTML = `
         <div class="lightbox-content">
-          <button type="button" class="lightbox-close" onclick="window.closeLightbox()" aria-label="关闭预览">✕</button>
-          <img src="" alt="大图放大预览" id="lightbox-img">
+          <div class="lightbox-toolbar">
+            <strong>受控大图预览</strong>
+            <div class="lightbox-toolbar-actions">
+              <button type="button" onclick="window.setLightboxScale(window.lightboxScale - .25)" aria-label="缩小">−</button>
+              <button type="button" data-lightbox-scale onclick="window.resetLightboxScale()" aria-label="适应窗口">适应</button>
+              <button type="button" onclick="window.setLightboxScale(window.lightboxScale + .25)" aria-label="放大">＋</button>
+              <button type="button" class="lightbox-close" onclick="window.closeLightbox()" aria-label="关闭预览">×</button>
+            </div>
+          </div>
+          <div class="lightbox-stage"><img src="" alt="大图放大预览" id="lightbox-img"></div>
         </div>`;
       document.body.appendChild(modal);
       modal.addEventListener('click', (e) => {
@@ -2466,13 +2613,19 @@ WORKBENCH_JS = r"""
       });
     }
     const img = modal.querySelector('#lightbox-img');
-    if (img && src) img.src = src;
+    if (img && src) {
+      img.onload = () => window.resetLightboxScale();
+      img.src = src;
+      if (img.complete) window.resetLightboxScale();
+    }
     modal.classList.add('is-open');
+    document.body.style.overflow = 'hidden';
   };
 
   window.closeLightbox = () => {
     const modal = document.querySelector('.lightbox-modal');
     if (modal) modal.classList.remove('is-open');
+    document.body.style.overflow = '';
   };
 
   // Keyboard navigation & Shortcuts
@@ -2825,10 +2978,6 @@ def render_review_workbench(
 
       <main class="shell{' shell-focus' if focus_item_id else ''}" id="main-workbench">
         {f'''
-        <div class="detail-return">
-          <a href="{escape(_review_href(status=status_filter, risk=risk_filter, query=search_query, view='list'))}#review-queue">← 返回审核队列</a>
-          <span>{escape(consumer_id)} · {escape(policy_profile)}</span>
-        </div>
         {detail_html}
         ''' if focus_item_id else f'''
         <section class="queue-section is-primary" id="review-queue" aria-labelledby="queue-title">
@@ -3175,9 +3324,10 @@ def _detail_panel(
         f'<a href="{escape(next_href)}" data-focus-next>下一条 <span class="mono">J</span> →</a>'
         if next_href else ""
     )
+    return_link = f'<a class="focus-return" href="{escape(close_href)}#review-queue">← 返回队列</a>'
     return f"""
     <div class="focus-nav">
-      <div class="focus-nav-group">{previous_link}{next_link}</div>
+      <div class="focus-nav-group">{return_link}{previous_link}{next_link}</div>
       <span class="focus-shortcuts">A 通过 · R 拒绝 · H 留置 · J/K 切换</span>
     </div>
     <section class="review-detail" id="review-detail" aria-labelledby="detail-title">
@@ -3276,9 +3426,9 @@ def _media_preview(item: ReviewItem) -> str:
     )
     bg_switch = """
     <div class="bg-mode-bar" aria-label="切换背景颜色">
-      <button type="button" title="透明棋盘网格" onclick="const p=this.closest('.media-preview'); p.classList.remove('bg-white','bg-black'); p.classList.add('bg-grid')">棋盘</button>
-      <button type="button" title="纯白背景" onclick="const p=this.closest('.media-preview'); p.classList.remove('bg-grid','bg-black'); p.classList.add('bg-white')">纯白</button>
-      <button type="button" title="纯黑背景" onclick="const p=this.closest('.media-preview'); p.classList.remove('bg-grid','bg-white'); p.classList.add('bg-black')">纯黑</button>
+      <button type="button" class="is-active" data-preview-background title="透明棋盘网格" aria-pressed="true" onclick="setPreviewBackground(this, 'grid')">棋盘</button>
+      <button type="button" data-preview-background title="纯白背景" aria-pressed="false" onclick="setPreviewBackground(this, 'white')">纯白</button>
+      <button type="button" data-preview-background title="纯黑背景" aria-pressed="false" onclick="setPreviewBackground(this, 'black')">纯黑</button>
     </div>
     """
     cravatar_url = _cravatar_preview_url(item, size=512)
@@ -3288,7 +3438,7 @@ def _media_preview(item: ReviewItem) -> str:
             "<span>暂无受控本地预览</span></div></div>"
         )
     img_src = escape(cravatar_url) if cravatar_url is not None else f"/review/items/{escape(item.item_id)}/media"
-    note_text = "预览地址由 allowlisted <code>cn.cravatar.com/avatar/&lt;md5&gt;</code> 规则生成，不接受任意远程 URL。" if cravatar_url is not None else "预览通过 reviewer session 和 allowlisted <code>media://</code> 引用提供；浏览器不会收到原始存储路径。"
+    note_text = "预览按 Cravatar 官方 API 生成 <code>cn.cravatar.com/avatar/&lt;md5&gt;</code> 地址，仅允许尺寸与 404 默认图参数。" if cravatar_url is not None else "预览通过 reviewer session 和 allowlisted <code>media://</code> 引用提供；浏览器不会收到原始存储路径。"
 
     return f"""
     <div class="media-preview{blur_class} bg-grid">
@@ -3312,7 +3462,7 @@ def _cravatar_preview_url(item: ReviewItem, *, size: int) -> str | None:
     if len(avatar_hash) != 32 or any(character not in "0123456789abcdef" for character in avatar_hash):
         return None
     bounded_size = min(max(size, 16), 1024)
-    return f"https://cn.cravatar.com/avatar/{avatar_hash}?s={bounded_size}&d=404&r=x"
+    return f"https://cn.cravatar.com/avatar/{avatar_hash}?s={bounded_size}&d=404"
 
 
 def _manual_actions(item: ReviewItem, csrf_token: str) -> str:

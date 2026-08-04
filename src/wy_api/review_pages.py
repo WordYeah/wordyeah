@@ -293,8 +293,8 @@ code,
   color: var(--text);
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
 }
-.status-pill[data-tone="success"] { border-color: var(--green); background: var(--green-soft); color: var(--green); }
-.status-pill[data-tone="danger"] { border-color: var(--red); background: var(--red-soft); color: var(--red); }
+.status-pill[data-tone="success"] { border-color: var(--support-line); background: var(--green-soft); color: var(--green); }
+.status-pill[data-tone="danger"] { border-color: var(--support-line); background: var(--red-soft); color: var(--red); }
 .intent-note {
   color: var(--accent);
   background: var(--accent-soft);
@@ -307,7 +307,7 @@ code,
 .panel {
   overflow: hidden;
   border: 1px solid var(--support-line);
-  border-radius: 18px;
+  border-radius: 12px;
   background: var(--support-panel);
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
 }
@@ -366,7 +366,7 @@ code,
   gap: 6px;
   padding: 14px 16px;
   border: 1px dashed var(--support-line-strong);
-  border-radius: 12px;
+  border-radius: 8px;
   background: var(--support-panel-soft);
 }
 .data-state strong {
@@ -382,21 +382,41 @@ code,
   line-height: 1.6;
 }
 
-.notice-stack { display: grid; gap: 8px; margin-bottom: 16px; }
-.notice {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 12px 14px;
-  border: 1px solid var(--amber);
-  border-left-width: 3px;
+.notice-stack {
+  display: grid;
+  margin-bottom: 16px;
+  overflow: hidden;
+  border: 1px solid var(--support-line);
   border-radius: 10px;
-  background: var(--amber-soft);
+  background: var(--support-panel);
 }
-.notice[data-tone="danger"] { border-color: var(--red); background: var(--red-soft); }
-.notice[data-tone="info"] { border-color: var(--accent); background: var(--accent-soft); }
-.notice[data-tone="success"] { border-color: var(--green); background: var(--green-soft); }
+.notice {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr);
+  align-items: start;
+  column-gap: 10px;
+  row-gap: 2px;
+  padding: 11px 14px;
+  border: 0;
+  border-bottom: 1px solid var(--support-line);
+  border-radius: 0;
+  background: transparent;
+}
+.notice:last-child { border-bottom: 0; }
+.notice::before {
+  grid-row: 1 / span 2;
+  width: 7px;
+  height: 7px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--amber);
+  content: "";
+}
+.notice[data-tone="danger"]::before { background: var(--red); }
+.notice[data-tone="info"]::before { background: var(--accent); }
+.notice[data-tone="success"]::before { background: var(--green); }
 .notice strong {
+  grid-column: 2;
   display: block;
   font-size: 12.5px;
   font-weight: 600;
@@ -404,6 +424,7 @@ code,
   line-height: 1.4;
 }
 .notice p {
+  grid-column: 2;
   margin: 3px 0 0;
   color: var(--muted);
   font-size: 12px;
@@ -453,22 +474,12 @@ code,
   min-height: 96px;
   padding: 16px 18px 18px;
   border: 1px solid var(--support-line);
-  border-radius: 14px;
+  border-radius: 10px;
   background: var(--support-panel);
   box-shadow: 0 1px 4px rgba(15, 23, 42, 0.04);
   transition: transform 120ms ease, box-shadow 120ms ease;
   overflow: hidden;
 }
-.stat::before {
-  content: "";
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 2px;
-  background: linear-gradient(90deg, var(--accent) 0%, transparent 100%);
-  opacity: 0;
-  transition: opacity 120ms ease;
-}
-.stat:hover::before { opacity: 1; }
 .stat:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(15, 23, 42, 0.06);
@@ -510,7 +521,7 @@ code,
   margin-bottom: 18px;
   padding: 14px 16px;
   border: 1px solid var(--support-line);
-  border-radius: 16px;
+  border-radius: 10px;
   background: var(--support-panel-soft);
   overflow-x: auto;
 }
@@ -523,13 +534,13 @@ code,
   min-width: 170px;
   padding: 10px 12px;
   border: 1px solid var(--support-line);
-  border-radius: 12px;
+  border-radius: 8px;
   background: var(--support-panel);
   box-shadow: 0 1px 3px rgba(0,0,0,0.02);
 }
 
 .funnel-step.is-human {
-  border-color: var(--accent);
+  border-color: var(--support-line);
   background: var(--accent-soft);
 }
 

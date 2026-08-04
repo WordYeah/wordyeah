@@ -22,9 +22,9 @@ _CSS = """
       --warning-bg: #fff5e8;
       --warning-ink: #875f23;
       --shadow: 0 24px 64px rgba(19, 23, 34, 0.09);
-      --radius-app: 24px;
-      --radius-panel: 18px;
-      --radius-control: 12px;
+      --radius-app: 20px;
+      --radius-panel: 12px;
+      --radius-control: 8px;
       --control-height: 48px;
     }
     :root[data-theme="dark"] {
@@ -96,7 +96,7 @@ _CSS = """
       align-content: space-between;
       gap: 24px;
       padding: 36px;
-      background: linear-gradient(180deg, var(--panel-soft) 0%, var(--panel) 100%);
+      background: var(--panel-soft);
       border-right: 1px solid var(--line);
     }
     .brand {
@@ -115,13 +115,13 @@ _CSS = """
       display: grid;
       place-items: center;
       border-radius: 11px;
-      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
+      background: var(--accent);
       color: #fff;
       font-family: var(--font-mono);
       font-size: 12px;
       font-weight: 800;
       letter-spacing: -0.04em;
-      box-shadow: 0 4px 14px rgba(84, 89, 216, 0.3);
+      box-shadow: none;
     }
     .intro-copy { display: grid; gap: 12px; max-width: 280px; }
     .eyebrow {
@@ -200,28 +200,28 @@ _CSS = """
       transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
     }
     input::placeholder { color: var(--quiet); }
-    input:hover { border-color: var(--accent); }
-    input:focus { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+    input:hover { border-color: var(--line-strong); }
+    input:focus { border-color: var(--line-strong); box-shadow: 0 0 0 4px var(--panel-soft); }
     button {
       width: 100%;
       height: var(--control-height);
       margin-top: 6px;
       border: 1px solid transparent;
       border-radius: var(--radius-control);
-      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
+      background: var(--accent);
       color: #fff;
       font-weight: 700;
       letter-spacing: -0.01em;
       cursor: pointer;
-      box-shadow: 0 4px 14px rgba(84, 89, 216, 0.25);
+      box-shadow: none;
       transition: background .15s ease, transform .15s ease, box-shadow .15s ease;
     }
-    button:hover { box-shadow: 0 8px 22px rgba(84, 89, 216, 0.35); transform: translateY(-1px); }
+    button:hover { background: var(--accent-strong); box-shadow: none; transform: translateY(-1px); }
     button:focus-visible { outline: none; box-shadow: 0 0 0 4px var(--accent-soft); }
     button:active { transform: translateY(1px); }
     .security { display: flex; align-items: flex-start; gap: 9px; margin: 18px 0 0; color: var(--quiet); font-size: 12px; line-height: 1.65; }
     .security svg { width: 15px; height: 15px; flex: 0 0 15px; margin-top: 2px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
-    .notice { margin: 0 0 18px; padding: 12px 14px; border: 1px solid var(--warning-ink); border-radius: var(--radius-control); background: var(--warning-bg); color: var(--warning-ink); font-size: 13px; line-height: 1.55; }
+    .notice { margin: 0 0 18px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--warning-bg); color: var(--warning-ink); font-size: 13px; line-height: 1.55; }
     .meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--quiet); font-size: 11px; }
     .meta code { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
     @media (max-width: 920px) {

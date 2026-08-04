@@ -129,7 +129,7 @@ class AvatarReviewApiTest(unittest.TestCase):
                 client.post("/review/login", json={"token": "review-secret"})
                 page = client.get("/review")
                 self.assertIn(
-                    f"https://cn.cravatar.com/avatar/{avatar_hash}?s=160&amp;d=404&amp;r=x",
+                    f"https://cn.cravatar.com/avatar/{avatar_hash}?s=160&amp;d=404",
                     page.text,
                 )
                 self.assertIn("img-src 'self' https://cn.cravatar.com", page.headers["Content-Security-Policy"])
