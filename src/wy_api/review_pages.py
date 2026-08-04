@@ -1124,7 +1124,7 @@ def render_review_page(
         '</div>'
     )
 
-    service_label = "Pipeline ready" if ctx.service_ready else "Pipeline blocked"
+    service_label = "Local scanner ready" if ctx.service_ready else "Local scanner blocked"
     service_tone = "success" if ctx.service_ready else "danger"
     service_notice = ""
     if not ctx.service_ready:
@@ -1155,7 +1155,7 @@ def render_review_page(
   </div>
   <div class="usage-tag">
     <span class="dot" style="background: {'var(--green)' if ctx.service_ready else 'var(--red)'};"></span>
-    {'流水线正常运行' if ctx.service_ready else '流水线受阻'}
+    {'本地扫描服务可用' if ctx.service_ready else '本地扫描服务受阻'}
   </div>
   <a class="usage-upgrade-btn" href="/review/health">检查系统健康</a>
 </div>

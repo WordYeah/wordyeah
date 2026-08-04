@@ -2985,7 +2985,7 @@ def render_review_workbench(
             <span class="theme-icon-sun">{_top_icon('sun')}</span>
             <span class="theme-icon-moon">{_top_icon('moon')}</span>
           </button>
-          <span class="topbar-icon" data-tone="{ready_tone}" title="{'AI 正常运行' if service_ready else 'AI 服务异常'}" aria-label="{'AI 正常运行' if service_ready else 'AI 服务异常'}">{_top_icon('spark')}</span>
+          <span class="topbar-icon" data-tone="{ready_tone}" title="{'本地扫描可用' if service_ready else '本地扫描异常'}" aria-label="{'本地扫描可用' if service_ready else '本地扫描异常'}">{_top_icon('spark')}</span>
           <a class="topbar-icon" href="/review/guide" title="审核说明" aria-label="审核说明">{_top_icon('help')}</a>
           <details class="account-menu">
             <summary><span class="reviewer-avatar">{escape(reviewer_id[:1].upper() or 'R')}</span><span>{escape(reviewer_id)}</span><span aria-hidden="true">⌄</span></summary>
@@ -3011,7 +3011,7 @@ def render_review_workbench(
             </div>
             <span class="status-dot-pill" data-tone="{ready_tone}">
               <span class="dot"></span>
-              {'服务可用' if service_ready else '服务受阻'}
+              {'本地扫描可用' if service_ready else '本地扫描受阻'}
             </span>
           </header>
 
