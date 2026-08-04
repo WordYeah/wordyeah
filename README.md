@@ -21,4 +21,6 @@ Cravatar action adapter. Neither is connected to production.
 
 ## 相关计划
 
-Linuxjoy 立项计划：`.omx/plans/2026-08-04-wordyeah-kickoff.md`
+Linuxjoy 立项计划：`../linuxjoy/.omx/plans/2026-08-04-wordyeah-kickoff.md`
+
+完整开发计划：`.omx/plans/2026-08-04-wordyeah-development.md`
