@@ -1,0 +1,269 @@
+openapi: 3.1.0
+info:
+  title: WordYeah Avatar Moderation API
+  version: 0.1.0
+  description: Local, fail-closed avatar moderation and review API.
+servers:
+  - url: http://127.0.0.1:18765
+security:
+  - bearerAuth: []
+paths:
+  /health/live:
+    get:
+      security: []
+      responses:
+        '200':
+          description: Process is alive.
+  /health/ready:
+    get:
+      security: []
+      responses:
+        '200':
+          description: Required database, configuration, and model are ready.
+        '503':
+          description: Service is alive but not ready.
+  /version:
+    get:
+      security: []
+      responses:
+        '200':
+          description: Build and schema versions.
+  /metrics:
+    get:
+      security: []
+      responses:
+        '200':
+          description: Low-cardinality service metrics.
+  /v1/moderate/image:
+    post:
+      summary: Moderate one local image payload.
+      description: Raw image bytes only; no remote URL fetch.
+      requestBody:
+        required: true
+        content:
+          image/jpeg: { schema: { type: string, format: binary } }
+          image/png: { schema: { type: string, format: binary } }
+          image/webp: { schema: { type: string, format: binary } }
+          image/gif: { schema: { type: string, format: binary } }
+          image/bmp: { schema: { type: string, format: binary } }
+      responses:
+        '200':
+          description: Moderation result.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ModerationResult' }
+        '400': { description: Invalid request. }
+        '401': { description: Missing or invalid API key. }
+        '413': { description: Body exceeds configured limit. }
+        '415': { description: Unsupported media type. }
+        '422': { description: Model or media processing error; fail closed. }
+        '503': { description: Model is not ready. }
+  /v1/jobs:
+    post:
+      summary: Enqueue a controlled local avatar job.
+      responses:
+        '202': { description: Job accepted. }
+        '400': { description: Invalid job. }
+        '401': { description: Missing or invalid API key. }
+        '429': { description: Queue or consumer limit reached. }
+  /v1/jobs/{job_id}:
+    get:
+      summary: Read job state.
+      parameters:
+        - $ref: '#/components/parameters/JobId'
+      responses:
+        '200': { description: Job state. }
+        '404': { description: Job not found. }
+  /v1/jobs/{job_id}/cancel:
+    post:
+      summary: Cancel a queued job.
+      parameters:
+        - $ref: '#/components/parameters/JobId'
+      responses:
+        '200': { description: Job cancelled or already terminal. }
+        '404': { description: Job not found. }
+  /review/items:
+    get:
+      summary: List pending avatar review items.
+      security:
+        - reviewerSession: []
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [pending, approved, rejected, held, all], default: pending }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 1000, default: 100 }
+        - name: decision_hint
+          in: query
+          schema: { type: string }
+      responses:
+        '200': { description: Review items. }
+        '401': { description: Reviewer session required. }
+  /review/login:
+    get:
+      security: []
+      responses:
+        '200': { description: Reviewer login page. }
+    post:
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties: { token: { type: string, minLength: 1 } }
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [token]
+              properties: { token: { type: string, minLength: 1 } }
+      responses:
+        '200': { description: Reviewer session created. }
+        '303': { description: Browser redirected to the review page. }
+        '401': { description: Invalid reviewer token. }
+        '429': { description: Login rate limit. }
+  /review:
+    get:
+      security:
+        - reviewerSession: []
+      responses:
+        '200': { description: Server-rendered review page. }
+        '401': { description: Reviewer session required. }
+  /review/items/{item_id}:
+    get:
+      security:
+        - reviewerSession: []
+      summary: Read one review item.
+      parameters:
+        - $ref: '#/components/parameters/ItemId'
+      responses:
+        '200': { description: Review item. }
+        '404': { description: Review item not found. }
+  /review/items/{item_id}/approve:
+    post:
+      summary: Approve one item.
+      security:
+        - reviewerSession: []
+      parameters:
+        - $ref: '#/components/parameters/ItemId'
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        $ref: '#/components/requestBodies/ReviewAction'
+      responses:
+        '200': { description: Review event recorded. }
+        '409': { description: Item was already decided. }
+  /review/items/{item_id}/reject:
+    post:
+      summary: Reject one item.
+      security:
+        - reviewerSession: []
+      parameters:
+        - $ref: '#/components/parameters/ItemId'
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        $ref: '#/components/requestBodies/ReviewAction'
+      responses:
+        '200': { description: Review event recorded. }
+        '409': { description: Item was already decided. }
+  /review/items/{item_id}/hold:
+    post:
+      summary: Hold one item.
+      security:
+        - reviewerSession: []
+      parameters:
+        - $ref: '#/components/parameters/ItemId'
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        $ref: '#/components/requestBodies/ReviewAction'
+      responses:
+        '200': { description: Review event recorded. }
+        '409': { description: Item was already decided. }
+  /review/items/{item_id}/retry:
+    post:
+      summary: Return a held or rejected item to pending.
+      security:
+        - reviewerSession: []
+      parameters:
+        - $ref: '#/components/parameters/ItemId'
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        $ref: '#/components/requestBodies/ReviewAction'
+      responses:
+        '200': { description: Review item returned to pending. }
+        '409': { description: Item version or state conflict. }
+  /review/items/{item_id}/media:
+    get:
+      summary: Read a controlled safe image preview.
+      security:
+        - reviewerSession: []
+      parameters:
+        - $ref: '#/components/parameters/ItemId'
+      responses:
+        '200': { description: Image preview. }
+        '404': { description: Missing or uncontrolled media. }
+        '415': { description: Unsafe or unsupported image. }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+    reviewerSession:
+      type: apiKey
+      in: cookie
+      name: wordyeah_review_session
+  parameters:
+    JobId:
+      name: job_id
+      in: path
+      required: true
+      schema: { type: string, minLength: 8, maxLength: 64 }
+    ItemId:
+      name: item_id
+      in: path
+      required: true
+      schema: { type: string, minLength: 8, maxLength: 64 }
+    CsrfToken:
+      name: X-CSRF-Token
+      in: header
+      required: true
+      schema: { type: string, minLength: 8, maxLength: 256 }
+  requestBodies:
+    ReviewAction:
+      required: false
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ReviewAction' }
+        application/x-www-form-urlencoded:
+          schema: { $ref: '#/components/schemas/ReviewAction' }
+  schemas:
+    Finding:
+      type: object
+      required: [category, label, source]
+      properties:
+        category: { type: string }
+        label: { type: string }
+        score: { type: [number, 'null'], minimum: 0, maximum: 1 }
+        source: { type: string }
+    ModerationResult:
+      type: object
+      required: [request_id, content_sha256, media_type, decision, reasons, findings]
+      properties:
+        request_id: { type: string }
+        content_sha256: { type: string, pattern: '^[a-f0-9]{64}$' }
+        media_type: { type: string, enum: [image] }
+        decision: { type: string, enum: [allow, block, review, error] }
+        reasons: { type: array, items: { type: string } }
+        findings: { type: array, items: { $ref: '#/components/schemas/Finding' } }
+        top_score: { type: [number, 'null'], minimum: 0, maximum: 1 }
+        model_versions: { type: object, additionalProperties: { type: string } }
+        elapsed_ms: { type: number, minimum: 0 }
+        error: { type: [string, 'null'] }
+    ReviewAction:
+      type: object
+      properties:
+        version: { type: integer, minimum: 1 }
+        note: { type: string, maxLength: 2000 }
+        csrf_token: { type: string }

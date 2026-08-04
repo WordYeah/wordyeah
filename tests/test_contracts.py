@@ -4,6 +4,7 @@ from tempfile import TemporaryDirectory
 import unittest
 
 from wy_core.contracts import Finding, ModerationResult, sha256_bytes
+from wy_core.config import load_policy_config
 from wy_core.metrics import evaluate_decisions
 from wy_core.policy import MediaPolicy
 from wy_media.falconsai import ImageScores
@@ -104,6 +105,47 @@ class ContractsTest(unittest.TestCase):
         self.assertEqual(first.to_dict(), second.to_dict())
         self.assertEqual(classifier.calls, 1)
         self.assertEqual(service.cache_hits, 1)
+
+    def test_policy_config_validates_thresholds_and_has_stable_version(self) -> None:
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "policy.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "version": 1,
+                        "profile": "avatar-default",
+                        "mode": "shadow",
+                        "enforce": False,
+                        "nsfw": {"review_threshold": 0.3, "block_threshold": 0.85},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            first = load_policy_config(path)
+            second = load_policy_config(path)
+        self.assertEqual(first.policy_version, second.policy_version)
+        self.assertEqual(first.media_policy.review_threshold, 0.3)
+
+    def test_policy_config_rejects_enforce_and_unknown_keys(self) -> None:
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "policy.json"
+            payload = {
+                "version": 1,
+                "profile": "avatar-default",
+                "mode": "shadow",
+                "enforce": False,
+                "nsfw": {"review_threshold": 0.3, "block_threshold": 0.85},
+                "unexpected": True,
+            }
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaises(ValueError):
+                load_policy_config(path)
+
+            payload.pop("unexpected")
+            payload["enforce"] = True
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaises(ValueError):
+                load_policy_config(path)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wordyeah.local/schemas/dataset-manifest.json",
+  "title": "WordYeah labelled media manifest entry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sample_id",
+    "content_sha256",
+    "local_ref",
+    "media_type",
+    "style",
+    "expected_decision",
+    "categories",
+    "source",
+    "license",
+    "reviewer_count",
+    "split",
+    "duplicate_group"
+  ],
+  "properties": {
+    "sample_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "content_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "local_ref": {
+      "type": "string",
+      "pattern": "^dataset://[^/].*$"
+    },
+    "media_type": {
+      "const": "image"
+    },
+    "style": {
+      "enum": ["real", "anime", "cartoon", "logo", "poster", "other"]
+    },
+    "expected_decision": {
+      "enum": ["allow", "review", "block"]
+    },
+    "categories": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "sexual_explicit",
+          "sexual_suggestive",
+          "violence_gore",
+          "hate_symbol",
+          "sensitive_term",
+          "political_person",
+          "political_symbol",
+          "political_text",
+          "ocr_text",
+          "model_disagreement",
+          "invalid_media"
+        ]
+      }
+    },
+    "source": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "license": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "reviewer_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "split": {
+      "enum": ["train", "calibration", "test"]
+    },
+    "duplicate_group": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "path": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Local-only input path; never copied to evaluation reports."
+    }
+  }
+}

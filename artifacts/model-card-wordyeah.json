@@ -1,0 +1,33 @@
+{
+  "model_id": "Falconsai/nsfw_image_detection",
+  "adapter": "src/wy_media/falconsai.py",
+  "license": "Apache-2.0 (declared by model card)",
+  "inference": {
+    "local_files_only": true,
+    "supported_media": ["JPEG", "PNG", "WEBP", "GIF", "BMP"],
+    "animated_media": "rejected_to_held_or_error",
+    "max_width": 4096,
+    "max_height": 4096,
+    "max_pixels": 16777216,
+    "max_frames": 1
+  },
+  "policy": {
+    "profile": "avatar-default",
+    "default_mode": "shadow",
+    "review_threshold": 0.3,
+    "block_threshold": 0.85,
+    "enforce_authorized": false
+  },
+  "evidence": {
+    "artifact": "artifacts/falconsai-benchmark.json",
+    "sample_count": 19,
+    "status": "development_smoke_only",
+    "real_avatar_corpus": false,
+    "production_approval": false
+  },
+  "limitations": [
+    "Vendor-reported training data and metrics are not independent WordYeah acceptance evidence.",
+    "Current smoke samples are generated safe fixtures plus a small public positive subset.",
+    "Real Cravatar-like samples and manual review are required before review or enforce thresholds are approved."
+  ]
+}

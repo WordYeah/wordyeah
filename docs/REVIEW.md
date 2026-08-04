@@ -1,23 +1,38 @@
-# wy-review 最小审核面板方案
+# wy-review 审核工作台
+
+完整的 AI 多级审核流水线、页面、交互、状态和数据合同见
+[`REVIEW_WORKBENCH.md`](REVIEW_WORKBENCH.md)。本文只记录当前头像 MVP 已实现的接口和安全边界。
+
+当前已实现 `/review/login`、`/review`、`/review/items` 及 approve/reject/hold/retry
+动作。审核 session 与 API key 分离，`WORDYEAH_REVIEWER_TOKEN` 和
+`WORDYEAH_REVIEW_SESSION_SECRET` 只从环境变量读取。
 
 ## 页面
 
-`/review` 只展示 `pending` 项，按创建时间排序，支持按 `media_type`、
-`decision_hint`、模型和分数筛选。每行展示：
+`/review` 是 AI Agent 优先的图像审核工作台，视觉结构按 Windsor 风格参考稿收敛：
+灰色页面背景中的白色圆角应用框、浅灰侧栏、顶部工作区栏、稀疏的状态标签和单行审核
+列表。主列表只保留人工决策所需的信息：受控缩略图、AI 建议、finding 摘要、审核状态
+和置信度，不把统计卡片和批量操作塞进同一屏。
 
-- 安全缩略图或受控媒体预览
-- content SHA-256、媒体类型和来源引用
-- 模型版本、分数和命中原因
-- `通过`、`拒绝`、`暂缓`、`重试`
-- 操作人、时间和审计记录
+交互逻辑：
+
+- 状态标签切换 `待审核`、`已留置`、`已处理` 和 `全部`；`已处理` 覆盖通过与拒绝。
+- 搜索框按 item ID、哈希、media ref、建议、策略和 finding 标签筛选；状态和风险下拉框
+  可组合使用。
+- 点击列表项打开单项证据视图；详情按“左侧 Configuration / 人工动作、右侧
+  Controlled media preview / Model finding summary / Content evidence”分栏。
+- 头像菜单、审核说明和操作记录使用折叠或下钻交互，默认不占用审核列表空间。
+- 详情页的 approve / reject / hold / retry 仍是人工动作；没有后端批量 API 时不显示
+ 伪造的批量完成结果。
 
 ## 安全边界
 
 - 只绑定 loopback/private network；不做公网匿名审核入口。
 - 页面鉴权与 API 鉴权分开配置，所有决策动作需要 reviewer 身份。
-- `media_ref` 只能指向 allowlisted 本地/私有对象，禁止浏览器直接访问任意路径或远程 URL。
-- 默认 SQLite 只存哈希、模型结果、状态和审计，不存原始图片；预览由后续受控媒体引用适配器提供。
+- `media_ref` 默认只指向 allowlisted 本地/私有对象；Cravatar 队列可使用严格校验的 `cravatar://<32 位 MD5>`，UI 仅拼接到 allowlisted `https://cn.cravatar.com/avatar/`。禁止浏览器访问调用方提供的任意远程 URL。
+- 默认 SQLite 只存哈希、模型结果、状态和审计，不存原始图片；图片预览只能通过 reviewer session 和 allowlisted `media://` 引用端点提供。
 - 错误和超时进入 `held`，不显示成 `allow`。
+- 人工动作仍然只在单项详情中提交，继续受 CSRF + optimistic version 保护。
 
 ## 最小动作 API
 
@@ -31,4 +46,5 @@ POST /review/items/{id}/retry
 ```
 
 所有动作写入 `review_events`，并保留 reviewer、时间、原始 decision hint
-和备注。面板尚未接入生产，也不会改变 Cravatar 状态。
+和备注。页面只绑定当前 `consumer_id` 的队列，不提供跨 consumer 查询；不会改变
+Cravatar 状态。

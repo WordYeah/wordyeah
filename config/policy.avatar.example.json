@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "profile": "avatar-default",
+  "mode": "shadow",
+  "enforce": false,
+  "nsfw": {
+    "review_threshold": 0.3,
+    "block_threshold": 0.85
+  },
+  "政治": {
+    "enabled": false,
+    "decision": "review"
+  }
+}

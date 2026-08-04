@@ -1,0 +1,41 @@
+{
+  "kind": "wordyeah_avatar_service_benchmark",
+  "model": "Falconsai/nsfw_image_detection",
+  "device": "cpu",
+  "fixture_count": 14,
+  "sample_count": 10,
+  "external_model_calls": false,
+  "paths": [
+    {
+      "path": "api-only-domain",
+      "sample_count": 10,
+      "errors": 0,
+      "p50_ms": 69.497,
+      "p95_ms": 847.549,
+      "p99_ms": 847.549,
+      "throughput_per_second": 6.803
+    },
+    {
+      "path": "api-plus-sqlite",
+      "sample_count": 10,
+      "errors": 0,
+      "p50_ms": 68.929,
+      "p95_ms": 76.084,
+      "p99_ms": 76.084,
+      "throughput_per_second": 14.164
+    },
+    {
+      "path": "api-plus-worker",
+      "sample_count": 10,
+      "errors": 0,
+      "p50_ms": 67.19,
+      "p95_ms": 77.02,
+      "p99_ms": 77.02,
+      "throughput_per_second": 14.499
+    }
+  ],
+  "api_result_runs": 10,
+  "worker_result_runs": 10,
+  "worker_pending_reviews": 0,
+  "max_rss_mb": 851.969
+}

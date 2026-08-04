@@ -1,8 +1,29 @@
 # WordYeah 立项状态
 
 - 名称：WordYeah（无言会语）
-- 阶段：隔离 PoC
-- 生产接入：未开始
+- 阶段：头像 MVP AI 多级审核与 Cravatar shadow canary 实施中
+- [CX] 已完成：P0 规格、头像 OpenAPI 草案、配置示例、验收门槛、第三方资产登记、SQLite schema、结果持久化、job lease、图片资源限制和审核 API/Web 页面
+- [CX] 已验证：真实 Uvicorn API 进程 `/health/live`、`/health/ready` 和本地模型预热
+- [CX] 已验证：真实图片 POST 返回本地 Falconsai 结果；独立 worker 处理持久 job 后状态为 `succeeded`
+- [CX] 已验证：审核登录、CSRF、consumer 隔离、审核事件、乐观锁冲突和结果持久化测试
+- [CX] 已验证：真实 Uvicorn 审核登录、review list、页面和 `media://` 安全预览 smoke
+- [CX] 已验证：真实畸形图片请求返回 `422/error`，结果持久化并进入 `held`，不进入 allow/pending
+- [CX] 已验证：14 个生成 smoke fixture 经新的解码边界和本地模型评测无 error；block recall 仍为 `SKIP_NO_EXPECTED_BLOCK`
+- [CX] 已实现：审核台 UI 已重新清理并按参考稿重建；队列首屏只显示 AI 未闭环的例外，使用浅灰侧栏、克制顶栏、104px 行式队列、低饱和状态标签，以及左证据右大图的单项详情；登录页和八个支持页已统一视觉，批量执行仍未接入
+- [CX] 已实现：P2 私有 corpus 工具链（manifest schema、导入、SHA-256/平均哈希去重、受控路径校验和分层门槛报告）；14 个生成 fixture 只能报告 `INCOMPLETE/SKIP`，不能作为头像准确率验收
+- [CX] 已记录：`artifacts/avatar-service-benchmark.json` 的本机 CPU 10 样本 API-only/API+SQLite/API+worker 基线；不是 M3/MPS 或真实头像准确率验收
+- [CX] 已实现：Cravatar 本地 shadow contract 默认关闭且只记录 metadata，不连接 WordPress
+- [CX] 已实现：schema v3 `review_attempts`、fast scan → AI 一审 → AI 二审 → 人工/自动决定路由、追加式 route event、Agent attempt API 和高置信度自动拒绝
+- [CX] 已实现：概览、审核队列、AI 任务、策略、质量、历史、健康、账户、指南共九个 reviewer session 页面；侧栏使用真实深链
+- [CX] 已实现：Cravatar CSV/JSON/JSONL 受控本地导入、hash/解码/去重、loopback shadow submit；始终 `mutates_avatar=false`
+- [CX] 已验证：Cravatar 生产只读快照确认真实队列为 `wp_cavalcade_jobs`；5 条 bypass-completed canary 本地复审均为 allow，样本量不足，不作为准确率通过
+- [CX] 已实现：审核队列紧凑列表、视觉网格、快速标记和显式批量模式；批量动作最多 50 项并逐项写审计事件
+- [CX] 已实现：`cravatar://<32 位 MD5>` 预览引用只拼接到 allowlisted `https://cn.cravatar.com/avatar/`，不接受任意远程图片 URL
+- [CX] 已记录：结构化原因标签、误报/漏报/模型分歧反馈、受控样本留存和区域标注的分阶段边界；标签与样本库尚未实现
+- [CX] 已验证：62 个 pytest、8 个 subtest、ruff、compileall、diff check 通过；真实浏览器完成登录、队列、详情、备注和留置动作，动作后全局数量正确更新；已保存 1440×900、1280×800、390×844 队列截图及桌面详情截图
+- [CX] 已完成 UI 细节复查：审核队列与八个支持页已统一导航、顶栏、间距、线条和组件样式；详情首屏可见图片与人工动作，历史表格长值已压缩显示，移动端导航收为单行横向滚动；结构化视觉复核 92/100
+- [CX] 未完成：高级视觉模型 provider/worker 实接、人工 retry 自动创建新模型 job、服务端 cursor 分页、抽检/仲裁执行、代表性头像准确率与大规模 shadow
+- 生产接入：只读 canary 已完成；未写回 WordPress/头像/队列
 - 外部审查 API：禁止
 - 首个接入方：Cravatar，使用独立适配器
 - 图片基线：Falconsai，需用代表性头像样本重新校准

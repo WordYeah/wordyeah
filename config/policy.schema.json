@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wordyeah.local/schema/policy-0.1.json",
+  "title": "WordYeah avatar policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "profile", "mode", "nsfw", "enforce"],
+  "properties": {
+    "version": { "const": 1 },
+    "profile": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "mode": { "enum": ["shadow", "review", "enforce"] },
+    "enforce": { "const": false },
+    "nsfw": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["review_threshold", "block_threshold"],
+      "properties": {
+        "review_threshold": { "type": "number", "minimum": 0, "maximum": 1 },
+        "block_threshold": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "政治": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "decision": { "const": "review" }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "mode": { "const": "enforce" } } },
+      "then": { "properties": { "mode": { "const": "enforce" } } }
+    }
+  ]
+}

@@ -10,14 +10,27 @@
 - `wy-review`：人工复核队列、页面边界和审核记录
 - `wy-cravatar`：Cravatar 接入适配器
 
-The current PoC includes a metadata-only SQLite review queue and a pure
-Cravatar action adapter. Neither is connected to production.
+The current MVP includes a metadata-only SQLite review queue, append-only AI
+attempts, a multi-page reviewer workbench, deterministic multi-stage routing,
+and a non-mutating Cravatar shadow importer. Production has only been sampled
+read-only; WordYeah does not write to WordPress, avatar state, or Cavalcade.
 
 ## 当前阶段
 
-立项基线与隔离 PoC。当前不连接 Cravatar 生产判定，不调用腾讯云或其他外部审查 API。
+头像 MVP P5 实施中：FastAPI 边界、SQLite WAL 元数据表、持久 job lease、本地 Falconsai worker 和审核页面已经接入开发链路。当前不连接 Cravatar 生产判定，不调用腾讯云或其他外部审查 API。
+配置启动会校验头像 policy；`enforce` 当前固定为 `false`。队列有单 consumer 深度上限，超限返回可重试的 429。
 
-审查结果统一为：`allow`、`block`、`review`、`error`。
+审查结果统一为：`allow`、`block`、`review`、`error`。头像接口只接收原始图片 bytes，不接受远程 URL。
+
+开发入口：
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -e '.[api,test]'
+PYTHONPATH=src .venv/bin/wordyeah-api
+```
+
+API 合同见 `docs/openapi-avatar-v1.yaml`；当前首版默认绑定 loopback。
 
 ## 相关计划
 

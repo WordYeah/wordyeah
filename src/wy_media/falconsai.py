@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from .image_safety import ImageLimits, decode_image
+
 
 @dataclass(frozen=True)
 class ImageScores:
@@ -22,9 +24,15 @@ class FalconsaiClassifier:
     model_id = "Falconsai/nsfw_image_detection"
     model_version = "Falconsai/nsfw_image_detection"
 
-    def __init__(self, model_path: str | Path | None = None, device: str = "auto") -> None:
+    def __init__(
+        self,
+        model_path: str | Path | None = None,
+        device: str = "auto",
+        limits: ImageLimits | None = None,
+    ) -> None:
         self.model_path = str(model_path or self.model_id)
         self.device_name = self._choose_device(device)
+        self.limits = limits or ImageLimits()
         self._processor: Any | None = None
         self._model: Any | None = None
 
@@ -55,13 +63,18 @@ class FalconsaiClassifier:
         ).eval()
         self._model.to(self.device_name)
 
-    def classify(self, image_bytes: bytes) -> ImageScores:
-        from io import BytesIO
+    @property
+    def ready(self) -> bool:
+        return self._processor is not None and self._model is not None
 
-        from PIL import Image
+    def warmup(self) -> None:
+        """Load local weights once during worker startup."""
 
         self._load()
-        image = Image.open(BytesIO(image_bytes)).convert("RGB")
+
+    def classify(self, image_bytes: bytes) -> ImageScores:
+        self._load()
+        image = decode_image(image_bytes, self.limits)
         inputs = self._processor(images=image, return_tensors="pt")
         inputs = {key: value.to(self.device_name) for key, value in inputs.items()}
 
