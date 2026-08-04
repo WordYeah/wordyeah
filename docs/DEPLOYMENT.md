@@ -20,6 +20,34 @@ complete temporary manifest and rename it atomically; the shadow runner never
 queries or updates the production database. Image paths remain relative to the
 controlled root and are re-hashed immediately before submission.
 
+The repository includes two bounded producer stages. The PHP stage runs under
+WordPress and performs one `SELECT`; it emits metadata-only JSONL to stdout.
+The collector accepts only the exact `https://cravatar.cn/avatar/<hash>` source,
+fetches through the allowlisted `cn.cravatar.com` image endpoint, checks byte,
+pixel and decode limits, and atomically publishes local images plus a manifest:
+
+```bash
+# Source host: read-only export. Installing/copying this script is a separate
+# production change and is not performed by the WordYeah repository.
+WORDYEAH_CRAVATAR_EXPORT_AFTER_ID=0 \
+WORDYEAH_CRAVATAR_EXPORT_LIMIT=500 \
+WORDYEAH_CRAVATAR_EXPORT_SINCE='2026-08-03 03:54:12' \
+wp --allow-root eval-file scripts/cravatar_cavalcade_export.php \
+  > /controlled-export/cravatar-jobs.jsonl
+
+# WordYeah host: local/CDN-read-only collection and atomic manifest publish.
+python scripts/cravatar_collect_export.py /controlled-export/cravatar-jobs.jsonl \
+  --root /var/lib/wordyeah/inbox/images \
+  --manifest /var/lib/wordyeah/inbox/cravatar-manifest.jsonl
+```
+
+Advance `WORDYEAH_CRAVATAR_EXPORT_AFTER_ID` only after collection reports zero
+failures and the shadow runner reports no failed records. If either stage has a
+failure, keep the previous ID and re-export the bounded range; durable source
+IDs make already completed rows duplicates rather than new submissions.
+Export/collection never marks a Cavalcade row and never changes avatar
+verification state.
+
 ## Staged installation
 
 ```bash

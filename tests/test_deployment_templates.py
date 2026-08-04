@@ -28,3 +28,13 @@ def test_shadow_service_template_is_loopback_non_mutating_and_disabled_by_defaul
     assert "enforce" not in service.lower()
     assert "WORDYEAH_ENDPOINT=http://127.0.0.1:8000" in environment
     assert "systemctl enable" not in service
+
+
+def test_cavalcade_exporter_is_bounded_and_read_only() -> None:
+    exporter = (ROOT / "scripts/cravatar_cavalcade_export.php").read_text(encoding="utf-8")
+    normalized = exporter.lower()
+    assert "select id, status, start, args" in normalized
+    assert "limit %d" in normalized
+    assert "mutates_avatar'  => false" in normalized
+    for mutation_method in ("->insert(", "->update(", "->delete(", "->replace(", "->query("):
+        assert mutation_method not in normalized

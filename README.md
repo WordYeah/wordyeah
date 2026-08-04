@@ -31,7 +31,7 @@ PYTHONPATH=src .venv/bin/wordyeah-api
 ```
 
 API 合同见 `docs/openapi-avatar-v1.yaml`；当前首版默认绑定 loopback。
-持续 shadow 的禁用式 systemd 模板与安装边界见 `docs/DEPLOYMENT.md`。
+持续 shadow 的只读 Cavalcade 导出器、本地受控采集器、禁用式 systemd 模板与安装边界见 `docs/DEPLOYMENT.md`。
 
 ## 相关计划
 

@@ -57,6 +57,13 @@ python scripts/cravatar_backlog_submit.py manifest.json \
 The submitter rechecks every content hash immediately before sending, accepts
 only loopback endpoints, and always reports `mutates_avatar=false`.
 
+For larger read-only exports, `scripts/cravatar_cavalcade_export.php` performs a
+bounded Cavalcade `SELECT` and emits metadata-only JSONL. The separate
+`scripts/cravatar_collect_export.py` collector only accepts the exact Cravatar
+public avatar path, validates downloaded image limits, and atomically publishes
+the controlled local manifest consumed by the incremental runner. Deployment
+commands and cursor advancement rules are in `docs/DEPLOYMENT.md`.
+
 ## Incremental shadow runner
 
 `wordyeah-cravatar` stores a source cursor, stable source IDs, failure records and a
