@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import html
+
 
 _CSS = """
     :root {
@@ -242,12 +244,31 @@ _CSS = """
 """
 
 
-def render_login_page(*, expired: bool = False) -> str:
+def render_login_page(
+    *,
+    expired: bool = False,
+    show_reviewer_id: bool = False,
+    default_reviewer_id: str = "",
+) -> str:
     notice = (
         '<div class="notice" role="alert">会话已过期，请重新登录。</div>'
         if expired
         else ""
     )
+    if show_reviewer_id:
+        reviewer_field = """
+          <div class="field">
+            <label for="reviewer_id">审核员 ID</label>
+            <input id="reviewer_id" type="text" name="reviewer_id" autocomplete="username" required autofocus>
+          </div>"""
+        token_autofocus = ""
+    else:
+        reviewer_field = (
+            '<input type="hidden" name="reviewer_id" value="'
+            + html.escape(default_reviewer_id, quote=True)
+            + '">'
+        )
+        token_autofocus = " autofocus"
     return f"""<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -284,9 +305,10 @@ def render_login_page(*, expired: bool = False) -> str:
         <p class="sub">使用审核令牌完成受控登录。</p>
         {notice}
         <form method="post" action="/review/login">
+          {reviewer_field}
           <div class="field">
             <label for="token">审核令牌</label>
-            <input id="token" type="password" name="token" autocomplete="current-password" required autofocus>
+            <input id="token" type="password" name="token" autocomplete="current-password" required{token_autofocus}>
           </div>
           <button type="submit">登录工作台</button>
         </form>

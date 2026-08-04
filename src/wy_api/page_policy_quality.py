@@ -59,6 +59,7 @@ CSS = r"""
 .pq-case-table{width:100%;border-collapse:collapse;font-size:12px}.pq-case-table caption{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .pq-case-table th,.pq-case-table td{padding:11px 9px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}.pq-case-table th{color:var(--quiet);font-size:10px;letter-spacing:.08em;text-transform:uppercase}.pq-case-table td:first-child{font-family:var(--mono)}
 .pq-verdict{display:inline-flex;padding:2px 7px;border:1px solid var(--line-strong);border-radius:99px;font-size:10px;font-weight:700}.pq-verdict[data-tone="danger"]{border-color:var(--red);color:var(--red)}.pq-verdict[data-tone="warning"]{border-color:var(--amber);color:var(--amber)}
+.pq-case-action{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}.pq-case-action button{min-height:28px;padding:4px 9px;border:1px solid var(--line-strong);border-radius:6px;background:var(--panel);color:var(--text);font:inherit;font-size:11px;font-weight:700;cursor:pointer}.pq-case-action button[value="block"]{color:var(--red)}.pq-case-action button:hover{border-color:var(--accent)}
 .pq-evidence-rail{grid-area:rail;padding-left:22px;border-left:1px solid var(--line)}
 .pq-evidence-rail section{padding:17px 0;border-top:1px solid var(--line)}.pq-evidence-rail section:first-child{padding-top:0;border-top:0}
 .pq-pair{display:grid;grid-template-columns:1fr auto;gap:6px 12px;margin:0}.pq-pair dt{color:var(--muted);font-size:12px}.pq-pair dd{margin:0;font-family:var(--mono);font-size:12px;font-weight:700}
@@ -195,10 +196,27 @@ def render_quality_body(data: object = None) -> str:
         check = item.get("review") or item.get("result") or item.get("复核结论") or "待复核"
         disagreement = item.get("disagreement") or item.get("difference") or item.get("分歧") or "—"
         verdict = item.get("verdict") or item.get("status") or item.get("结论") or "无需人工"
+        action_url = item.get("action_url")
+        csrf_token = item.get("csrf_token")
+        if action_url and csrf_token:
+            action_html = (
+                f'<form class="pq-case-action" method="post" action="{_e(action_url)}">'
+                f'<input type="hidden" name="csrf_token" value="{_e(csrf_token)}">'
+                '<button type="submit" name="decision" value="allow">通过</button>'
+                '<button type="submit" name="decision" value="block">拒绝</button></form>'
+            )
+        else:
+            action_html = ""
+        item_id = item.get("item_id")
+        case_html = (
+            f'<a href="/review?status=all&amp;view=focus&amp;focus={_e(item_id)}">{_e(case_id)}</a>'
+            if item_id
+            else _e(case_id)
+        )
         rows.append(
             '<tr>'
-            f'<td>{_e(case_id)}</td><td>{_e(ai)}</td><td>{_e(check)}</td><td>{_e(disagreement)}</td>'
-            f'<td><span class="pq-verdict" data-tone="{_tone(item.get("tone"))}">{_e(verdict)}</span></td></tr>'
+            f'<td>{case_html}</td><td>{_e(ai)}</td><td>{_e(check)}</td><td>{_e(disagreement)}</td>'
+            f'<td><span class="pq-verdict" data-tone="{_tone(item.get("tone"))}">{_e(verdict)}</span>{action_html}</td></tr>'
         )
     rows_html = "".join(rows) or '<tr><td colspan="5"><div class="pq-empty" role="status">SKIP · 未提供抽检样本。</div></td></tr>'
 

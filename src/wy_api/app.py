@@ -71,6 +71,7 @@ class ApiSettings:
     reviewer_token: str | None = None
     review_session_secret: str | None = None
     reviewer_id: str = "reviewer"
+    reviewer_credentials: tuple[tuple[str, str], ...] = ()
     local_review_no_auth: bool = False
     model_path: str | None = None
     device: str = "auto"
@@ -91,6 +92,29 @@ class ApiSettings:
             raise ValueError("WORDYEAH_MAX_QUEUE_DEPTH must be an integer") from exc
         if max_queue < 1:
             raise ValueError("WORDYEAH_MAX_QUEUE_DEPTH must be positive")
+        reviewer_credentials: tuple[tuple[str, str], ...] = ()
+        raw_reviewers = os.getenv("WORDYEAH_REVIEWERS_JSON", "").strip()
+        if raw_reviewers:
+            try:
+                parsed_reviewers = json.loads(raw_reviewers)
+            except json.JSONDecodeError as exc:
+                raise ValueError("WORDYEAH_REVIEWERS_JSON must be valid JSON") from exc
+            if not isinstance(parsed_reviewers, dict) or not parsed_reviewers:
+                raise ValueError("WORDYEAH_REVIEWERS_JSON must be a non-empty object")
+            normalized: list[tuple[str, str]] = []
+            for reviewer, token in parsed_reviewers.items():
+                if (
+                    not isinstance(reviewer, str)
+                    or not reviewer.strip()
+                    or len(reviewer) > 128
+                    or not isinstance(token, str)
+                    or len(token) < 16
+                ):
+                    raise ValueError(
+                        "WORDYEAH_REVIEWERS_JSON keys must be reviewer IDs and tokens at least 16 characters"
+                    )
+                normalized.append((reviewer, token))
+            reviewer_credentials = tuple(sorted(normalized))
         return cls(
             bind=os.getenv("WORDYEAH_BIND", "127.0.0.1"),
             database_path=os.getenv("WORDYEAH_DATABASE", "./var/wordyeah.sqlite3"),
@@ -108,6 +132,7 @@ class ApiSettings:
             reviewer_token=os.getenv("WORDYEAH_REVIEWER_TOKEN") or None,
             review_session_secret=os.getenv("WORDYEAH_REVIEW_SESSION_SECRET") or None,
             reviewer_id=os.getenv("WORDYEAH_REVIEWER_ID", "reviewer"),
+            reviewer_credentials=reviewer_credentials,
             local_review_no_auth=os.getenv("WORDYEAH_LOCAL_REVIEW_NO_AUTH", "").strip().lower()
             in {"1", "true", "yes", "on"},
             model_path=os.getenv("WORDYEAH_MEDIA_MODEL_PATH") or None,
@@ -281,10 +306,16 @@ def create_app(
             chunks.append(chunk)
         return b"".join(chunks)
 
-    if settings.reviewer_token is not None:
+    reviewer_credentials = dict(settings.reviewer_credentials)
+    if not reviewer_credentials and settings.reviewer_token is not None:
+        reviewer_credentials[settings.reviewer_id] = settings.reviewer_token
+    if reviewer_credentials:
+        credential_material = "\0".join(
+            f"{reviewer}\0{token}" for reviewer, token in sorted(reviewer_credentials.items())
+        )
         review_secret = hmac.new(
             (settings.review_session_secret or "wordyeah-review-session").encode("utf-8"),
-            settings.reviewer_token.encode("utf-8"),
+            credential_material.encode("utf-8"),
             hashlib.sha256,
         ).hexdigest()
     else:
@@ -326,12 +357,12 @@ def create_app(
     def _ip_hash(request: Request) -> str:
         return hashlib.sha256(_client_ip(request).encode("utf-8")).hexdigest()[:24]
 
-    def _issue_review_session() -> tuple[str, str]:
+    def _issue_review_session(reviewer_id: str) -> tuple[str, str]:
         if review_secret is None:
             raise HTTPException(status_code=503, detail="reviewer authentication is not configured")
         csrf_token = base64.urlsafe_b64encode(os.urandom(18)).decode("ascii").rstrip("=")
         expires = int(time.time()) + session_ttl_seconds
-        payload = f"{settings.reviewer_id}\x00{expires}\x00{csrf_token}".encode("utf-8")
+        payload = f"{reviewer_id}\x00{expires}\x00{csrf_token}".encode("utf-8")
         encoded = base64.urlsafe_b64encode(payload).decode("ascii").rstrip("=")
         signature = hmac.new(review_secret.encode("utf-8"), payload, hashlib.sha256).hexdigest()
         return f"{encoded}.{signature}", csrf_token
@@ -339,7 +370,7 @@ def create_app(
     def _read_review_session(request: Request) -> tuple[str, str]:
         if settings.local_review_no_auth:
             return settings.reviewer_id, local_review_csrf
-        if settings.reviewer_token is None or review_secret is None:
+        if not reviewer_credentials or review_secret is None:
             raise HTTPException(status_code=503, detail="reviewer authentication is not configured")
         value = request.cookies.get("wordyeah_review_session", "")
         try:
@@ -350,7 +381,7 @@ def create_app(
             if not hmac.compare_digest(signature, expected):
                 raise ValueError("invalid signature")
             reviewer, expires_text, csrf_token = payload.decode("utf-8").split("\x00", 2)
-            if reviewer != settings.reviewer_id or int(expires_text) < int(time.time()) or not csrf_token:
+            if reviewer not in reviewer_credentials or int(expires_text) < int(time.time()) or not csrf_token:
                 raise ValueError("expired session")
         except (ValueError, UnicodeError, base64.binascii.Error) as exc:
             raise HTTPException(status_code=401, detail="reviewer session required") from exc
@@ -846,7 +877,7 @@ def create_app(
     async def review_login_page(request: Request) -> HTMLResponse | RedirectResponse:
         if settings.local_review_no_auth:
             return RedirectResponse("/review/overview", status_code=303)
-        if settings.reviewer_token is None:
+        if not reviewer_credentials:
             raise HTTPException(status_code=503, detail="reviewer authentication is not configured")
         try:
             require_reviewer(request)
@@ -855,7 +886,15 @@ def create_app(
                 raise
         else:
             return RedirectResponse("/review", status_code=303)
-        return HTMLResponse(render_login_page(expired=request.query_params.get("expired") == "1"))
+        return HTMLResponse(
+            render_login_page(
+                expired=request.query_params.get("expired") == "1",
+                show_reviewer_id=len(reviewer_credentials) > 1,
+                default_reviewer_id=next(iter(reviewer_credentials))
+                if len(reviewer_credentials) == 1
+                else "",
+            )
+        )
 
     @app.post("/review/login", response_model=None)
     async def review_login(request: Request) -> JSONResponse | RedirectResponse:
@@ -865,7 +904,7 @@ def create_app(
             return JSONResponse(
                 {"status": "ok", "reviewer": settings.reviewer_id, "csrf_token": local_review_csrf}
             )
-        if settings.reviewer_token is None or review_secret is None:
+        if not reviewer_credentials or review_secret is None:
             raise HTTPException(status_code=503, detail="reviewer authentication is not configured")
         now = time.time()
         ip = _client_ip(request)
@@ -880,21 +919,30 @@ def create_app(
             if content_type == "application/json":
                 payload = json.loads(body.decode("utf-8"))
                 token = payload.get("token") if isinstance(payload, dict) else None
+                reviewer_id = payload.get("reviewer_id") if isinstance(payload, dict) else None
             else:
                 values = parse_qs(body.decode("utf-8"), keep_blank_values=True)
                 token = values.get("token", [None])[-1]
+                reviewer_id = values.get("reviewer_id", [None])[-1]
         except (UnicodeDecodeError, ValueError) as exc:
             raise HTTPException(status_code=400, detail="invalid login payload") from exc
-        if not isinstance(token, str) or not hmac.compare_digest(token, settings.reviewer_token):
+        if reviewer_id in (None, "") and len(reviewer_credentials) == 1:
+            reviewer_id = next(iter(reviewer_credentials))
+        expected_token = reviewer_credentials.get(reviewer_id) if isinstance(reviewer_id, str) else None
+        if (
+            expected_token is None
+            or not isinstance(token, str)
+            or not hmac.compare_digest(token, expected_token)
+        ):
             recent.append(now)
             failed_logins[ip] = recent
             raise HTTPException(status_code=401, detail="invalid reviewer token")
         failed_logins.pop(ip, None)
-        cookie, csrf_token = _issue_review_session()
+        cookie, csrf_token = _issue_review_session(reviewer_id)
         if "text/html" in request.headers.get("Accept", ""):
             response: JSONResponse | RedirectResponse = RedirectResponse("/review", status_code=303)
         else:
-            response = JSONResponse({"status": "ok", "reviewer": settings.reviewer_id, "csrf_token": csrf_token})
+            response = JSONResponse({"status": "ok", "reviewer": reviewer_id, "csrf_token": csrf_token})
         response.set_cookie(
             "wordyeah_review_session",
             cookie,
@@ -1033,7 +1081,12 @@ def create_app(
             headers={"Cache-Control": "public, max-age=86400, immutable"},
         )
 
-    def _support_page_data(page: str, consumer_id: str) -> dict[str, object]:
+    def _support_page_data(
+        page: str,
+        consumer_id: str,
+        reviewer_id: str | None = None,
+        csrf_token: str | None = None,
+    ) -> dict[str, object]:
         items = _consumer_items(consumer_id)
         consumer_item_ids = {item.item_id for item in items}
         attempts = [
@@ -1180,9 +1233,16 @@ def create_app(
                     sample_id=sample.sample_id,
                     consumer_id=consumer_id,
                 )
+                reviewer_ids = {decision.reviewer_id for decision in decisions}
+                action_url = None
+                if sample.status == "awaiting_reviews" and reviewer_id not in reviewer_ids:
+                    action_url = f"/review/quality/samples/{sample.sample_id}/decision"
+                elif sample.arbitration_required and reviewer_id not in reviewer_ids:
+                    action_url = f"/review/quality/samples/{sample.sample_id}/arbitrate"
                 sample_rows.append(
                     {
                         "id": sample.sample_id[:12],
+                        "item_id": sample.item_id,
                         "model": sample.reason,
                         "review": " / ".join(
                             f"{decision.reviewer_id}:{decision.decision}"
@@ -1191,6 +1251,8 @@ def create_app(
                         "disagreement": "是" if sample.arbitration_required else "否",
                         "verdict": sample.final_decision or sample.status,
                         "tone": "warning" if sample.arbitration_required else "quiet",
+                        "action_url": action_url,
+                        "csrf_token": csrf_token,
                     }
                 )
             return {
@@ -1233,7 +1295,7 @@ def create_app(
         if page == "account":
             return {
                 "exceptions": common_exceptions,
-                "profile": {"Reviewer": settings.reviewer_id, "Consumer": consumer_id, "角色": "reviewer"},
+                "profile": {"Reviewer": reviewer_id or settings.reviewer_id, "Consumer": consumer_id, "角色": "reviewer"},
                 "sessions": {"columns": ("会话", "有效期", "权限范围"), "rows": (("当前浏览器", "1 小时", consumer_id),)},
             }
         return {
@@ -1259,7 +1321,7 @@ def create_app(
         return HTMLResponse(
             render_review_page(
                 page,
-                _support_page_data(page, workspace.workspace_id),
+                _support_page_data(page, workspace.workspace_id, reviewer, csrf_token),
                 context=ReviewPageContext(
                     consumer_id=workspace.workspace_id,
                     reviewer_id=reviewer,
@@ -1357,8 +1419,10 @@ def create_app(
             ) from exc
         return JSONResponse(asdict(sample), status_code=201)
 
-    @app.post("/review/quality/samples/{sample_id}/decision")
-    async def decide_quality_sample(sample_id: str, request: Request) -> JSONResponse:
+    @app.post("/review/quality/samples/{sample_id}/decision", response_model=None)
+    async def decide_quality_sample(
+        sample_id: str, request: Request
+    ) -> JSONResponse | RedirectResponse:
         reviewer, session_csrf = require_reviewer(request)
         workspace = _review_workspace(request)
         payload = await read_review_payload(request)
@@ -1379,10 +1443,14 @@ def create_app(
                 status_code=409 if isinstance(exc, QualityConflictError) else 400,
                 detail=str(exc),
             ) from exc
+        if "text/html" in request.headers.get("Accept", ""):
+            return RedirectResponse("/review/quality", status_code=303)
         return JSONResponse(asdict(sample))
 
-    @app.post("/review/quality/samples/{sample_id}/arbitrate")
-    async def arbitrate_quality_sample(sample_id: str, request: Request) -> JSONResponse:
+    @app.post("/review/quality/samples/{sample_id}/arbitrate", response_model=None)
+    async def arbitrate_quality_sample(
+        sample_id: str, request: Request
+    ) -> JSONResponse | RedirectResponse:
         reviewer, session_csrf = require_reviewer(request)
         workspace = _review_workspace(request)
         payload = await read_review_payload(request)
@@ -1403,6 +1471,8 @@ def create_app(
                 status_code=409 if isinstance(exc, QualityConflictError) else 400,
                 detail=str(exc),
             ) from exc
+        if "text/html" in request.headers.get("Accept", ""):
+            return RedirectResponse("/review/quality", status_code=303)
         return JSONResponse(asdict(sample))
 
     @app.get("/review/history", response_class=HTMLResponse, response_model=None)
