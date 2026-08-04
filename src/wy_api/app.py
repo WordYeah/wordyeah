@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import hashlib
 import hmac
@@ -7,6 +8,7 @@ import os
 import time
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit
@@ -16,8 +18,10 @@ from wy_core.contracts import ModerationResult
 from wy_core.result_store import ResultStore
 from wy_jobs.store import JobStore
 from wy_media.falconsai import FalconsaiClassifier
+from wy_media.g2a import G2AConfig, G2AVisionProvider
 from wy_media.image_safety import ImageLimits, decode_image
 from wy_media.service import MediaModerationService
+from wy_media.vision_provider import AdvancedVisionProvider, VisionProviderError, VisionReviewRequest
 from wy_review.store import ReviewConflictError, ReviewStore
 from wy_review.attempt_store import AttemptConflictError, ReviewAttemptStore
 from wy_review.router import ReviewRouter
@@ -60,6 +64,7 @@ class ApiSettings:
     reviewer_token: str | None = None
     review_session_secret: str | None = None
     reviewer_id: str = "reviewer"
+    local_review_no_auth: bool = False
     model_path: str | None = None
     device: str = "auto"
 
@@ -96,6 +101,8 @@ class ApiSettings:
             reviewer_token=os.getenv("WORDYEAH_REVIEWER_TOKEN") or None,
             review_session_secret=os.getenv("WORDYEAH_REVIEW_SESSION_SECRET") or None,
             reviewer_id=os.getenv("WORDYEAH_REVIEWER_ID", "reviewer"),
+            local_review_no_auth=os.getenv("WORDYEAH_LOCAL_REVIEW_NO_AUTH", "").strip().lower()
+            in {"1", "true", "yes", "on"},
             model_path=os.getenv("WORDYEAH_MEDIA_MODEL_PATH") or None,
             device=os.getenv("WORDYEAH_DEVICE", "auto"),
         )
@@ -148,6 +155,7 @@ def create_app(
     attempt_store: ReviewAttemptStore | None = None,
     job_store: JobStore | None = None,
     result_store: ResultStore | None = None,
+    advanced_vision_provider: AdvancedVisionProvider | None = None,
 ):
     """Create the avatar API without loading a model at import time."""
 
@@ -164,6 +172,8 @@ def create_app(
     settings = settings or ApiSettings.from_env()
     if settings.bind not in {"127.0.0.1", "::1", "localhost"} and settings.api_key is None:
         raise ValueError("non-loopback bind requires WORDYEAH_API_KEY")
+    if settings.local_review_no_auth and settings.bind not in {"127.0.0.1", "::1", "localhost"}:
+        raise ValueError("WORDYEAH_LOCAL_REVIEW_NO_AUTH is only allowed on a loopback bind")
     startup_error: str | None = None
     if service is None:
         try:
@@ -176,6 +186,7 @@ def create_app(
     review_router = ReviewRouter()
     job_store = job_store or JobStore(settings.database_path)
     result_store = result_store or ResultStore(settings.database_path)
+    advanced_vision_provider = advanced_vision_provider or G2AVisionProvider(G2AConfig.from_env())
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -201,6 +212,7 @@ def create_app(
     app.state.review_router = review_router
     app.state.job_store = job_store
     app.state.result_store = result_store
+    app.state.advanced_vision_provider = advanced_vision_provider
     app.state.ready = False
     app.state.ready_error = None
 
@@ -254,6 +266,7 @@ def create_app(
         review_secret = None
     failed_logins: dict[str, list[float]] = {}
     session_ttl_seconds = 3600
+    local_review_csrf = base64.urlsafe_b64encode(os.urandom(18)).decode("ascii").rstrip("=")
 
     def _store_review_preview(image_bytes: bytes, content_sha256: str) -> str:
         """Write a bounded, normalized reviewer preview outside SQLite."""
@@ -299,6 +312,8 @@ def create_app(
         return f"{encoded}.{signature}", csrf_token
 
     def _read_review_session(request: Request) -> tuple[str, str]:
+        if settings.local_review_no_auth:
+            return settings.reviewer_id, local_review_csrf
         if settings.reviewer_token is None or review_secret is None:
             raise HTTPException(status_code=503, detail="reviewer authentication is not configured")
         value = request.cookies.get("wordyeah_review_session", "")
@@ -550,7 +565,11 @@ def create_app(
 
     @app.get("/health/live")
     async def health_live() -> dict[str, object]:
-        return {"status": "ok", "external_model_calls": False}
+        return {
+            "status": "ok",
+            "external_model_calls": bool(advanced_vision_provider.enabled),
+            "advanced_vision_provider": advanced_vision_provider.provider_name,
+        }
 
     @app.get("/favicon.ico", include_in_schema=False, response_class=Response)
     async def favicon() -> Response:
@@ -563,7 +582,15 @@ def create_app(
                 status_code=503,
                 detail={"status": "not_ready", "error": app.state.ready_error},
             )
-        return {"status": "ready", "model_ready": service.ready, "database": "ok"}
+        return {
+            "status": "ready",
+            "model_ready": service.ready,
+            "database": "ok",
+            "advanced_vision": {
+                "provider": advanced_vision_provider.provider_name,
+                "enabled": bool(advanced_vision_provider.enabled),
+            },
+        }
 
     @app.get("/version")
     async def version() -> dict[str, object]:
@@ -677,6 +704,8 @@ def create_app(
 
     @app.get("/review/login", response_class=HTMLResponse, response_model=None)
     async def review_login_page(request: Request) -> HTMLResponse | RedirectResponse:
+        if settings.local_review_no_auth:
+            return RedirectResponse("/review/overview", status_code=303)
         if settings.reviewer_token is None:
             raise HTTPException(status_code=503, detail="reviewer authentication is not configured")
         try:
@@ -690,6 +719,12 @@ def create_app(
 
     @app.post("/review/login", response_model=None)
     async def review_login(request: Request) -> JSONResponse | RedirectResponse:
+        if settings.local_review_no_auth:
+            if "text/html" in request.headers.get("Accept", ""):
+                return RedirectResponse("/review/overview", status_code=303)
+            return JSONResponse(
+                {"status": "ok", "reviewer": settings.reviewer_id, "csrf_token": local_review_csrf}
+            )
         if settings.reviewer_token is None or review_secret is None:
             raise HTTPException(status_code=503, detail="reviewer authentication is not configured")
         now = time.time()
@@ -735,6 +770,10 @@ def create_app(
         _, session_csrf = require_reviewer(request)
         payload = await read_review_payload(request)
         require_csrf(request, payload.get("csrf_token"), session_csrf)
+        if settings.local_review_no_auth:
+            if "text/html" in request.headers.get("Accept", ""):
+                return RedirectResponse("/review", status_code=303)
+            return JSONResponse({"status": "ok"})
         if "text/html" in request.headers.get("Accept", ""):
             response: JSONResponse | RedirectResponse = RedirectResponse("/review/login", status_code=303)
         else:
@@ -804,8 +843,9 @@ def create_app(
         pending = [item for item in items if item.status == "pending"]
         held = [item for item in items if item.status == "held"]
         human = [item for item in pending if item.stage == "human_required"]
+        active_items = [item for item in items if item.status in {"pending", "held"}]
         stage_counts: dict[str, int] = {}
-        for item in items:
+        for item in active_items:
             stage_counts[item.stage] = stage_counts.get(item.stage, 0) + 1
         failed_attempts = [attempt for attempt in attempts if attempt.status == "failed"]
         common_exceptions: list[dict[str, str]] = []
@@ -823,11 +863,63 @@ def create_app(
             {"label": "模型失败", "value": len(failed_attempts), "detail": "追加式 attempt 记录"},
         ]
         if page == "overview":
+            today = datetime.now(timezone.utc).date()
+            days = [today - timedelta(days=offset) for offset in range(13, -1, -1)]
+            incoming_by_day = {day.isoformat(): 0 for day in days}
+            decided_by_day = {day.isoformat(): 0 for day in days}
+            for item in items:
+                day_key = item.created_at[:10]
+                if day_key in incoming_by_day:
+                    incoming_by_day[day_key] += 1
+            for event in events:
+                day_key = event.created_at[:10]
+                if day_key in decided_by_day and event.action in {"approve", "reject", "blacklist"}:
+                    decided_by_day[day_key] += 1
+            status_labels = (
+                ("待处理", "pending"),
+                ("已通过", "approved"),
+                ("已拒绝", "rejected"),
+                ("留置", "held"),
+            )
+            status_counts = {
+                label: sum(item.status == status for item in items)
+                for label, status in status_labels
+            }
+            finalized_count = status_counts["已通过"] + status_counts["已拒绝"]
+            incoming_14d = sum(incoming_by_day.values())
             return {
                 "exceptions": common_exceptions,
                 "metrics": metrics,
+                "overview_metrics": (
+                    {"label": "审核总量", "value": len(items), "detail": "当前工作区"},
+                    {"label": "14 天入队", "value": incoming_14d, "detail": "按创建时间统计"},
+                    {
+                        "label": "通过率",
+                        "value": f"{status_counts['已通过'] * 100 / finalized_count:.1f}%" if finalized_count else "—",
+                        "detail": f"{finalized_count} 条已有最终结论",
+                    },
+                    {"label": "人工待审", "value": len(human), "detail": "AI 二审后仍不确定"},
+                ),
+                "volume_series": [
+                    {
+                        "label": f"{day.month}/{day.day}",
+                        "incoming": incoming_by_day[day.isoformat()],
+                        "decided": decided_by_day[day.isoformat()],
+                    }
+                    for day in days
+                ],
+                "decision_distribution": [
+                    {"label": label, "value": status_counts[label]}
+                    for label, _ in status_labels
+                ],
                 "pipeline": [
-                    {"title": stage, "detail": f"{count} 条", "meta": "live"}
+                    {
+                        "stage": stage,
+                        "count": count,
+                        "title": stage,
+                        "detail": f"{count} 个待处理",
+                        "meta": "live",
+                    }
                     for stage, count in sorted(stage_counts.items())
                 ],
             }
@@ -843,25 +935,38 @@ def create_app(
             }
         if page == "policies":
             config = review_router.config
+            policy_version = getattr(service, "policy_version", "policy-default")
+            policy_rows = review_store.connection.execute(
+                "SELECT policy_version, profile, created_at FROM policy_versions ORDER BY created_at DESC LIMIT 20"
+            ).fetchall()
+            current_policy_row = next(
+                (row for row in policy_rows if row["policy_version"] == policy_version),
+                None,
+            )
             return {
                 "exceptions": common_exceptions,
-                "current_policy": {
-                    "profile": settings.policy_profile,
-                    "fast scan 放行风险阈值": config.allow_threshold,
-                    "fast scan 拒绝风险阈值": config.reject_threshold,
-                    "AI 一审最低置信度": config.vision_review_1_min_confidence,
-                    "AI 二审最低置信度": config.vision_review_2_min_confidence,
-                    "单阶段最大 attempt": config.max_attempts_per_stage,
-                },
-                "routes": {
-                    "columns": ("来源", "条件", "去向"),
-                    "rows": (
-                        ("fast_scan", "边界或低置信度", "vision_review_1"),
-                        ("vision_review_1", "低置信度或分歧", "vision_review_2"),
-                        ("vision_review_2", "低置信度或分歧", "human_required"),
-                    ),
-                },
-                "versions": [],
+                "policy_version": policy_version,
+                "effective_at": current_policy_row["created_at"] if current_policy_row else "未写入版本账本",
+                "thresholds": (
+                    {"label": "fast scan 放行风险阈值", "value": config.allow_threshold, "detail": "低于该值自动放行"},
+                    {"label": "fast scan 拒绝风险阈值", "value": config.reject_threshold, "detail": "高于该值进入拒绝路径"},
+                    {"label": "AI 一审最低置信度", "value": config.vision_review_1_min_confidence, "detail": "不足时升级二审"},
+                    {"label": "AI 二审最低置信度", "value": config.vision_review_2_min_confidence, "detail": "不足时交人工复核"},
+                    {"label": "单阶段最大 attempt", "value": config.max_attempts_per_stage, "detail": "超过后停止自动重试"},
+                ),
+                "routes": (
+                    {"stage": "fast_scan", "condition": "边界或低置信度", "target": "vision_review_1"},
+                    {"stage": "vision_review_1", "condition": "低置信度或模型分歧", "target": "vision_review_2"},
+                    {"stage": "vision_review_2", "condition": "低置信度或模型分歧", "target": "human_required"},
+                ),
+                "versions": [
+                    {
+                        "date": row["created_at"],
+                        "version": row["policy_version"],
+                        "detail": f"profile={row['profile']}",
+                    }
+                    for row in policy_rows
+                ],
             }
         if page == "quality":
             samples = [item for item in items if item.quality_sample]
@@ -1076,6 +1181,102 @@ def create_app(
         except OSError as exc:
             raise HTTPException(status_code=404, detail="media preview is unavailable") from exc
         return path
+
+    @app.post("/v1/review/items/{item_id}/advanced-vision")
+    async def run_advanced_vision(item_id: str, request: Request) -> JSONResponse:
+        """Run the configured advanced provider for the router-selected vision stage."""
+        require_api_access(request)
+        try:
+            item = review_store.get(item_id, consumer_id=settings.consumer_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="review item not found") from exc
+
+        attempts = attempt_store.list_attempts(item_id)
+        categories = tuple(
+            sorted(
+                {
+                    str(finding.get("category"))
+                    for attempt in attempts
+                    for finding in attempt.findings
+                    if finding.get("category")
+                }
+            )
+        )
+        route = review_router.route(attempts, risk_score=item.top_score, categories=categories)
+        stage = route.next_stage
+        if stage not in {"vision_review_1", "vision_review_2"}:
+            raise HTTPException(status_code=409, detail=f"advanced vision is not required for stage {route.state}")
+        if not advanced_vision_provider.enabled:
+            raise HTTPException(status_code=503, detail="advanced vision provider is disabled")
+
+        path = _safe_media_path(item.media_ref)
+        try:
+            image_bytes = path.read_bytes()
+            decode_image(
+                image_bytes,
+                ImageLimits(
+                    max_bytes=settings.max_body_bytes,
+                    max_width=settings.max_image_width,
+                    max_height=settings.max_image_height,
+                    max_pixels=settings.max_image_pixels,
+                    max_frames=settings.max_image_frames,
+                ),
+            )
+        except (OSError, ValueError) as exc:
+            raise HTTPException(status_code=415, detail="media is not a supported safe image") from exc
+
+        attempt_number = attempt_store.next_attempt_number(item_id, stage)
+        request_id = request.headers.get("X-Request-ID") or item.request_id or f"{item_id}:{stage}:{attempt_number}"
+        started = time.perf_counter()
+        try:
+            conclusion = await asyncio.to_thread(
+                advanced_vision_provider.review,
+                VisionReviewRequest(
+                    image_bytes=image_bytes,
+                    media_type="image/jpeg",
+                    request_id=request_id,
+                    categories=categories,
+                    context=f"consumer={item.consumer_id}; policy={item.policy_version}",
+                ),
+            )
+        except VisionProviderError as exc:
+            elapsed_ms = (time.perf_counter() - started) * 1000
+            attempt = attempt_store.append_attempt(
+                item_id=item_id,
+                stage=stage,
+                attempt_number=attempt_number,
+                actor_type="agent",
+                provider=advanced_vision_provider.provider_name,
+                model_id=advanced_vision_provider.model_id or None,
+                model_version=None,
+                prompt_version=None,
+                decision="error",
+                confidence=None,
+                reasons=(exc.kind.value,),
+                status="failed",
+                elapsed_ms=elapsed_ms,
+                error=str(exc),
+            )
+            next_route = _route_item(item_id, risk_score=item.top_score)
+            status_code = 503 if exc.kind.value in {"disabled", "configuration", "authentication"} else 502
+            return JSONResponse(
+                {"attempt": attempt.to_dict(), "route": next_route.__dict__, "error": exc.to_dict()},
+                status_code=status_code,
+            )
+
+        elapsed_ms = (time.perf_counter() - started) * 1000
+        payload = conclusion.to_attempt_payload(stage=stage, attempt_number=attempt_number)
+        attempt = attempt_store.append_attempt(
+            item_id=item_id,
+            actor_type="agent",
+            elapsed_ms=elapsed_ms,
+            **payload,
+        )
+        next_route = _route_item(item_id, risk_score=item.top_score)
+        return JSONResponse(
+            {"attempt": attempt.to_dict(), "route": next_route.__dict__, "item": review_store.get(item_id).to_dict()},
+            status_code=201,
+        )
 
     @app.get("/review/items/{item_id}/media")
     async def review_media(item_id: str, request: Request) -> FileResponse:

@@ -74,6 +74,27 @@ class ReviewPagesTest(unittest.TestCase):
         self.assertNotIn("SQLite WAL", health)
         self.assertNotIn("Worker Lease", health)
 
+    def test_overview_uses_supplied_counts_without_duplicate_page_heading_or_demo_values(self) -> None:
+        overview = render_overview_page(
+            {
+                "overview_metrics": [
+                    {"label": "审核总量", "value": 16, "detail": "当前工作区"},
+                    {"label": "通过率", "value": "0.0%", "detail": "1 条已有最终结论"},
+                ],
+                "volume_series": [{"label": "8/4", "incoming": 16, "decided": 1}],
+                "decision_distribution": [
+                    {"label": "待处理", "value": 14},
+                    {"label": "已拒绝", "value": 1},
+                    {"label": "留置", "value": 1},
+                ],
+            }
+        )
+        self.assertIn(">16</strong>", overview)
+        self.assertIn("0.0%", overview)
+        self.assertNotIn("12,840", overview)
+        self.assertNotIn("94.80%", overview)
+        self.assertNotIn("<h2>运营概览</h2>", overview)
+
     def test_tables_render_rows_and_empty_state(self) -> None:
         page = render_agents_page(
             {

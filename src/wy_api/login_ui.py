@@ -16,15 +16,15 @@ _CSS = """
       --panel: #ffffff;
       --panel-soft: #f7f8fb;
       --canvas: #f1f3f7;
-      --accent: #5459d8;
-      --accent-strong: #4348c7;
-      --accent-soft: #eef0ff;
+      --accent: #5f63df;
+      --accent-strong: #4f52c9;
+      --accent-soft: rgba(95, 99, 223, 0.1);
       --warning-bg: #fff5e8;
       --warning-ink: #875f23;
-      --shadow: 0 24px 64px rgba(19, 23, 34, 0.09);
-      --radius-app: 20px;
-      --radius-panel: 12px;
-      --radius-control: 8px;
+      --shadow: 0 32px 80px rgba(19, 23, 34, 0.12);
+      --radius-app: 24px;
+      --radius-panel: 14px;
+      --radius-control: 10px;
       --control-height: 48px;
     }
     :root[data-theme="dark"] {
@@ -37,12 +37,12 @@ _CSS = """
       --panel: #16181f;
       --panel-soft: #1c1f2b;
       --canvas: #0b0c0e;
-      --accent: #6c72f4;
-      --accent-strong: #5a60e0;
-      --accent-soft: rgba(108, 114, 244, 0.16);
+      --accent: #6f74ff;
+      --accent-strong: #5c61e6;
+      --accent-soft: rgba(111, 116, 255, 0.16);
       --warning-bg: rgba(217, 142, 50, 0.14);
       --warning-ink: #d98e32;
-      --shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
+      --shadow: 0 32px 80px rgba(0, 0, 0, 0.55);
     }
     @media (prefers-color-scheme: dark) {
       :root:not([data-theme="light"]) {

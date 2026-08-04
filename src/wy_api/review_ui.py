@@ -322,9 +322,14 @@ button, a { -webkit-tap-highlight-color: transparent; }
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 12px 10px 0;
-  border-top: 1px solid var(--line);
+  padding: 10px 8px;
+  border-radius: var(--radius-control);
   cursor: pointer;
+  user-select: none;
+  transition: background 140ms ease;
+}
+.consumer-switcher:hover {
+  background: var(--panel-soft);
 }
 
 .consumer-avatar {
@@ -360,6 +365,324 @@ button, a { -webkit-tap-highlight-color: transparent; }
   margin-left: auto;
   color: var(--quiet);
   font-size: 13px;
+}
+
+/* Usage Limits Widget in Side-Nav (Windsor Style) */
+.usage-widget {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border-radius: var(--radius-card);
+  background: var(--panel-soft);
+  border: 1px solid var(--line);
+  margin-top: auto;
+}
+.usage-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.usage-header .usage-icon {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 6px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.usage-header .usage-icon svg { width: 14px; height: 14px; stroke-width: 2; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; }
+.usage-header .usage-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text);
+}
+.usage-gear-btn {
+  margin-left: auto;
+  border: 0;
+  background: transparent;
+  color: var(--quiet);
+  padding: 2px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+.usage-gear-btn:hover { color: var(--text); background: var(--panel-muted); }
+.usage-gear-btn svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+.usage-subtitle {
+  margin: 0;
+  font-size: 11px;
+  color: var(--quiet);
+}
+.usage-progress-box {
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+  margin: 2px 0;
+}
+.usage-progress-bar {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent) 0%, #818cf8 100%);
+  transition: width 300ms ease;
+}
+.usage-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--muted);
+}
+.usage-count strong {
+  color: var(--text);
+  font-weight: 700;
+}
+.usage-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  color: var(--quiet);
+}
+.usage-tag .dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--quiet);
+}
+.usage-upgrade-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 30px;
+  margin-top: 4px;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--line-strong);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 11.5px;
+  font-weight: 600;
+  text-decoration: none;
+  box-shadow: var(--shadow-sm);
+  transition: all 140ms ease;
+}
+.usage-upgrade-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* Consumer Dropdown Popover (Windsor Multi-Account) */
+.consumer-popover-wrapper {
+  position: relative;
+  width: 100%;
+}
+.consumer-popover-wrapper summary {
+  list-style: none;
+  outline: none;
+}
+.consumer-popover-wrapper summary::-webkit-details-marker {
+  display: none;
+}
+.consumer-popover-menu {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  width: 240px;
+  padding: 8px;
+  border-radius: var(--radius-panel);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-overlay);
+  z-index: 100;
+  display: grid;
+  gap: 6px;
+  animation: popoverFadeIn 160ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes popoverFadeIn {
+  from { opacity: 0; transform: translateY(6px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.consumer-popover-header {
+  padding: 6px 8px 6px;
+  border-bottom: 1px solid var(--line);
+  font-size: 11.5px;
+  color: var(--muted);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.consumer-popover-list {
+  display: grid;
+  gap: 2px;
+}
+.consumer-popover-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: var(--radius-control);
+  font-size: 12px;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+.consumer-popover-item:hover {
+  background: var(--panel-soft);
+}
+.consumer-popover-item.is-active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+.consumer-popover-item .drag-dots {
+  color: var(--quiet);
+  font-size: 11px;
+  letter-spacing: -2px;
+}
+.consumer-popover-item .item-info {
+  display: grid;
+  min-width: 0;
+}
+.consumer-popover-item .item-info small {
+  color: var(--quiet);
+  font-size: 10.5px;
+  font-weight: 400;
+}
+.consumer-popover-item .check-icon {
+  margin-left: auto;
+  color: var(--accent);
+  font-weight: 700;
+}
+.consumer-popover-actions {
+  display: grid;
+  gap: 2px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+}
+.popover-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+.popover-action-btn:hover { background: var(--panel-soft); }
+.popover-action-btn.logout-btn { color: var(--red); }
+.popover-action-btn.logout-btn:hover { background: var(--red-soft); }
+
+/* Floating Bottom-Right Notification Toast (Windsor Toast) */
+.floating-task-toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 18px;
+  border-radius: var(--radius-panel);
+  background: #11131e;
+  color: #ffffff;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-family: var(--font);
+  animation: toastSlideUp 240ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes toastSlideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.toast-progress-ring {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 32px;
+}
+.toast-progress-ring svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+.toast-progress-ring .circle-bg {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.15);
+  stroke-width: 3.5;
+}
+.toast-progress-ring .circle-fill {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  transition: stroke-dasharray 300ms ease;
+}
+.toast-progress-ring span {
+  position: absolute;
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #ffffff;
+}
+.toast-info {
+  display: grid;
+  gap: 2px;
+}
+.toast-info strong {
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.toast-info small {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 11px;
+}
+.toast-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 8px;
+}
+.toast-btn-text {
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+.toast-btn-text:hover { color: #ffffff; background: rgba(255, 255, 255, 0.1); }
+
+/* Code & Replacement Tag Pills (Windsor Code Chips) */
+.code-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(95, 99, 223, 0.08);
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-weight: 500;
+  border: 1px solid rgba(95, 99, 223, 0.16);
+  line-height: 1.3;
 }
 
 .app-main {
@@ -2562,12 +2885,70 @@ def render_review_workbench(
       </nav>
       </div>
 
-      <div class="nav-spacer"></div>
-      <div class="consumer-switcher">
-        <span class="consumer-avatar">{escape(consumer_id[:1].upper() or 'W')}</span>
-        <span class="consumer-copy"><strong>{escape(consumer_id)}</strong><small>Consumer workspace</small></span>
-        <span class="chevron" aria-hidden="true">⌄</span>
+      <div class="usage-widget">
+        <div class="usage-header">
+          <span class="usage-icon">{_top_icon("spark")}</span>
+          <span class="usage-title">审查引擎状态</span>
+          <button class="usage-gear-btn" type="button" title="查看策略与健康状态" onclick="location.href='/review/health'">
+            {_top_icon("settings")}
+          </button>
+        </div>
+        <p class="usage-subtitle">人工待办积压与队列容量</p>
+        <div class="usage-progress-box">
+          <div class="usage-progress-bar" style="width: {min(100, max(5, int(pending_count / 1000 * 100)))}%;"></div>
+        </div>
+        <div class="usage-meta">
+          <span class="usage-count">积压 <strong>{pending_count}</strong> / 1000 上限</span>
+        </div>
+        <div class="usage-tag">
+          <span class="dot" style="background: {'var(--green)' if service_ready else 'var(--red)'};"></span>
+          {'流水线正常运行' if service_ready else '流水线受阻'}
+        </div>
+        <a class="usage-upgrade-btn" href="/review/health">检查系统健康</a>
       </div>
+
+      <div class="nav-spacer"></div>
+      <details class="consumer-popover-wrapper">
+        <summary class="consumer-switcher">
+          <span class="consumer-avatar">{escape(consumer_id[:1].upper() or 'W')}</span>
+          <span class="consumer-copy"><strong>{escape(consumer_id)}</strong><small>Consumer workspace</small></span>
+          <span class="chevron" aria-hidden="true">⌄</span>
+        </summary>
+        <div class="consumer-popover-menu">
+          <div class="consumer-popover-header">Reviewer: {escape(reviewer_id)}</div>
+          <div class="consumer-popover-list">
+            <div class="consumer-popover-item is-active">
+              <span class="drag-dots">⋮⋮</span>
+              <div class="item-info">
+                <strong>{escape(consumer_id)} Workspace</strong>
+                <small>Standard Plan</small>
+              </div>
+              <span class="check-icon">{_top_icon("check")}</span>
+            </div>
+            <div class="consumer-popover-item" onclick="location.href='/review/account'">
+              <span class="drag-dots">⋮⋮</span>
+              <div class="item-info">
+                <strong>Test Account</strong>
+                <small>Free Plan</small>
+              </div>
+            </div>
+            <div class="consumer-popover-item" onclick="location.href='/review/account'">
+              <span class="drag-dots">⋮⋮</span>
+              <div class="item-info">
+                <strong>WordPress Store</strong>
+                <small>Free Plan</small>
+              </div>
+            </div>
+          </div>
+          <div class="consumer-popover-actions">
+            <a class="popover-action-btn" href="/review/account">+ Create Account</a>
+            <form method="post" action="/review/logout">
+              <input type="hidden" name="csrf_token" value="{escape(csrf_token)}">
+              <button class="popover-action-btn logout-btn" type="submit">Log out</button>
+            </form>
+          </div>
+        </div>
+      </details>
     </aside>
 
     <div class="app-main">
@@ -2681,6 +3062,415 @@ def render_review_workbench(
         </section>
         '''}
       </main>
+    </div>
+  </div>
+  <div class="floating-task-toast" id="task-toast">
+    <div class="toast-progress-ring">
+      <svg viewBox="0 0 36 36"><path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/><path class="circle-fill" stroke-dasharray="14, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/></svg>
+      <span>14%</span>
+    </div>
+    <div class="toast-info">
+      <strong>AI Pipeline Syncing...</strong>
+      <small>Do not close your browser tab</small>
+    </div>
+    <div class="toast-actions">
+      <button class="toast-btn-text" type="button" onclick="document.getElementById('task-toast').style.display='none'">Hide</button>
+    </div>
+  </div>
+  <script src="/review/assets/workbench.js" defer></script>
+</body>
+</html>"""
+
+
+@dataclass(frozen=True)
+class ReviewQueueItem:
+    item: ReviewItem
+    lane: str
+    risk_band: str
+    confidence: float | None
+    model_split: float | None
+    focused: bool
+
+
+@dataclass(frozen=True)
+class ReviewSummary:
+    queue_items: tuple[ReviewQueueItem, ...]
+    lane_items: dict[str, tuple[ReviewQueueItem, ...]]
+    risk_counts: Counter[str]
+    metrics: dict[str, float | int]
+    total_items: int
+    pending_items: int
+    held_items: int
+    reviewed_items: int
+    divergence_items: int
+    focus_item: ReviewItem | None
+    focus_events: tuple[ReviewEvent, ...]
+    recent_events: tuple[ReviewEvent, ...]
+
+
+def render_review_workbench(
+    *,
+    items: Iterable[ReviewItem],
+    events: Iterable[ReviewEvent],
+    csrf_token: str,
+    consumer_id: str,
+    reviewer_id: str = "Reviewer",
+    policy_profile: str,
+    service_ready: bool,
+    service_error: str | None,
+    focus_item_id: str | None = None,
+    metrics: dict[str, float | int] | None = None,
+    search_query: str = "",
+    status_filter: str = "pending",
+    risk_filter: str = "all",
+    view_mode: str = "list",
+    batch_mode: bool = False,
+    batch_result: str = "",
+) -> str:
+    all_items = list(items)
+    view_value = view_mode if view_mode in {"list", "grid", "focus"} else "list"
+    filtered_items = _filter_items(
+        all_items,
+        search_query=search_query,
+        status_filter=status_filter,
+        risk_filter=risk_filter,
+    )
+    if view_value == "focus" and not focus_item_id and filtered_items:
+        focus_item_id = filtered_items[0].item_id
+    item_list = filtered_items
+    if focus_item_id:
+        item_list = all_items
+    pending_count = sum(1 for item in all_items if _requires_human_review(item))
+    held_count = sum(1 for item in all_items if item.status == "held")
+    reviewed_count = sum(1 for item in all_items if item.status in {"approved", "rejected"})
+    total_count = len(all_items)
+    event_list = list(events)
+    summary = _summarise(
+        item_list,
+        event_list,
+        focus_item_id=focus_item_id,
+        metrics=metrics or {},
+    )
+    current_ts = datetime.now(timezone.utc)
+    page_title = "WordYeah · 图像审核"
+    ready_tone = "ready" if service_ready else "danger"
+    status_value = _status_filter_value(status_filter)
+    risk_value = _risk_filter_value(risk_filter)
+    queue_cards = "".join(
+        _review_card(
+            view,
+            href=_review_href(
+                status=status_filter,
+                risk=risk_filter,
+                query=search_query,
+                view="focus",
+                focus=view.item.item_id,
+            ),
+            batch_mode=batch_mode,
+        )
+        for view in summary.queue_items
+    )
+    if not queue_cards:
+        queue_cards = (
+            '<div class="empty-state">'
+            "<strong>当前没有需要人工接手的例外项</strong>"
+            "AI Agent 已自动处理常规项目；新的异常、低置信度或分歧内容会出现在这里。"
+            "</div>"
+        )
+
+    detail_html = ""
+    if focus_item_id:
+        focus_ids = [item.item_id for item in filtered_items]
+        try:
+            focus_index = focus_ids.index(focus_item_id)
+        except ValueError:
+            focus_index = -1
+        previous_id = focus_ids[focus_index - 1] if focus_index > 0 else None
+        next_id = focus_ids[focus_index + 1] if 0 <= focus_index < len(focus_ids) - 1 else None
+        detail_html = _detail_panel(
+            summary.focus_item,
+            summary.focus_events,
+            csrf_token,
+            current_ts,
+            previous_href=_review_href(status=status_filter, risk=risk_filter, query=search_query, view="focus", focus=previous_id) if previous_id else None,
+            next_href=_review_href(status=status_filter, risk=risk_filter, query=search_query, view="focus", focus=next_id) if next_id else None,
+            close_href=_review_href(status=status_filter, risk=risk_filter, query=search_query, view="list"),
+        )
+
+    queue_list = f'<div class="queue-list" data-view="{escape(view_value if view_value != "focus" else "list")}">{queue_cards}</div>'
+    if batch_mode:
+        queue_body = f'''
+        <form class="batch-form" method="post" action="/review/batch" data-batch-form>
+          <input type="hidden" name="csrf_token" value="{escape(csrf_token)}">
+          <input type="hidden" name="return_to" value="{escape(_review_href(status=status_filter, risk=risk_filter, query=search_query, view=view_value, batch=True))}">
+          <div class="batch-bar">
+            <label class="batch-summary"><input type="checkbox" data-select-all> <strong><span data-selected-count>0</span> 项已选</strong><span>单次最多 50 项，后端逐项写审计事件</span></label>
+            <div class="batch-actions">
+              <button type="submit" name="action" value="approve">批量通过</button>
+              <button type="submit" name="action" value="reject">批量替换默认头像</button>
+              <button type="submit" name="action" value="blacklist">批量加入黑名单</button>
+              <button type="submit" name="action" value="hold">批量留置</button>
+            </div>
+          </div>
+          {queue_list}
+        </form>'''
+    else:
+        queue_body = queue_list
+
+    active_tab = {
+        "pending": "pending",
+        "held": "held",
+        "approved": "reviewed",
+        "rejected": "reviewed",
+        "reviewed": "reviewed",
+        "all": "all",
+    }.get(status_value, "pending")
+    return f"""<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <title>{escape(page_title)}</title>
+  {THEME_INIT_JS}
+  <style>{CSS}</style>
+</head>
+<body>
+  <a class="skip-link" href="#review-queue">跳到待审核图片</a>
+  <div class="app-frame">
+    <aside class="side-nav" aria-label="审核导航">
+      <a class="brand" href="/review/overview" aria-label="WordYeah 图像审核">
+        <span class="brand-mark">wy</span><span>wordyeah</span>
+      </a>
+
+      <div class="nav-scroll">
+      <nav class="nav-section" aria-label="工作区">
+        <p class="nav-label">Workspace</p>
+        <a class="nav-item" href="/review/overview">
+          <span class="nav-icon" aria-hidden="true">{_nav_icon("overview")}</span><span>概览</span>
+        </a>
+        <a class="nav-item is-active" href="/review#review-queue" aria-current="page">
+          <span class="nav-icon" aria-hidden="true">{_nav_icon("queue")}</span>
+          <span>审核队列</span><span class="nav-count">{pending_count}</span>
+        </a>
+        <a class="nav-item" href="/review/agents">
+          <span class="nav-icon" aria-hidden="true">{_nav_icon("agents")}</span><span>AI 任务</span>
+        </a>
+        <a class="nav-item" href="/review/history">
+          <span class="nav-icon" aria-hidden="true">{_nav_icon("log")}</span><span>操作记录</span>
+        </a>
+      </nav>
+
+      <nav class="nav-section" aria-label="设置">
+        <p class="nav-label">Settings</p>
+        <a class="nav-item" href="/review/policies">
+          <span class="nav-icon" aria-hidden="true">{_nav_icon("policy")}</span><span>审核策略</span>
+        </a>
+        <a class="nav-item" href="/review/quality">
+          <span class="nav-icon" aria-hidden="true">{_nav_icon("quality")}</span><span>质量与仲裁</span>
+        </a>
+        <a class="nav-item" href="/review/health">
+          <span class="nav-icon" aria-hidden="true">{_nav_icon("health")}</span><span>系统健康</span>
+        </a>
+        <a class="nav-item" href="/review/account">
+          <span class="nav-icon" aria-hidden="true">{_nav_icon("account")}</span><span>账户</span>
+        </a>
+        <a class="nav-item" href="/review/guide">
+          <span class="nav-icon" aria-hidden="true">{_nav_icon("guide")}</span><span>审核说明</span>
+        </a>
+      </nav>
+      </div>
+
+      <div class="usage-widget">
+        <div class="usage-header">
+          <span class="usage-icon">{_top_icon("spark")}</span>
+          <span class="usage-title">审查引擎状态</span>
+          <button class="usage-gear-btn" type="button" title="查看策略与健康状态" onclick="location.href='/review/health'">
+            {_top_icon("settings")}
+          </button>
+        </div>
+        <p class="usage-subtitle">人工待办积压与队列容量</p>
+        <div class="usage-progress-box">
+          <div class="usage-progress-bar" style="width: {min(100, max(5, int(pending_count / 1000 * 100)))}%;"></div>
+        </div>
+        <div class="usage-meta">
+          <span class="usage-count">积压 <strong>{pending_count}</strong> / 1000 上限</span>
+        </div>
+        <div class="usage-tag">
+          <span class="dot" style="background: {'var(--green)' if service_ready else 'var(--red)'};"></span>
+          {'流水线正常运行' if service_ready else '流水线受阻'}
+        </div>
+        <a class="usage-upgrade-btn" href="/review/health">检查系统健康</a>
+      </div>
+
+      <div class="nav-spacer"></div>
+      <details class="consumer-popover-wrapper">
+        <summary class="consumer-switcher">
+          <span class="consumer-avatar">{escape(consumer_id[:1].upper() or 'W')}</span>
+          <span class="consumer-copy"><strong>{escape(consumer_id)}</strong><small>Consumer workspace</small></span>
+          <span class="chevron" aria-hidden="true">⌄</span>
+        </summary>
+        <div class="consumer-popover-menu">
+          <div class="consumer-popover-header">Reviewer: {escape(reviewer_id)}</div>
+          <div class="consumer-popover-list">
+            <div class="consumer-popover-item is-active">
+              <span class="drag-dots">⋮⋮</span>
+              <div class="item-info">
+                <strong>{escape(consumer_id)} Workspace</strong>
+                <small>Standard Plan</small>
+              </div>
+              <span class="check-icon">{_top_icon("check")}</span>
+            </div>
+            <div class="consumer-popover-item" onclick="location.href='/review/account'">
+              <span class="drag-dots">⋮⋮</span>
+              <div class="item-info">
+                <strong>Test Account</strong>
+                <small>Free Plan</small>
+              </div>
+            </div>
+            <div class="consumer-popover-item" onclick="location.href='/review/account'">
+              <span class="drag-dots">⋮⋮</span>
+              <div class="item-info">
+                <strong>WordPress Store</strong>
+                <small>Free Plan</small>
+              </div>
+            </div>
+          </div>
+          <div class="consumer-popover-actions">
+            <a class="popover-action-btn" href="/review/account">+ Create Account</a>
+            <form method="post" action="/review/logout">
+              <input type="hidden" name="csrf_token" value="{escape(csrf_token)}">
+              <button class="popover-action-btn logout-btn" type="submit">Log out</button>
+            </form>
+          </div>
+        </div>
+      </details>
+    </aside>
+
+    <div class="app-main">
+      <header class="topbar">
+        <div class="toolbar-title">
+          <nav class="topbar-breadcrumbs" aria-label="面包屑">
+            <a href="/review/overview">WordYeah</a>
+            <span class="divider" aria-hidden="true">/</span>
+            {f'<a href="/review#review-queue">审核队列</a><span class="divider" aria-hidden="true">/</span><span class="current-crumb">{escape(summary.focus_item.item_id[:12])}</span>' if focus_item_id and summary.focus_item else '<span class="current-crumb">审核队列</span>'}
+          </nav>
+        </div>
+        <div class="toolbar-actions">
+          <button class="theme-toggle-btn" type="button" data-action="toggle-layout" title="切换全宽/盒装居中" aria-label="切换全宽/盒装居中">
+            {_top_icon('layout')}
+          </button>
+          <button class="theme-toggle-btn" type="button" data-action="toggle-theme" title="切换深色/浅色模式" aria-label="切换深色/浅色模式">
+            <span class="theme-icon-sun">{_top_icon('sun')}</span>
+            <span class="theme-icon-moon">{_top_icon('moon')}</span>
+          </button>
+          <span class="topbar-icon" data-tone="{ready_tone}" title="{'AI 正常运行' if service_ready else 'AI 服务异常'}" aria-label="{'AI 正常运行' if service_ready else 'AI 服务异常'}">{_top_icon('spark')}</span>
+          <a class="topbar-icon" href="/review/guide" title="审核说明" aria-label="审核说明">{_top_icon('help')}</a>
+          <details class="account-menu">
+            <summary><span class="reviewer-avatar">{escape(reviewer_id[:1].upper() or 'R')}</span><span>{escape(reviewer_id)}</span><span aria-hidden="true">⌄</span></summary>
+            <div class="account-popover">
+              <p>{escape(consumer_id)} · 受限审核会话</p>
+              <form class="toolbar-logout" method="post" action="/review/logout">
+                <input type="hidden" name="csrf_token" value="{escape(csrf_token)}">
+                <button type="submit">退出审核台</button>
+              </form>
+            </div>
+          </details>
+        </div>
+      </header>
+
+      <main class="shell{' shell-focus' if focus_item_id else ''}" id="main-workbench">
+        {f'''
+        {detail_html}
+        ''' if focus_item_id else f'''
+        <section class="queue-section is-primary" id="review-queue" aria-labelledby="queue-title">
+          <header class="support-hero">
+            <div class="support-hero-left">
+              <div><h1 id="queue-title">审核队列</h1><p class="queue-intro">人工例外 {pending_count} · AI 已处理 {reviewed_count}</p></div>
+            </div>
+            <span class="status-dot-pill" data-tone="{ready_tone}">
+              <span class="dot"></span>
+              {'Pipeline Active' if service_ready else 'Pipeline Blocked'}
+            </span>
+          </header>
+
+          <div class="control-dock">
+            <nav class="page-tabs" aria-label="审核状态">
+              <a class="{'is-active' if active_tab == 'pending' else ''}" href="{escape(_review_href(status='pending', risk=risk_filter, query=search_query, view=view_value, batch=batch_mode))}#review-queue">待审核 <span>{pending_count}</span></a>
+              <a class="{'is-active' if active_tab == 'held' else ''}" href="{escape(_review_href(status='held', risk=risk_filter, query=search_query, view=view_value, batch=batch_mode))}#review-queue">已留置 <span>{held_count}</span></a>
+              <a class="{'is-active' if active_tab == 'reviewed' else ''}" href="{escape(_review_href(status='reviewed', risk=risk_filter, query=search_query, view=view_value, batch=batch_mode))}#review-queue">已处理 <span>{reviewed_count}</span></a>
+              <a class="{'is-active' if active_tab == 'all' else ''}" href="{escape(_review_href(status='all', risk=risk_filter, query=search_query, view=view_value, batch=batch_mode))}#review-queue">全部 <span>{total_count}</span></a>
+            </nav>
+
+            <div class="control-row">
+              <form class="filter-bar" method="get" action="/review">
+                <input type="hidden" name="status" value="{escape(status_value)}">
+                <input type="hidden" name="view" value="{escape(view_value if view_value != 'focus' else 'list')}">
+                {'<input type="hidden" name="batch" value="1">' if batch_mode else ''}
+                <div class="search-box">
+                  {_top_icon("search")}
+                  <input name="q" type="search" value="{escape(search_query)}" placeholder="搜索 ID / 内容...">
+                  <kbd class="search-kbd">/</kbd>
+                </div>
+                <select class="select-pill" name="risk" onchange="this.form.submit()">
+                  {_filter_option("all", "全部风险", risk_value)}
+                  {_filter_option("low", "低风险", risk_value)}
+                  {_filter_option("guarded", "需确认", risk_value)}
+                  {_filter_option("elevated", "高风险", risk_value)}
+                  {_filter_option("critical", "严重风险", risk_value)}
+                </select>
+              </form>
+              <div class="control-actions">
+                <nav class="view-switch" aria-label="队列视图">
+                  <a class="{'is-active' if view_value == 'grid' else ''}" href="{escape(_review_href(status=status_filter, risk=risk_filter, query=search_query, view='grid', batch=batch_mode))}" title="视觉网格">{_top_icon('grid')}<span>网格</span></a>
+                  <a class="{'is-active' if view_value == 'list' else ''}" href="{escape(_review_href(status=status_filter, risk=risk_filter, query=search_query, view='list', batch=batch_mode))}" title="紧凑列表">{_top_icon('list')}<span>列表</span></a>
+                  <a class="{'is-active' if view_value == 'focus' else ''}" href="{escape(_review_href(status=status_filter, risk=risk_filter, query=search_query, view='focus'))}" title="沉浸标记">{_top_icon('zap')}<span>沉浸</span></a>
+                </nav>
+              <details class="keyboard-help-popover">
+                <summary class="keyboard-help-btn" title="查看键盘快捷键说明">{_top_icon('keyboard')}<span>快捷键说明</span></summary>
+                <div class="keyboard-popover-content">
+                  <strong>极速审核快捷键</strong>
+                  <ul>
+                    <li><span>通过 (Approve)</span><kbd>A</kbd></li>
+                    <li><span>拒绝 (Reject)</span><kbd>R</kbd></li>
+                    <li><span>留置 (Hold)</span><kbd>H</kbd></li>
+                    <li><span>重试 (Retry)</span><kbd>X</kbd></li>
+                    <li><span>切换卡片</span><kbd>J</kbd> / <kbd>K</kbd> / <kbd>↑</kbd> / <kbd>↓</kbd></li>
+                    <li><span>放大预览</span><kbd>Space</kbd></li>
+                    <li><span>搜索框</span><kbd>/</kbd></li>
+                    <li><span>关闭弹窗</span><kbd>Esc</kbd></li>
+                  </ul>
+                </div>
+              </details>
+              <a class="batch-toggle{' is-active' if batch_mode else ''}" href="{escape(_review_href(status=status_filter, risk=risk_filter, query=search_query, view=view_value if view_value != 'focus' else 'list', batch=not batch_mode))}">{'退出批量模式' if batch_mode else '批量模式'}</a>
+              </div>
+            </div>
+          </div>
+
+          <div class="queue-tools">
+            <span class="filtered-count">当前显示 {len(filtered_items)} 项</span>
+            <span class="queue-tool-note">按风险筛选后进入单项审核，或开启批量模式集中处理。</span>
+          </div>
+
+          {f'<div class="batch-result">{escape(batch_result)}</div>' if batch_result else ''}
+
+          {queue_body}
+        </section>
+        '''}
+      </main>
+    </div>
+  </div>
+  <div class="floating-task-toast" id="task-toast">
+    <div class="toast-progress-ring">
+      <svg viewBox="0 0 36 36"><path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/><path class="circle-fill" stroke-dasharray="14, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/></svg>
+      <span>14%</span>
+    </div>
+    <div class="toast-info">
+      <strong>AI Pipeline Syncing...</strong>
+      <small>Do not close your browser tab</small>
+    </div>
+    <div class="toast-actions">
+      <button class="toast-btn-text" type="button" onclick="document.getElementById('task-toast').style.display='none'">Hide</button>
     </div>
   </div>
   <script src="/review/assets/workbench.js" defer></script>
@@ -2878,6 +3668,13 @@ def _review_card(
         if view.model_split is not None and view.model_split < 0.2
         else ""
     )
+    status_icon = {
+        "pending": '<span class="status-dot" style="background: var(--amber); display: inline-block; width: 6px; height: 6px; margin-right: 5px; border-radius: 50%;"></span>',
+        "held": '<span class="status-dot" style="background: var(--muted); display: inline-block; width: 6px; height: 6px; margin-right: 5px; border-radius: 50%;"></span>',
+        "approved": '<span class="status-dot" style="background: var(--green); display: inline-block; width: 6px; height: 6px; margin-right: 5px; border-radius: 50%;"></span>',
+        "rejected": '<span class="status-dot" style="background: var(--red); display: inline-block; width: 6px; height: 6px; margin-right: 5px; border-radius: 50%;"></span>',
+    }.get(item.status, "")
+
     return f"""
     <article class="review-card{focus_class}{batch_class}" data-risk="{escape(view.risk_band)}" data-lane="{escape(view.lane)}" id="{escape(item.item_id)}">
       {batch_check}
@@ -2892,9 +3689,13 @@ def _review_card(
         </div>
         <div class="row-ai">
           <span class="row-intent-label">{escape(_decision_label(item.decision_hint))}{divergence_badge}</span>
+          <div class="row-code-tags" style="display: flex; gap: 4px; margin-top: 4px;">
+            <span class="code-chip">{escape(item.policy_version or "avatar-v1")}</span>
+            <span class="code-chip">{escape(view.lane)}</span>
+          </div>
         </div>
         <div class="row-decision">
-          <span class="status-pill status-{escape(item.status)}">{escape(_status_label(item.status))}</span>
+          <span class="status-pill status-{escape(item.status)}">{status_icon}{escape(_status_label(item.status))}</span>
           <small>等待 {escape(_time_text(item.created_at).replace(' 前', ''))}</small>
         </div>
         <span class="row-open" aria-hidden="true">{_top_icon("arrow")}</span>
@@ -3004,6 +3805,21 @@ def _detail_panel(
             <ul class="finding-list">{findings}</ul>
           </section>
 
+          <section class="script-replacements-box" style="margin-top: 16px; padding: 18px; border-radius: var(--radius-card); background: var(--panel); border: 1px solid var(--line); box-shadow: var(--shadow-sm);">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+              <h4 style="margin: 0; font-size: 13.5px; font-weight: 700; color: var(--text);">Script & Policy Replacements</h4>
+              <div style="display: flex; gap: 6px;">
+                <span class="code-chip">item_id</span>
+                <span class="code-chip">content_sha256</span>
+                <span class="code-chip">{escape(item.policy_version)}</span>
+              </div>
+            </div>
+            <div style="padding: 14px 16px; border-radius: var(--radius-control); background: var(--panel-soft); border: 1px solid var(--line); font-size: 13px; line-height: 1.6; color: var(--muted);">
+              审核判定结论: <span class="code-chip" style="background: rgba(22,163,74,0.1); color: var(--green);">{escape(_decision_label(item.decision_hint))}</span>。
+              当前受控项目 <span class="code-chip">{escape(item.item_id[:12])}</span> 由 AI Pipeline 算法计算完成，触发现行策略标示 <span class="code-chip">{escape(_product_reason(item))}</span>，其核心元数据哈希指纹为 <span class="code-chip">{escape(item.content_sha256[:16])}…</span>。
+            </div>
+          </section>
+
           <details class="audit-log detail-audit">
             <summary><span class="audit-summary-main">{_top_icon("arrow")}<span>这张图片的操作记录</span></span><span class="quiet audit-summary-meta">AI 自动记录<span class="sr-only">Agent action log</span></span></summary>
             <div class="audit-log-body">
@@ -3087,6 +3903,15 @@ def _media_preview(item: ReviewItem) -> str:
           {preview_image}
         </button>
         {toggle_button}
+      </div>
+      <div class="media-player-controlbar" style="display: flex; align-items: center; justify-content: space-between; padding: 8px 14px; background: rgba(17, 19, 30, 0.85); backdrop-filter: blur(12px); border-radius: 10px; color: #ffffff; margin-top: 10px; font-size: 11.5px;">
+        <span style="font-family: var(--mono); color: rgba(255,255,255,0.7);">0:21</span>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="width: 6px; height: 6px; border-radius: 50%; background: #6366f1;" title="AI Keyframe 1"></span>
+          <span style="width: 6px; height: 6px; border-radius: 50%; background: #f59e0b;" title="Risk Marker"></span>
+          <span style="width: 6px; height: 6px; border-radius: 50%; background: #10b981;" title="Safety Pass"></span>
+        </div>
+        <span style="font-family: var(--mono); color: rgba(255,255,255,0.7);">1:13</span>
       </div>
       <p class="sr-only">{note_text}</p>
     </div>

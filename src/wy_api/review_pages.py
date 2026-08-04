@@ -10,6 +10,14 @@ from dataclasses import asdict, dataclass, is_dataclass
 from html import escape
 from typing import Mapping, Sequence
 
+from wy_api.page_account_guide import CSS as ACCOUNT_GUIDE_CSS
+from wy_api.page_account_guide import render_account_content, render_guide_content
+from wy_api.page_history_health import CSS as HISTORY_HEALTH_CSS
+from wy_api.page_history_health import render_health_content, render_history_content
+from wy_api.page_overview_agents import CSS as OVERVIEW_AGENTS_CSS
+from wy_api.page_overview_agents import render_agents_body
+from wy_api.page_policy_quality import CSS as POLICY_QUALITY_CSS
+from wy_api.page_policy_quality import render_policies_body, render_quality_body
 from wy_api.review_ui import CSS as REVIEW_CSS, THEME_INIT_JS, _top_icon
 
 
@@ -126,7 +134,7 @@ _NAV_ICONS = {
 def _icon(path: str) -> str:
     return f'<svg viewBox="0 0 24 24" aria-hidden="true">{path}</svg>'
 
-_CSS = REVIEW_CSS + """
+_CSS = REVIEW_CSS + OVERVIEW_AGENTS_CSS + POLICY_QUALITY_CSS + HISTORY_HEALTH_CSS + ACCOUNT_GUIDE_CSS + """
 /* Support pages reuse the queue shell but tighten typography, states, and spacing. */
 :root {
   --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
@@ -146,6 +154,68 @@ _CSS = REVIEW_CSS + """
   --support-panel: var(--panel);
   --support-panel-soft: var(--panel-soft);
 }
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 16px;
+}
+.metric-card-windsor {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 17px 18px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  box-shadow: var(--shadow-sm);
+}
+.metric-card-info { display: grid; min-width: 0; gap: 3px; }
+.metric-card-info .label { color: var(--muted); font-size: 11px; font-weight: 650; }
+.metric-card-info .val { color: var(--text); font-size: 25px; line-height: 1.1; letter-spacing: -0.035em; font-variant-numeric: tabular-nums; }
+.metric-card-info small { overflow: hidden; color: var(--quiet); font-size: 10.5px; text-overflow: ellipsis; white-space: nowrap; }
+.metric-card-icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  flex: 0 0 34px;
+  border-radius: 9px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.metric-card-icon svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.charts-row { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(270px, 1fr); gap: 14px; }
+.chart-card {
+  min-width: 0;
+  padding: 18px 20px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  box-shadow: var(--shadow-sm);
+}
+.chart-card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.chart-card-header h4 { margin: 0; font-size: 14px; font-weight: 680; letter-spacing: -0.02em; }
+.chart-card-header p { margin: 3px 0 0; color: var(--muted); font-size: 11px; }
+.chart-card-header > span { padding: 2px 8px; border-radius: 6px; background: var(--panel-soft); color: var(--quiet); font-size: 10.5px; white-space: nowrap; }
+.svg-bar-chart { display: block; width: 100%; height: auto; margin-top: 4px; }
+.chart-legend { display: flex; justify-content: flex-end; gap: 12px; margin-top: -2px; color: var(--muted); font-size: 10.5px; }
+.chart-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.chart-legend i { width: 7px; height: 7px; border-radius: 2px; background: var(--accent); }
+.chart-legend i[data-tone="decided"] { background: var(--green); }
+.donut-layout { display: grid; grid-template-columns: 120px minmax(0, 1fr); align-items: center; gap: 16px; min-height: 150px; }
+.donut-layout svg { width: 120px; height: 120px; }
+.donut-total { fill: var(--text); font-size: 17px; font-weight: 700; text-anchor: middle; }
+.donut-caption { fill: var(--quiet); font-size: 8px; text-anchor: middle; }
+.donut-legend { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.donut-legend li { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 11px; }
+.donut-legend li > span { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+.donut-legend i { width: 8px; height: 8px; border-radius: 2px; }
+.donut-legend strong { color: var(--text); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.donut-legend small { color: var(--quiet); font-size: 9px; font-weight: 500; }
 
 body {
   font-family: var(--font-body);
@@ -619,6 +689,10 @@ tbody tr:hover { background: var(--support-panel-soft); }
 }
 
 @media (max-width: 760px) {
+  .dashboard-grid,
+  .charts-row { grid-template-columns: 1fr; }
+  .donut-layout { grid-template-columns: 108px minmax(0, 1fr); }
+  .donut-layout svg { width: 108px; height: 108px; }
   .support-nav { display: flex; gap: 4px; overflow-x: auto; }
   .support-nav .nav-section { display: flex; flex: 0 0 auto; }
   .support-hero {
@@ -829,226 +903,193 @@ def _coerce_context(context: ReviewPageContext | Mapping[str, object] | None) ->
     )
 
 
-def _page_body(page: str, data: Mapping[str, object], logout: str) -> str:
+def _dashboard_integer(value: object) -> int:
+    try:
+        return max(0, int(value))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _render_dashboard_charts(data: Mapping[str, object]) -> str:
+    series = [_mapping(item) for item in _sequence(data.get("volume_series"))]
+    distribution = [_mapping(item) for item in _sequence(data.get("decision_distribution"))]
+    cards = [_mapping(item) for item in _sequence(data.get("overview_metrics"))]
+    if not series and not distribution and not cards:
+        return ""
+
+    if not cards:
+        total_items = sum(_dashboard_integer(item.get("value")) for item in distribution)
+        passed = next(
+            (_dashboard_integer(item.get("value")) for item in distribution if _text(item.get("label")) == "已通过"),
+            0,
+        )
+        finalized = sum(
+            _dashboard_integer(item.get("value"))
+            for item in distribution
+            if _text(item.get("label")) in {"已通过", "已拒绝"}
+        )
+        pending = sum(
+            _dashboard_integer(item.get("value"))
+            for item in distribution
+            if _text(item.get("label")) in {"待处理", "留置"}
+        )
+        cards = [
+            {"label": "审核总量", "value": total_items, "detail": "当前工作区"},
+            {"label": "14 天入队", "value": sum(_dashboard_integer(item.get("incoming")) for item in series), "detail": "按创建时间统计"},
+            {"label": "通过率", "value": f"{passed * 100 / finalized:.1f}%" if finalized else "—", "detail": f"{finalized} 条已有最终结论"},
+            {"label": "待处理", "value": pending, "detail": "含留置项目"},
+        ]
+
+    card_icons = (
+        '<path d="M4 5h16v14H4zM8 9h8M8 13h5"/>',
+        '<path d="M4 17l4-5 4 3 6-8M16 7h2v2"/>',
+        '<path d="M5 12l4 4L19 6"/>',
+        '<path d="M12 8v4l3 2M12 3a9 9 0 1 0 9 9"/>',
+    )
+    metric_cards: list[str] = []
+    for index, item in enumerate(cards[:4]):
+        metric_cards.append(
+            '<article class="metric-card-windsor">'
+            '<div class="metric-card-info">'
+            f'<span class="label">{escape(_text(item.get("label"), "指标"))}</span>'
+            f'<strong class="val">{escape(_text(item.get("value"), "—"))}</strong>'
+            f'<small>{escape(_text(item.get("detail")))}</small></div>'
+            f'<span class="metric-card-icon"><svg viewBox="0 0 24 24">{card_icons[index]}</svg></span>'
+            '</article>'
+        )
+    metrics_html = f'<div class="dashboard-grid">{"".join(metric_cards)}</div>' if metric_cards else ""
+
+    charts: list[str] = []
+    if series:
+        values = [max(_dashboard_integer(item.get("incoming")), _dashboard_integer(item.get("decided"))) for item in series]
+        scale_max = max(1, max(values, default=0))
+        plot_left, plot_top, plot_width, plot_height = 36, 16, 480, 110
+        slot = plot_width / max(1, len(series))
+        bar_width = max(4.0, min(10.0, slot * 0.28))
+        grid: list[str] = []
+        for ratio in (0.0, 0.5, 1.0):
+            y = plot_top + plot_height * ratio
+            label = round(scale_max * (1 - ratio))
+            grid.append(
+                f'<line x1="{plot_left}" y1="{y:.1f}" x2="{plot_left + plot_width}" y2="{y:.1f}" stroke="var(--line)" stroke-width="1" stroke-dasharray="3 3"/>'
+                f'<text x="{plot_left - 6}" y="{y + 3:.1f}" fill="var(--muted)" font-size="9" text-anchor="end" font-family="var(--mono)">{label}</text>'
+            )
+        bars: list[str] = []
+        labels: list[str] = []
+        for index, item in enumerate(series):
+            incoming = _dashboard_integer(item.get("incoming"))
+            decided = _dashboard_integer(item.get("decided"))
+            center = plot_left + slot * index + slot / 2
+            incoming_height = plot_height * incoming / scale_max
+            decided_height = plot_height * decided / scale_max
+            day_label = escape(_text(item.get("label")))
+            bars.append(
+                f'<rect fill="var(--accent)" opacity="0.85" x="{center - bar_width - 1:.1f}" y="{plot_top + plot_height - incoming_height:.1f}" width="{bar_width:.1f}" height="{incoming_height:.1f}" rx="2"><title>{day_label} 入队：{incoming}</title></rect>'
+                f'<rect fill="var(--green)" opacity="0.75" x="{center + 1:.1f}" y="{plot_top + plot_height - decided_height:.1f}" width="{bar_width:.1f}" height="{decided_height:.1f}" rx="2"><title>{day_label} 完成：{decided}</title></rect>'
+            )
+            if index % 2 == 0 or index == len(series) - 1:
+                labels.append(
+                    f'<text x="{center:.1f}" y="142" fill="var(--muted)" font-size="9" text-anchor="middle" font-family="var(--mono)">{day_label}</text>'
+                )
+        incoming_total = sum(_dashboard_integer(item.get("incoming")) for item in series)
+        charts.append(
+            '<section class="chart-card">'
+            '<header class="chart-card-header"><div><h4>处理趋势</h4><p>最近 14 天入队与完成量</p></div>'
+            f'<span>{incoming_total} 条入队</span></header>'
+            '<div class="chart-legend"><span><i data-tone="incoming"></i>入队</span><span><i data-tone="decided"></i>完成</span></div>'
+            '<svg class="svg-bar-chart" viewBox="0 0 530 150" role="img" aria-label="最近十四天审核处理趋势">'
+            + "".join(grid + bars + labels)
+            + '</svg></section>'
+        )
+
+    if distribution:
+        total = sum(_dashboard_integer(item.get("value")) for item in distribution)
+        color_by_label = {
+            "已通过": "var(--accent)",
+            "待处理": "var(--amber)",
+            "已拒绝": "var(--red)",
+            "留置": "var(--quiet)",
+        }
+        circumference = 276.46
+        offset = 0.0
+        segments: list[str] = []
+        legend: list[str] = []
+        for item in distribution:
+            label = _text(item.get("label"), "未分类")
+            value = _dashboard_integer(item.get("value"))
+            color = color_by_label.get(label, "var(--quiet)")
+            length = circumference * value / total if total else 0.0
+            if length:
+                segments.append(
+                    f'<circle cx="60" cy="60" r="44" fill="none" stroke="{color}" stroke-width="16" stroke-dasharray="{length:.2f} {circumference - length:.2f}" stroke-dashoffset="{-offset:.2f}"/>'
+                )
+            percentage = value * 100 / total if total else 0.0
+            legend.append(
+                '<li>'
+                f'<span><i style="background:{color}"></i>{escape(label)}</span>'
+                f'<strong>{percentage:.1f}% <small>{value}</small></strong></li>'
+            )
+            offset += length
+        charts.append(
+            '<section class="chart-card">'
+            '<header class="chart-card-header"><h4>决策分布</h4></header>'
+            '<div class="donut-layout"><svg viewBox="0 0 120 120" role="img" aria-label="审核决策分布">'
+            '<g transform="rotate(-90 60 60)"><circle cx="60" cy="60" r="44" fill="none" stroke="var(--panel-soft)" stroke-width="16"/>'
+            + "".join(segments)
+            + f'</g><text x="60" y="58" class="donut-total">{total}</text><text x="60" y="72" class="donut-caption">总计</text></svg>'
+            f'<ul class="donut-legend">{"".join(legend)}</ul></div></section>'
+        )
+
+    charts_html = f'<div class="charts-row">{"".join(charts)}</div>' if charts else ""
+    return metrics_html + charts_html
+
+
+def _page_body(
+    page: str,
+    data: Mapping[str, object],
+    *,
+    csrf_token: str | None = None,
+) -> str:
+    """Dispatch to page-specific information architectures."""
     notices = _render_notices(data.get("exceptions") or data.get("attention"))
     metrics = data.get("metrics")
 
     if page == "overview":
-        return _panel(
-            "人工关注摘要",
-            "只展示传入的异常、概览指标与阶段事实；未采集数据直接标注。",
-            _section_stack(
-                _section_block("需要关注", notices, "这里只保留人工需要接手的异常。"),
-                _section_block(
-                    "关键指标",
-                    _render_metrics_block(metrics, empty_detail="未提供概览指标。"),
-                    "不再补画前端伪图表。",
-                ),
-                _section_block(
-                    "流水线阶段",
-                    _render_records_block(
-                        data.get("pipeline"),
-                        empty_status="未采集",
-                        empty_detail="未提供阶段积压或延迟信息。",
-                        empty_message="暂无流水线异常",
-                    ),
-                    "按传入阶段数据展示积压、延迟或 live 状态。",
-                ),
-                _section_block("入口", _link_row(("/review", "打开审核队列"), ("/review/history", "查看审计历史"))),
-            ),
+        charts_html = _render_dashboard_charts(data)
+        metrics_block = _render_metrics_block(metrics, empty_detail="未提供概览指标。")
+        pipeline_block = _render_records_block(
+            data.get("pipeline"),
+            empty_status="未采集",
+            empty_detail="未提供阶段积压或延迟信息。",
+            empty_message="暂无流水线异常",
         )
+        sections: list[str] = []
+        if charts_html:
+            sections.append(charts_html)
+        else:
+            sections.append(_panel("概览数据", "后端未提供趋势数据。", metrics_block))
+        if _sequence(data.get("exceptions") or data.get("attention")):
+            sections.append(_panel("需要关注", "只显示需要人工接手的异常。", notices))
+        if _sequence(data.get("pipeline")):
+            sections.append(_panel("待处理流水线", "按当前阶段显示仍在等待处理的项目。", pipeline_block))
+        elif not charts_html:
+            sections.append(_panel("待处理流水线", "后端未提供阶段数据。", pipeline_block))
+        return "".join(sections)
     if page == "agents":
-        return _panel(
-            "AI 任务",
-            "聚焦异常阶段、attempt 与积压，不再重复展示流程示意图。",
-            _section_stack(
-                _section_block("需要关注", notices, "先看失败、阻塞与人工兜底入口。"),
-                _section_block(
-                    "任务指标",
-                    _render_metrics_block(metrics, empty_detail="未提供 AI 任务指标。"),
-                ),
-                _section_block(
-                    "阶段明细",
-                    _render_table_block(
-                        data.get("agents"),
-                        empty_status="未采集",
-                        empty_detail="未提供 AI 任务分阶段明细。",
-                        empty_message="没有需要人工关注的异常",
-                    ),
-                    "重试会生成新的 attempt；这里只展示真实阶段数据。",
-                ),
-                _section_block("入口", _link_row(("/review", "回到审核队列"))),
-            ),
-        )
+        return render_agents_body(data)
     if page == "policies":
-        return _panel(
-            "策略与路由",
-            "页面只读，只展示后端传入的生效策略、路由条件与版本事实。",
-            _section_stack(
-                _section_block("需要关注", notices, "策略异常或漂移先在这里暴露。"),
-                _section_block(
-                    "当前策略",
-                    _render_definitions_block(
-                        data.get("current_policy"),
-                        empty_status="未采集",
-                        empty_detail="未提供当前生效策略。",
-                    ),
-                ),
-                _section_block(
-                    "路由条件",
-                    _render_table_block(
-                        data.get("routes"),
-                        empty_status="未采集",
-                        empty_detail="未提供路由条件。",
-                        empty_message="暂无路由规则",
-                    ),
-                    "本页不在前端推导阈值。",
-                ),
-                _section_block(
-                    "版本记录",
-                    _render_records_block(
-                        data.get("versions"),
-                        empty_status="未采集",
-                        empty_detail="未提供策略版本记录。",
-                        empty_message="暂无策略版本记录",
-                    ),
-                ),
-                _section_block("入口", _link_row(("/review", "审核队列"), ("/review/history", "历史事件"))),
-            ),
-        )
+        return render_policies_body(data)
     if page == "quality":
-        return _panel(
-            "质量与仲裁",
-            "只展示传入的抽检、分歧与仲裁数据；零样本只记为 SKIP。",
-            _section_stack(
-                _section_block("需要关注", notices, "人工重点看分歧、推翻与需仲裁样本。"),
-                _section_block(
-                    "质量指标",
-                    _render_metrics_block(metrics, empty_detail="未提供质量指标。"),
-                    "不再补充前端伪指标。",
-                ),
-                _section_block(
-                    "抽检与分歧",
-                    _render_table_block(
-                        data.get("cases"),
-                        empty_status="SKIP",
-                        empty_detail="未提供抽检样本或仲裁明细。",
-                        empty_message="SKIP · 未采集抽检样本",
-                    ),
-                    "展示当前样本、阶段和是否进入仲裁。",
-                ),
-                _section_block("入口", _link_row(("/review/history", "查看审计历史"))),
-            ),
-        )
+        return render_quality_body(data)
     if page == "history":
-        return _panel(
-            "审计历史",
-            "按追加式事件查看审核链路，先确认模型与人工动作的先后顺序。",
-            _section_stack(
-                _section_block("需要关注", notices),
-                _section_block(
-                    "事件记录",
-                    _render_table_block(
-                        data.get("events"),
-                        empty_status="未采集",
-                        empty_detail="未提供历史事件。",
-                        empty_message="暂无历史事件",
-                    ),
-                    "历史事件只追加，不覆盖。",
-                ),
-                _section_block("入口", _link_row(("/review", "回到审核队列"), ("/review/health", "系统健康"))),
-            ),
-        )
+        return render_history_content(data)
     if page == "health":
-        return _panel(
-            "系统健康",
-            "检查流水线是否阻塞、组件是否 ready，以及哪里需要人工介入。",
-            _section_stack(
-                _section_block("需要关注", notices),
-                _section_block(
-                    "健康指标",
-                    _render_metrics_block(metrics, empty_detail="未提供系统健康指标。"),
-                    "只显示后端传入的真实指标或明确未采集状态。",
-                ),
-                _section_block(
-                    "组件状态",
-                    _render_table_block(
-                        data.get("services"),
-                        empty_status="未采集",
-                        empty_detail="未提供组件状态。",
-                        empty_message="暂无组件状态",
-                    ),
-                    "这里只呈现真实组件状态，不附带批量控制入口。",
-                ),
-                _section_block("入口", _link_row(("/review/agents", "AI 任务"))),
-            ),
-        )
+        return render_health_content(data)
     if page == "account":
-        return _panel(
-            "账户与会话",
-            "确认 reviewer 身份、consumer 范围与退出条件，只展示当前真实 session 信息。",
-            _section_stack(
-                _section_block("需要关注", notices),
-                _section_block(
-                    "身份与范围",
-                    _render_definitions_block(
-                        data.get("profile"),
-                        empty_status="未采集",
-                        empty_detail="未提供 reviewer 或 consumer 信息。",
-                    ),
-                ),
-                _section_block(
-                    "活动会话",
-                    _render_table_block(
-                        data.get("sessions"),
-                        empty_status="未采集",
-                        empty_detail="未提供当前 session 信息。",
-                        empty_message="暂无活动会话",
-                    ) + logout,
-                ),
-            ),
-        )
-    return _panel(
-        "审核说明",
-        "把人工规则压缩成单页参考，不把说明拆成重复卡片。",
-        _section_stack(
-            _section_block("需要关注", notices),
-            _section_block(
-                "审核原则",
-                _render_records_block(
-                    data.get("principles"),
-                    empty_status="未采集",
-                    empty_detail="未提供审核原则。",
-                    empty_message="暂无审核原则",
-                ),
-            ),
-            _section_block(
-                "风险类别",
-                _render_table_block(
-                    data.get("categories"),
-                    empty_status="未采集",
-                    empty_detail="未提供风险类别。",
-                    empty_message="暂无风险类别",
-                ),
-            ),
-            _section_block(
-                "快捷参考",
-                _render_table_block(
-                    data.get("shortcuts"),
-                    empty_status="未采集",
-                    empty_detail="未提供快捷键。",
-                    empty_message="暂无快捷键说明",
-                )
-                + _render_records_block(
-                    data.get("reasons"),
-                    empty_status="未采集",
-                    empty_detail="未提供结构化原因说明。",
-                    empty_message="暂无原因说明",
-                ),
-            ),
-        ),
-    )
-
+        return render_account_content(data, csrf_token=csrf_token)
+    if page == "guide":
+        return render_guide_content(data)
+    raise ValueError(f"unsupported review page: {page}")
 
 def render_review_page(
     page: str,
@@ -1089,15 +1130,7 @@ def render_review_page(
     if not ctx.service_ready:
         service_notice = _render_notices((Notice("审核流水线受阻", ctx.service_error or "服务未就绪", "danger"),))
 
-    logout = ""
-    if page == "account" and ctx.csrf_token:
-        logout = (
-            '<form class="logout" method="post" action="/review/logout">'
-            f'<input type="hidden" name="csrf_token" value="{escape(ctx.csrf_token)}">'
-            '<button type="submit">安全退出</button></form>'
-        )
-
-    body = _page_body(page, page_data, logout)
+    body = _page_body(page, page_data, csrf_token=ctx.csrf_token)
     intent = _PAGE_INTENTS[page]
     service_icon = _icon('<path d="M12 3l1.4 4.1 4.1 1.4-4.1 1.4L12 14l-1.4-4.1-4.1-1.4 4.1-1.4z"></path>')
     help_icon = _icon(_NAV_ICONS["guide"])
@@ -1106,8 +1139,52 @@ def render_review_page(
 <meta name="color-scheme" content="light dark"><title>{escape(title)} · WordYeah</title>{THEME_INIT_JS}<style>{_CSS}</style></head>
 <body><a class="skip-link" href="#main-content">跳到主要内容</a><div class="app-frame">
 <aside class="side-nav" aria-label="审核导航"><a class="brand" href="/review/overview"><span class="brand-mark">wy</span><span>wordyeah</span></a>
-<nav aria-label="工作台页面"><div class="support-nav">{nav}</div></nav><div class="nav-spacer"></div>
-<div class="consumer-switcher"><span class="consumer-avatar">{escape(ctx.consumer_id[:1].upper() or 'W')}</span><span class="consumer-copy"><strong>{escape(ctx.consumer_id)}</strong><small>Consumer workspace</small></span><span class="chevron" aria-hidden="true">⌄</span></div></aside>
+<nav aria-label="工作台页面"><div class="support-nav">{nav}</div></nav>
+
+<div class="usage-widget">
+  <div class="usage-header">
+    <span class="usage-icon">{_top_icon("spark")}</span>
+    <span class="usage-title">审查引擎状态</span>
+    <button class="usage-gear-btn" type="button" title="查看策略与健康状态" onclick="location.href='/review/health'">
+      {_top_icon("settings")}
+    </button>
+  </div>
+  <p class="usage-subtitle">当前 consumer 的审核流水线</p>
+  <div class="usage-meta">
+    <span class="usage-count">工作区 <strong>{escape(ctx.consumer_id)}</strong></span>
+  </div>
+  <div class="usage-tag">
+    <span class="dot" style="background: {'var(--green)' if ctx.service_ready else 'var(--red)'};"></span>
+    {'流水线正常运行' if ctx.service_ready else '流水线受阻'}
+  </div>
+  <a class="usage-upgrade-btn" href="/review/health">检查系统健康</a>
+</div>
+
+<div class="nav-spacer"></div>
+<details class="consumer-popover-wrapper">
+  <summary class="consumer-switcher">
+    <span class="consumer-avatar">{escape(ctx.consumer_id[:1].upper() or 'W')}</span>
+    <span class="consumer-copy"><strong>{escape(ctx.consumer_id)}</strong><small>Consumer workspace</small></span>
+    <span class="chevron" aria-hidden="true">⌄</span>
+  </summary>
+  <div class="consumer-popover-menu">
+    <div class="consumer-popover-header">Reviewer: {escape(ctx.reviewer_id)}</div>
+    <div class="consumer-popover-list">
+      <div class="consumer-popover-item is-active">
+        <div class="item-info">
+          <strong>{escape(ctx.consumer_id)}</strong>
+          <small>当前审核工作区</small>
+        </div>
+        <span class="check-icon">✓</span>
+      </div>
+    </div>
+    <div class="consumer-popover-actions">
+      <a class="popover-action-btn" href="/review/account">账户与会话</a>
+      {'<form class="logout" method="post" action="/review/logout"><input type="hidden" name="csrf_token" value="' + escape(ctx.csrf_token) + '"><button class="popover-action-btn logout-btn" type="submit">Log out</button></form>' if ctx.csrf_token else '<a class="popover-action-btn" href="/review/account">Account Details</a>'}
+    </div>
+  </div>
+</details>
+</aside>
 <div class="app-main"><header class="topbar"><div class="toolbar-title"><nav class="topbar-breadcrumbs" aria-label="面包屑"><a href="/review/overview">WordYeah</a><span class="divider" aria-hidden="true">/</span><span class="current-crumb">{escape(nav_label)}</span></nav></div>
 <div class="toolbar-actions">
 <button class="theme-toggle-btn" type="button" data-action="toggle-layout" title="切换全宽/盒装居中" aria-label="切换全宽/盒装居中">{_top_icon('layout')}</button>
