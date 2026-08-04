@@ -186,7 +186,7 @@ class QualityStoreTest(unittest.TestCase):
             },
         )
         self.create_sample("consumer-a")
-        self.assertEqual(self.store.report(consumer_id="consumer-a")["status"], "PASS")
+        self.assertEqual(self.store.report(consumer_id="consumer-a")["status"], "INCOMPLETE")
         self.assertEqual(self.store.report(consumer_id="consumer-b")["status"], "SKIP")
 
 

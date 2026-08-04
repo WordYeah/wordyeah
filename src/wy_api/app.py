@@ -1303,7 +1303,7 @@ def create_app(
                 "metrics": metrics,
                 "services": {"columns": ("组件", "状态", "说明"), "rows": (
                     ("media model", "ready" if app.state.ready else "blocked", app.state.ready_error or "warmup complete"),
-                    ("review database", "ready", "schema v3"),
+                    ("review database", "ready", "schema v5 + workspace/quality tables"),
                     ("review router", "ready", "vendor-neutral deterministic routing"),
                 )},
             }

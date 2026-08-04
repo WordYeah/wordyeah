@@ -4,6 +4,7 @@ import tempfile
 from pathlib import Path
 
 from fastapi.testclient import TestClient
+import pytest
 
 from wy_api.app import ApiSettings, create_app
 from wy_core.contracts import ModerationResult
@@ -131,3 +132,19 @@ def test_multi_reviewer_login_page_requires_reviewer_id() -> None:
             assert page.status_code == 200
             assert 'name="reviewer_id"' in page.text
             assert 'autocomplete="username"' in page.text
+
+
+def test_reviewer_credentials_load_from_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(
+        "WORDYEAH_REVIEWERS_JSON",
+        '{"reviewer-b":"token-b-1234567890","reviewer-a":"token-a-1234567890"}',
+    )
+    settings = ApiSettings.from_env()
+    assert settings.reviewer_credentials == (
+        ("reviewer-a", "token-a-1234567890"),
+        ("reviewer-b", "token-b-1234567890"),
+    )
+
+    monkeypatch.setenv("WORDYEAH_REVIEWERS_JSON", '{"reviewer-a":"short"}')
+    with pytest.raises(ValueError, match="at least 16 characters"):
+        ApiSettings.from_env()

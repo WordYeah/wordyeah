@@ -71,7 +71,7 @@ def test_reviewer_quality_sampling_labels_and_report_are_workspace_scoped() -> N
 
             listing = client.get("/review/quality/samples")
             assert listing.status_code == 200
-            assert listing.json()["report"]["status"] == "PASS"
+            assert listing.json()["report"]["status"] == "INCOMPLETE"
             assert [row["sample_id"] for row in listing.json()["samples"]] == [sample_id]
             assert sample_id[:12] in client.get("/review/quality").text
 

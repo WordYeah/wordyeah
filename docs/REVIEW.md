@@ -4,8 +4,17 @@
 [`REVIEW_WORKBENCH.md`](REVIEW_WORKBENCH.md)。本文只记录当前头像 MVP 已实现的接口和安全边界。
 
 当前已实现 `/review/login`、`/review`、`/review/items` 及 approve/reject/hold/retry
-动作。审核 session 与 API key 分离，`WORDYEAH_REVIEWER_TOKEN` 和
-`WORDYEAH_REVIEW_SESSION_SECRET` 只从环境变量读取。
+动作。审核 session 与 API key 分离。单 reviewer 可使用
+`WORDYEAH_REVIEWER_TOKEN`；双审/仲裁使用 `WORDYEAH_REVIEWERS_JSON` 的
+`reviewer_id -> token` 映射，并通过 `WORDYEAH_REVIEW_SESSION_SECRET` 签发会话。
+这些值只从环境变量读取。
+
+```bash
+WORDYEAH_REVIEWERS_JSON='{"reviewer-a":"runtime-secret-a","reviewer-b":"runtime-secret-b","arbitrator":"runtime-secret-c"}'
+WORDYEAH_REVIEW_SESSION_SECRET='independent-runtime-session-secret'
+```
+
+同一 reviewer 不能提交两次双审，也不能仲裁自己参与过的样本。
 
 ## 页面
 
@@ -25,6 +34,7 @@
 - 详情页的 approve / reject / hold / retry 是人工动作；YOLO/快速标记直接提交，不弹确认框。
 - 网格、列表、沉浸三种视图可切换；显式批量模式最多处理 50 项，并逐项显示结果。
 - 顶栏/侧栏工作区切换使用服务端工作区配置，切换后队列、事件、attempt 和 cursor 都按 consumer 隔离。
+- 质量页直接显示真实抽检样本；独立 reviewer 可完成双审，结论分歧后只向未参与审核的仲裁员显示通过/拒绝动作，全程不弹确认框。
 
 ## 安全边界
 
@@ -57,3 +67,7 @@ POST /review/quality/samples/{sample_id}/arbitrate
 所有动作写入 `review_events`，并保留 reviewer、时间、原始 decision hint
 和备注。页面只绑定 reviewer session 当前选择的 workspace consumer；机器 API 继续绑定
 进程配置的 `consumer_id`，不会改变 Cravatar 状态。
+
+运行中的质量样本即使非空也只报告 `INCOMPLETE`，不会直接报告 `PASS`。只有代表性
+corpus 评估器在分层数量、准确率、召回率、双人复核和延迟门槛全部满足后才可报告
+`PASS`；零样本继续报告 `SKIP`。

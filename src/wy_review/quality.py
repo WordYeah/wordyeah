@@ -704,9 +704,10 @@ class QualityStore:
             if row["final_decision"] is not None:
                 final_counts[row["final_decision"]] += int(row["count"])
         return {
-            "status": "PASS",
+            "status": "INCOMPLETE",
             "consumer_id": consumer_id,
             "sample_count": total,
+            "reason": "requires_representative_corpus_evaluation",
             "samples_by_status": status_counts,
             "final_decisions": final_counts,
         }
