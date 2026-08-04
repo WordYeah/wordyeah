@@ -18,9 +18,11 @@ class ShadowRecord:
     action: Literal["record_only"]
     mutates_avatar: bool
     recorded_at: str
+    source_id: str = ""
 
     def to_dict(self) -> dict[str, object]:
         return {
+            "source_id": self.source_id,
             "avatar_ref": self.avatar_ref,
             "request_id": self.request_id,
             "content_sha256": self.content_sha256,
@@ -38,7 +40,13 @@ class CravatarShadowConnector:
         self.enabled = enabled
         self.adapter = CravatarAdapter("shadow")
 
-    def submit(self, avatar_ref: str, result: ModerationResult) -> ShadowRecord | None:
+    def submit(
+        self,
+        avatar_ref: str,
+        result: ModerationResult,
+        *,
+        source_id: str | None = None,
+    ) -> ShadowRecord | None:
         if not self.enabled:
             return None
         if not avatar_ref or avatar_ref.startswith(("http://", "https://")):
@@ -46,7 +54,15 @@ class CravatarShadowConnector:
         action: CravatarAction = self.adapter.translate(result)
         if action.mutates_avatar or action.action != "record_only":
             raise RuntimeError("shadow connector received a mutating action")
+        stable_source_id = source_id or f"cravatar-sha256:{result.content_sha256}"
+        if (
+            not isinstance(stable_source_id, str)
+            or not stable_source_id.strip()
+            or stable_source_id.lower().startswith(("http://", "https://"))
+        ):
+            raise ValueError("source_id must be a local/staging identifier")
         return ShadowRecord(
+            source_id=stable_source_id,
             avatar_ref=avatar_ref,
             request_id=result.request_id,
             content_sha256=result.content_sha256,

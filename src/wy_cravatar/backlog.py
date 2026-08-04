@@ -23,10 +23,21 @@ class CravatarBacklogRecord:
     content_sha256: str
     source_path: str
     source_metadata: Mapping[str, object] = field(default_factory=dict)
+    source_id: str = ""
     media_type: Literal["image"] = "image"
     mode: Literal["shadow"] = "shadow"
     action: Literal["record_only"] = "record_only"
     mutates_avatar: Literal[False] = False
+
+    def __post_init__(self) -> None:
+        source_id = self.source_id or f"cravatar-sha256:{self.content_sha256}"
+        if (
+            not isinstance(source_id, str)
+            or not source_id.strip()
+            or source_id.lower().startswith(("http://", "https://"))
+        ):
+            raise ValueError("source_id must be a local/staging identifier")
+        object.__setattr__(self, "source_id", source_id)
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -34,6 +45,7 @@ class CravatarBacklogRecord:
             "request_id": self.request_id,
             "content_sha256": self.content_sha256,
             "source_path": self.source_path,
+            "source_id": self.source_id,
             "source_metadata": dict(self.source_metadata),
             "media_type": self.media_type,
             "mode": self.mode,
@@ -128,7 +140,7 @@ def _row_path(row: Mapping[str, object]) -> object:
 
 
 def _metadata(row: Mapping[str, object]) -> dict[str, object]:
-    reserved = set(PATH_FIELDS) | {"avatar_ref", "request_id", "content_sha256"}
+    reserved = set(PATH_FIELDS) | {"avatar_ref", "request_id", "content_sha256", "source_id"}
     return {
         str(key): value
         for key, value in row.items()
@@ -176,6 +188,11 @@ def import_cravatar_backlog(
             request_id = row.get("request_id") or f"cravatar-backlog-{digest[:24]}"
             if not isinstance(request_id, str) or not request_id.strip():
                 raise ValueError("request_id must be a non-empty string")
+            source_id = row.get("source_id") or f"cravatar-sha256:{digest}"
+            if not isinstance(source_id, str) or not source_id.strip():
+                raise ValueError("source_id must be a non-empty string")
+            if source_id.lower().startswith(("http://", "https://")):
+                raise ValueError("remote source_id values are not allowed")
 
             seen_hashes.add(digest)
             records.append(
@@ -184,6 +201,7 @@ def import_cravatar_backlog(
                     request_id=request_id,
                     content_sha256=digest,
                     source_path=relative_path,
+                    source_id=source_id,
                     source_metadata=_metadata(row),
                 )
             )

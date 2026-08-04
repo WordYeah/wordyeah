@@ -8,9 +8,17 @@ from .backlog import (
     import_cravatar_backlog,
     submit_cravatar_backlog,
 )
+from .incremental import (
+    CravatarCursorStore,
+    CravatarIncrementalImporter,
+    IncrementalOutcome,
+    IncrementalRun,
+    WatermarkSummary,
+)
 
 __all__ = [
     "CravatarAction", "CravatarAdapter", "CravatarBacklog", "CravatarBacklogRecord",
     "CravatarShadowConnector", "ShadowRecord", "import_cravatar_backlog",
-    "submit_cravatar_backlog",
+    "submit_cravatar_backlog", "CravatarCursorStore", "CravatarIncrementalImporter",
+    "IncrementalOutcome", "IncrementalRun", "WatermarkSummary",
 ]
