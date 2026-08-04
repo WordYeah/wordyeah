@@ -85,3 +85,20 @@ python3 scripts/prepare_hf_archive_candidates.py /private/cache/data.zip \
 The `style-candidate` and `decision-candidate` values are routing hints only. Every
 candidate remains unreviewed, including rows whose source dataset calls them human,
 safe or explicit.
+
+For datasets distributed as local Parquet with embedded `image.bytes` and integer
+`label`, install `pyarrow` in the corpus-preparation environment and select one or
+more source labels. The reader streams batches, applies the same image and total
+output limits, and keeps each candidate set in a separate private directory:
+
+```bash
+python3 scripts/prepare_hf_parquet_candidates.py /private/cache/train.parquet \
+  --dataset owner/content-levels --candidate-set boundary \
+  --label 1 --count 200 \
+  --output-root /private/wordyeah/avatar-corpus-candidates \
+  --source-url https://huggingface.co/datasets/owner/content-levels \
+  --license apache-2.0 --style-candidate other --decision-candidate review
+```
+
+`pyarrow` is only needed for this local preparation command and is not a WordYeah
+runtime dependency.

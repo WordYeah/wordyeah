@@ -169,12 +169,12 @@ Cravatar 增量 shadow 输入
 
 ## 9. 2026-08-05 验证记录
 
-- 全量测试：193 passed，12 subtests passed；仅有 Starlette/httpx 弃用警告。
+- 全量测试：198 passed，12 subtests passed；仅有 Starlette/httpx 弃用警告。
 - 浏览器：真实 reviewer session 下验证 1440×900 三种队列视图、显式批量模式与最多 50 项提示、快速标记四种动作且零弹窗；1280×800 验证紧凑列表；390×844 验证质量页与工作区菜单且无横向溢出。证据保存在本地忽略文件 `artifacts/browser-acceptance-mvp.json`。
 - 持久队列负载：50 jobs/s 连续 900 秒，完成 45,000 项、零 active 残留、49.9998 jobs/s、cycle p95 1.02ms；时长与速率门槛均 `PASS`。结果保存在本地忽略文件 `artifacts/review-queue-load-15m.json`。
 - G2A canary：网关可达，`grok-4.5` 与 `grok-4.3` 返回 HTTP 429；限流重试分类通过，真实视觉能力未验收。
 - 故障演练：数据库重启持久性、过期 lease 回收、死信、provider 关闭、429、无效响应和 shadow 非写入均通过；证据保存在本地忽略文件 `artifacts/avatar-fault-drills-mvp.json`。
 - 聚合验收：`queue_load_15m`、`fault_drills`、`browser_acceptance` 和 `production_write_boundary` 为 PASS；`representative_corpus`、`cravatar_shadow` 与 `advanced_vision_canary` 为 INCOMPLETE，聚合退出码为 3。证据保存在本地忽略文件 `artifacts/avatar-mvp-acceptance.json`。
-- corpus 候选准备：通过受控 Hugging Face viewer/archive 采集器在仓库外私有目录准备真人 300 条、动漫 300 条候选；共 600 条、哈希唯一、文件与 manifest 均为 0600。候选全部保持 `unreviewed`，没有 `expected_decision`，不能作为准确率或双审通过证据。
+- corpus 候选准备：通过受控 Hugging Face viewer/archive/Parquet 采集器在仓库外私有目录准备真人 300、动漫 300、logo/文字 100、边界 200、明确违规 200 条候选；共 1,100 条、哈希唯一、文件与 manifest 均为 0600。候选全部保持 `unreviewed`，没有 `expected_decision`，不能作为准确率或双审通过证据。
 - corpus：没有达到类别样本门槛，必须保持 `INCOMPLETE/SKIP`。
 - 生产边界：没有 WordPress、头像、Cavalcade、腾讯云或生产数据库写入。

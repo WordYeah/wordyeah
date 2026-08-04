@@ -24,13 +24,13 @@
 - [CX] 已实现：服务端 cursor 分页、工作区切换、consumer 约束、最多 50 项的批量 API 与特殊风险服务端禁批
 - [CX] 已实现：Cravatar 增量 cursor、幂等、暂停/恢复、失败重放、水位和持续 watch CLI；仅允许 loopback WordYeah endpoint；已提供默认禁用的 systemd hardening 模板，未安装或启用
 - [CX] 已实现：有界只读 Cavalcade PHP 导出器与本地受控采集器；导出器只执行 `SELECT`，采集器严格限制 Cravatar 源、校验图片并原子发布 manifest，不改变任务或头像状态
-- [CX] 已验证：193 个 pytest、12 个 subtest、compileall、PHP syntax 和 diff check 通过；真实 reviewer session 验证 1440×900 三种队列视图、显式批量模式、快速标记四种动作且零弹窗，1280×800 紧凑列表，以及 390×844 质量页与工作区菜单无横向溢出
+- [CX] 已验证：198 个 pytest、12 个 subtest、compileall、PHP syntax 和 diff check 通过；真实 reviewer session 验证 1440×900 三种队列视图、显式批量模式、快速标记四种动作且零弹窗，1280×800 紧凑列表，以及 390×844 质量页与工作区菜单无横向溢出
 - [CX] 已验证：持久队列以 50 jobs/s 连续运行 900 秒，完成 45,000 项、零 active 残留、49.9998 jobs/s、cycle p95 1.02ms，15 分钟时长和速率门槛均 PASS
 - [CX] 已验证：可复现故障演练覆盖数据库重启、过期 lease 回收、死信、provider 关闭、429、无效响应和 Cravatar shadow 非写入；错误路径均不产生 allow
 - [CX] 已实现：头像 MVP 聚合验收脚本统一核对代表性 corpus、15 分钟队列负载、故障演练、浏览器路径、至少 1,100 条 shadow、真实高级视觉响应和 `enforce=false`；缺失或 SKIP 保持 INCOMPLETE
 - [CX] 已验证：聚合验收中的队列负载、故障演练、浏览器和生产非写入边界为 PASS；代表性 corpus、Cravatar shadow 与真实高级视觉 canary 缺少证据，整体为 INCOMPLETE，退出码 3
-- [CX] 已实现：受控 Hugging Face viewer 与本地 zip 候选采集器；限制数据源、重定向、下载大小、图片解码、archive traversal/symlink/compression，使用 0700 目录和 0600 原子文件，不把来源标签写成 WordYeah ground truth
-- [CX] 已准备：仓库外私有目录中真人候选 300 条、动漫候选 300 条，共 600 个唯一哈希；全部为 `unreviewed` 且没有 `expected_decision`，仍需正式标注与双审
+- [CX] 已实现：受控 Hugging Face viewer、本地 zip 与流式 Parquet 候选采集器；限制数据源、重定向、下载/总输出大小、图片解码、archive traversal/symlink/compression，使用 0700 目录和 0600 原子文件，不把来源标签写成 WordYeah ground truth
+- [CX] 已准备：仓库外私有目录中真人 300、动漫 300、logo/文字 100、边界 200、明确违规 200 条候选，共 1,100 个唯一哈希；全部为 `unreviewed` 且没有 `expected_decision`，仍需正式标注与双审
 - [CX] 已完成 UI 细节复查：审核队列与八个支持页已统一导航、顶栏、间距、线条和组件样式；详情首屏可见图片与人工动作，历史表格长值已压缩显示，移动端导航收为单行横向滚动；结构化视觉复核 92/100
 - [CX] 未完成：代表性头像 corpus、10% 真实双人复核、大规模 Cravatar shadow 和目标主机调度部署验收
 - [CX] 外部限制：G2A 实际 canary 已到达网关，但 `grok-4.5` 与 `grok-4.3` 均返回 HTTP 429；重试分类有效，尚不能验证真实视觉响应、准确率或延迟

@@ -7,12 +7,13 @@ import json
 import os
 import re
 import stat
+import struct
 import tempfile
 import urllib.error
 import urllib.parse
 import urllib.request
 import zipfile
-from collections.abc import Callable
+from collections.abc import Callable, Iterable, Iterator
 from pathlib import Path
 from typing import Any
 
@@ -28,9 +29,17 @@ MAX_IMAGE_BYTES = 8 * 1024 * 1024
 MAX_ARCHIVE_BYTES = 1024 * 1024 * 1024
 MAX_COMPRESSION_RATIO = 200
 MAX_TOTAL_OUTPUT_BYTES = 2 * 1024 * 1024 * 1024
+MAX_PARQUET_FOOTER_BYTES = 16 * 1024 * 1024
+MAX_PARQUET_ROW_GROUP_BYTES = 160 * 1024 * 1024
+MAX_PARQUET_COLUMN_BYTES = 160 * 1024 * 1024
+MAX_PARQUET_ROWS_PER_GROUP = 10_000
+MAX_PARQUET_ROW_GROUPS = 10_000
+MAX_PARQUET_COLUMNS = 32
+MAX_PARQUET_TOTAL_ROWS = 1_000_000
 
 JsonFetcher = Callable[[str, int], dict[str, Any]]
 BytesFetcher = Callable[[str, int], bytes]
+RowIterator = Callable[[Path], Iterable[dict[str, object]]]
 
 
 class CandidateSourceError(ValueError):
@@ -68,11 +77,7 @@ def collect_huggingface_archive_candidates(
         raise CandidateSourceError("archive does not exist")
     if resolved_archive.stat().st_size > MAX_ARCHIVE_BYTES:
         raise CandidateSourceError("archive exceeds size limit")
-    target = output_root.expanduser().resolve() / _dataset_slug(dataset)
-    images = target / "images"
-    images.mkdir(parents=True, exist_ok=True, mode=0o700)
-    os.chmod(target, 0o700)
-    os.chmod(images, 0o700)
+    target, images = _prepare_private_dataset(output_root, _dataset_slug(dataset))
     rows: list[dict[str, object]] = []
     seen_hashes: set[str] = set()
     total_output_bytes = 0
@@ -117,6 +122,95 @@ def collect_huggingface_archive_candidates(
     return _publish_candidates(target=target, rows=rows, count=count, dataset=dataset)
 
 
+def collect_huggingface_parquet_candidates(
+    *,
+    parquet: Path,
+    dataset: str,
+    candidate_set: str,
+    labels: set[int],
+    count: int,
+    output_root: Path,
+    source_url: str,
+    license_name: str,
+    style_candidate: str,
+    decision_candidate: str,
+    iter_rows: RowIterator | None = None,
+) -> dict[str, object]:
+    """Extract bounded candidates from local image/label Parquet rows."""
+
+    _validate_options(
+        dataset=dataset,
+        config="parquet",
+        split="train",
+        image_field="image",
+        label_field="label",
+        count=count,
+        page_size=100,
+        source_url=source_url,
+        license_name=license_name,
+        style_candidate=style_candidate,
+        decision_candidate=decision_candidate,
+    )
+    if not NAME_RE.fullmatch(candidate_set):
+        raise CandidateSourceError("invalid candidate_set")
+    if not labels or any(isinstance(label, bool) or not isinstance(label, int) for label in labels):
+        raise CandidateSourceError("labels must contain integers")
+    resolved_parquet = parquet.expanduser().resolve()
+    if not resolved_parquet.is_file():
+        raise CandidateSourceError("parquet does not exist")
+    if resolved_parquet.stat().st_size > MAX_ARCHIVE_BYTES:
+        raise CandidateSourceError("parquet exceeds size limit")
+    target, images = _prepare_private_dataset(
+        output_root,
+        f"{_dataset_slug(dataset)}--{candidate_set}",
+    )
+    rows: list[dict[str, object]] = []
+    seen_hashes: set[str] = set()
+    total_output_bytes = 0
+    if iter_rows is None:
+        _validate_parquet_footer(resolved_parquet)
+    source_rows = iter_rows or _parquet_rows
+    for source_row, row in enumerate(source_rows(resolved_parquet)):
+        if len(rows) >= count:
+            break
+        label = row.get("label")
+        if isinstance(label, bool) or not isinstance(label, int) or label not in labels:
+            continue
+        image = row.get("image")
+        image_bytes = image.get("bytes") if isinstance(image, dict) else None
+        if not isinstance(image_bytes, bytes):
+            raise CandidateSourceError("matching parquet row has no embedded image bytes")
+        if len(image_bytes) > MAX_IMAGE_BYTES:
+            raise CandidateSourceError("parquet image exceeds size limit")
+        total_output_bytes += len(image_bytes)
+        if total_output_bytes > MAX_TOTAL_OUTPUT_BYTES:
+            raise CandidateSourceError("candidate output exceeds total size limit")
+        decode_image(image_bytes, ImageLimits(max_bytes=MAX_IMAGE_BYTES))
+        digest = hashlib.sha256(image_bytes).hexdigest()
+        if digest in seen_hashes:
+            continue
+        seen_hashes.add(digest)
+        destination = images / f"{digest}{_safe_suffix(image_bytes)}"
+        _atomic_write(destination, image_bytes, mode=0o600)
+        rows.append(
+            {
+                "sample_id": f"hf-{_dataset_slug(dataset)}-{candidate_set}-{source_row}",
+                "content_sha256": digest,
+                "path": str(destination),
+                "dataset": dataset,
+                "candidate_set": candidate_set,
+                "source_row": source_row,
+                "source_label": label,
+                "source_url": source_url,
+                "license": license_name,
+                "style_candidate": style_candidate,
+                "decision_candidate": decision_candidate,
+                "review_status": "unreviewed",
+            }
+        )
+    return _publish_candidates(target=target, rows=rows, count=count, dataset=dataset)
+
+
 def collect_huggingface_candidates(
     *,
     dataset: str,
@@ -124,7 +218,7 @@ def collect_huggingface_candidates(
     split: str,
     image_field: str,
     label_field: str,
-    label: int | str,
+    label: int | str | None,
     count: int,
     output_root: Path,
     source_url: str,
@@ -152,11 +246,7 @@ def collect_huggingface_candidates(
     )
     json_fetcher = fetch_json or _fetch_json
     bytes_fetcher = fetch_bytes or _fetch_bytes
-    target = output_root.expanduser().resolve() / _dataset_slug(dataset)
-    images = target / "images"
-    images.mkdir(parents=True, exist_ok=True, mode=0o700)
-    os.chmod(target, 0o700)
-    os.chmod(images, 0o700)
+    target, images = _prepare_private_dataset(output_root, _dataset_slug(dataset))
 
     rows: list[dict[str, object]] = []
     offset = 0
@@ -185,7 +275,7 @@ def collect_huggingface_candidates(
             )
             if candidate is None:
                 continue
-            source_row, image_url = candidate
+            source_row, image_url, source_label = candidate
             image_bytes = bytes_fetcher(image_url, MAX_IMAGE_BYTES)
             total_output_bytes += len(image_bytes)
             if total_output_bytes > MAX_TOTAL_OUTPUT_BYTES:
@@ -207,7 +297,7 @@ def collect_huggingface_candidates(
                     "config": config,
                     "split": split,
                     "source_row": source_row,
-                    "source_label": label,
+                    "source_label": source_label,
                     "source_url": source_url,
                     "license": license_name,
                     "style_candidate": style_candidate,
@@ -274,8 +364,8 @@ def _candidate_row(
     *,
     image_field: str,
     label_field: str,
-    expected_label: int | str,
-) -> tuple[int, str] | None:
+    expected_label: int | str | None,
+) -> tuple[int, str, object] | None:
     if not isinstance(wrapper, dict):
         raise CandidateSourceError("viewer row wrapper must be an object")
     source_row = wrapper.get("row_idx")
@@ -287,7 +377,8 @@ def _candidate_row(
         or not isinstance(row, dict)
     ):
         raise CandidateSourceError("viewer row has invalid index or payload")
-    if row.get(label_field) != expected_label:
+    source_label = row.get(label_field)
+    if expected_label is not None and source_label != expected_label:
         return None
     image = row.get(image_field)
     if not isinstance(image, dict) or not isinstance(image.get("src"), str):
@@ -307,11 +398,25 @@ def _candidate_row(
         or parsed.password is not None
     ):
         raise CandidateSourceError("image source is outside the dataset viewer allowlist")
-    return source_row, image_url
+    return source_row, image_url, source_label
 
 
 def _dataset_slug(dataset: str) -> str:
     return dataset.replace("/", "--")
+
+
+def _prepare_private_dataset(output_root: Path, name: str) -> tuple[Path, Path]:
+    root = output_root.expanduser().resolve()
+    target = root / name
+    images = target / "images"
+    if target.is_symlink() or images.is_symlink():
+        raise CandidateSourceError("candidate output must not use symlinks")
+    images.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if target.is_symlink() or images.is_symlink():
+        raise CandidateSourceError("candidate output must not use symlinks")
+    os.chmod(target, 0o700)
+    os.chmod(images, 0o700)
+    return target, images
 
 
 def _safe_zip_member(member: zipfile.ZipInfo) -> bool:
@@ -366,6 +471,65 @@ def _safe_suffix(payload: bytes) -> str:
     if payload.startswith(b"RIFF") and payload[8:12] == b"WEBP":
         return ".webp"
     raise CandidateSourceError("decoded image has an unsupported signature")
+
+
+def _parquet_rows(path: Path) -> Iterator[dict[str, object]]:
+    try:
+        import pyarrow.parquet as parquet
+    except ImportError as exc:
+        raise CandidateSourceError("pyarrow is required for Parquet candidate preparation") from exc
+    try:
+        source = parquet.ParquetFile(path)
+        if not {"image", "label"}.issubset(source.schema_arrow.names):
+            raise CandidateSourceError("parquet must contain image and label columns")
+        _validate_parquet_metadata(source.metadata)
+        for batch in source.iter_batches(batch_size=1, columns=["image", "label"]):
+            yield from batch.to_pylist()
+    except CandidateSourceError:
+        raise
+    except Exception as exc:
+        raise CandidateSourceError(f"parquet read failed: {type(exc).__name__}") from exc
+
+
+def _validate_parquet_footer(path: Path) -> None:
+    size = path.stat().st_size
+    if size < 12:
+        raise CandidateSourceError("parquet is too small")
+    with path.open("rb") as handle:
+        if handle.read(4) != b"PAR1":
+            raise CandidateSourceError("parquet has invalid header magic")
+        handle.seek(-8, os.SEEK_END)
+        footer = handle.read(8)
+    metadata_size, magic = struct.unpack("<I4s", footer)
+    if magic != b"PAR1":
+        raise CandidateSourceError("parquet has invalid footer magic")
+    if metadata_size < 1 or metadata_size > MAX_PARQUET_FOOTER_BYTES:
+        raise CandidateSourceError("parquet footer metadata exceeds size limit")
+    if metadata_size + 12 > size:
+        raise CandidateSourceError("parquet footer metadata is truncated")
+
+
+def _validate_parquet_metadata(metadata: Any) -> None:
+    if metadata.num_row_groups > MAX_PARQUET_ROW_GROUPS:
+        raise CandidateSourceError("parquet exceeds row group limit")
+    if metadata.num_rows > MAX_PARQUET_TOTAL_ROWS:
+        raise CandidateSourceError("parquet exceeds total row limit")
+    for group_index in range(metadata.num_row_groups):
+        group = metadata.row_group(group_index)
+        if group.num_rows < 0 or group.num_rows > MAX_PARQUET_ROWS_PER_GROUP:
+            raise CandidateSourceError("parquet row group exceeds row limit")
+        if group.num_columns > MAX_PARQUET_COLUMNS:
+            raise CandidateSourceError("parquet row group exceeds column limit")
+        if group.total_byte_size < 0 or group.total_byte_size > MAX_PARQUET_ROW_GROUP_BYTES:
+            raise CandidateSourceError("parquet row group exceeds uncompressed size limit")
+        for column_index in range(group.num_columns):
+            column = group.column(column_index)
+            compressed = column.total_compressed_size
+            uncompressed = column.total_uncompressed_size
+            if uncompressed < 0 or uncompressed > MAX_PARQUET_COLUMN_BYTES:
+                raise CandidateSourceError("parquet column exceeds uncompressed size limit")
+            if compressed < 1 or uncompressed / compressed > MAX_COMPRESSION_RATIO:
+                raise CandidateSourceError("parquet column exceeds compression ratio limit")
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):

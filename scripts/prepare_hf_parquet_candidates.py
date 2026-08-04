@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare unreviewed avatar corpus candidates from a Hugging Face dataset."""
+"""Prepare unreviewed avatar candidates from local Hugging Face Parquet."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from wy_review.corpus_candidates import (  # noqa: E402
     CandidateSourceError,
-    collect_huggingface_candidates,
+    collect_huggingface_parquet_candidates,
 )
 
 
@@ -26,16 +26,10 @@ def bounded_count(value: str) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("parquet", type=Path)
     parser.add_argument("--dataset", required=True)
-    parser.add_argument("--config", default="default")
-    parser.add_argument("--split", default="train")
-    parser.add_argument("--image-field", default="image")
-    parser.add_argument("--label-field", default="label")
-    parser.add_argument(
-        "--label",
-        type=int,
-        help="optional integer source label filter; omit to collect every row",
-    )
+    parser.add_argument("--candidate-set", required=True)
+    parser.add_argument("--label", type=int, action="append", required=True)
     parser.add_argument("--count", type=bounded_count, required=True)
     parser.add_argument("--output-root", type=Path, required=True)
     parser.add_argument("--source-url", required=True)
@@ -44,13 +38,11 @@ def main() -> int:
     parser.add_argument("--decision-candidate", required=True)
     args = parser.parse_args()
     try:
-        report = collect_huggingface_candidates(
+        report = collect_huggingface_parquet_candidates(
+            parquet=args.parquet,
             dataset=args.dataset,
-            config=args.config,
-            split=args.split,
-            image_field=args.image_field,
-            label_field=args.label_field,
-            label=args.label,
+            candidate_set=args.candidate_set,
+            labels=set(args.label),
             count=args.count,
             output_root=args.output_root,
             source_url=args.source_url,
