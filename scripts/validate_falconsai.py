@@ -70,7 +70,14 @@ def main() -> int:
     results = []
     for label, image_path in cases:
         result = service.moderate_image(image_path.read_bytes())
-        results.append({"case": label, "path": str(image_path), **result.to_dict()})
+        results.append(
+            {
+                "case": label,
+                "path": str(image_path),
+                "expected_decision": "allow",
+                **result.to_dict(),
+            }
+        )
 
     scores = [result["top_score"] for result in results if result["top_score"] is not None]
     flagged = [result for result in results if result["decision"] in {"review", "block"}]
@@ -94,6 +101,17 @@ def main() -> int:
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n")
+    manifest_path = args.output.with_name("falconsai-smoke-manifest.jsonl")
+    manifest_path.write_text(
+        "".join(
+            json.dumps(
+                {"path": result["path"], "expected_decision": result["expected_decision"]},
+                ensure_ascii=False,
+            )
+            + "\n"
+            for result in results
+        )
+    )
     print(json.dumps(payload, ensure_ascii=False, indent=2))
     return 0
 
