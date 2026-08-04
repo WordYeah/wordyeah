@@ -10,6 +10,9 @@
 - `wy-review`：人工复核页面和审核记录
 - `wy-cravatar`：Cravatar 接入适配器
 
+The current PoC includes a metadata-only SQLite review queue and a pure
+Cravatar action adapter. Neither is connected to production.
+
 ## 当前阶段
 
 立项基线与隔离 PoC。当前不连接 Cravatar 生产判定，不调用腾讯云或其他外部审查 API。
