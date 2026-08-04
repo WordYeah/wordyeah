@@ -22,8 +22,9 @@
 - 点击列表项打开单项证据视图；详情按“左侧 Configuration / 人工动作、右侧
   Controlled media preview / Model finding summary / Content evidence”分栏。
 - 头像菜单、审核说明和操作记录使用折叠或下钻交互，默认不占用审核列表空间。
-- 详情页的 approve / reject / hold / retry 仍是人工动作；没有后端批量 API 时不显示
- 伪造的批量完成结果。
+- 详情页的 approve / reject / hold / retry 是人工动作；YOLO/快速标记直接提交，不弹确认框。
+- 网格、列表、沉浸三种视图可切换；显式批量模式最多处理 50 项，并逐项显示结果。
+- 顶栏/侧栏工作区切换使用服务端工作区配置，切换后队列、事件、attempt 和 cursor 都按 consumer 隔离。
 
 ## 安全边界
 
@@ -32,19 +33,22 @@
 - `media_ref` 默认只指向 allowlisted 本地/私有对象；Cravatar 队列可使用严格校验的 `cravatar://<32 位 MD5>`，UI 仅拼接到 allowlisted `https://cn.cravatar.com/avatar/`。禁止浏览器访问调用方提供的任意远程 URL。
 - 默认 SQLite 只存哈希、模型结果、状态和审计，不存原始图片；图片预览只能通过 reviewer session 和 allowlisted `media://` 引用端点提供。
 - 错误和超时进入 `held`，不显示成 `allow`。
-- 人工动作仍然只在单项详情中提交，继续受 CSRF + optimistic version 保护。
+- 单项与批量动作都受 CSRF + optimistic version 保护；高风险和特殊类别在服务端禁止批量决定。
 
 ## 最小动作 API
 
 ```text
-GET  /review/items?status=pending
+GET  /review/items?status=pending&cursor=...
 GET  /review/items/{id}
 POST /review/items/{id}/approve
 POST /review/items/{id}/reject
 POST /review/items/{id}/hold
 POST /review/items/{id}/retry
+POST /review/items/batch
+GET  /review/workspaces
+POST /review/workspaces/{workspace_id}/select
 ```
 
 所有动作写入 `review_events`，并保留 reviewer、时间、原始 decision hint
-和备注。页面只绑定当前 `consumer_id` 的队列，不提供跨 consumer 查询；不会改变
-Cravatar 状态。
+和备注。页面只绑定 reviewer session 当前选择的 workspace consumer；机器 API 继续绑定
+进程配置的 `consumer_id`，不会改变 Cravatar 状态。

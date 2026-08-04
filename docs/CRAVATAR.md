@@ -56,3 +56,22 @@ python scripts/cravatar_backlog_submit.py manifest.json \
 
 The submitter rechecks every content hash immediately before sending, accepts
 only loopback endpoints, and always reports `mutates_avatar=false`.
+
+## Incremental shadow runner
+
+`wy-cravatar` stores a source cursor, stable source IDs, failure records and a
+watermark in local SQLite. Re-running the same records is idempotent. The
+runner can be paused without changing Cravatar and replay only failed local
+records:
+
+```bash
+wy-cravatar run manifest.jsonl --endpoint http://127.0.0.1:8000
+wy-cravatar watermark
+wy-cravatar pause
+wy-cravatar resume
+wy-cravatar replay --endpoint http://127.0.0.1:8000
+```
+
+This is a CLI runner, not a production scheduler. It never writes WordPress,
+avatar state, Cavalcade jobs or a remote database; `enforce=false` remains the
+only supported deployment state for this phase.

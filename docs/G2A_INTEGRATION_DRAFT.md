@@ -9,7 +9,8 @@
 | 环境变量 | 默认值 | 说明 |
 |---|---:|---|
 | `WORDYEAH_G2A_ENABLED` | `false` | 只有显式设为 `true` 才允许 HTTP 调用 |
-| `WORDYEAH_G2A_ENDPOINT` | 空 | 完整的 G2A endpoint；远端必须使用 HTTPS，HTTP 只允许 loopback 开发地址 |
+| `WORDYEAH_G2A_ENDPOINT` | 空 | 完整的 G2A endpoint；默认要求 HTTPS，HTTP 只允许 loopback |
+| `WORDYEAH_G2A_ALLOW_PRIVATE_HTTP` | `false` | 显式允许私网 IP literal 使用 HTTP；不会允许域名或公网 IP 绕过 HTTPS |
 | `WORDYEAH_G2A_API_KEY` | 空 | 运行时 secret；启用时必填 |
 | `WORDYEAH_G2A_MODEL` | 空 | G2A 提供的模型 ID；启用时必填 |
 | `WORDYEAH_G2A_MODEL_VERSION` | 空 | 可选的模型版本或部署版本 |
@@ -50,15 +51,17 @@ fast_scan 边界/低置信度
 
 API 接线位于 `POST /v1/review/items/{item_id}/advanced-vision`。接口只运行审核路由当前要求的 `vision_review_1` 或 `vision_review_2`，读取受控 `media://` 预览、校验图片、调用已启用 provider、追加 attempt，再重新计算路由。provider 未启用时返回 503，不创建伪 attempt。`/health/live` 与 `/health/ready` 只报告配置启用状态，不把未探测的上游写成健康。
 
+异步入口为 `wordyeah-worker --vision`；`--once` 用于单次验收。应用在 fast scan 路由到一审后自动入队，一审结果需要独立二审时自动创建二审任务。二审使用 `WORDYEAH_G2A_SECONDARY_*` 配置命名空间；未配置独立 provider 时不会把同模型重试伪装成二审。job 持久化记录可运行时间、lease、attempt、错误类别和死信状态。
+
 ## Mock 与验证边界
 
 `G2AVisionProvider` 支持注入 transport；单元测试不访问网络，也不需要真实 API key。当前验证覆盖默认关闭、请求构造、超时、HTTP 错误分类、直接/兼容 envelope 响应解析、结构化 attempt 转换和失败不放行。
 
 以下尚未验证：
 
-- G2A 实际 endpoint、鉴权头、模型 ID 和响应 envelope 是否与当前 OpenAI-compatible 假设一致。
+- 2026-08-05 的受控 canary 已到达现有 G2A 网关；`grok-4.5` 与 `grok-4.3` 都返回 HTTP 429。可以确认错误被分类为可重试限流，但没有得到真实视觉响应，不能据此确认响应 envelope、准确率或延迟。
 - 真实调用的延迟、限流、计费、图片尺寸/MIME 约束、内容保留政策和服务条款。
-- worker job 自动创建、异步重试退避和定时健康探测；同步受控 API、attempt 持久化和 vision_review_1/2 路由接线已经完成测试。
+- 定时上游健康探测和生产服务守护；worker 自动创建、异步退避、lease 回收、死信与 attempt 持久化已完成测试。
 - 代表性 Cravatar 头像上的准确率、误报率、召回率、分歧率和人工介入率。
 - 生产 shadow；本草案不授权 `enforce`，也不改变 Cravatar 头像。
 

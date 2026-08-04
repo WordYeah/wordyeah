@@ -9,7 +9,7 @@
 - [CX] 已验证：真实 Uvicorn 审核登录、review list、页面和 `media://` 安全预览 smoke
 - [CX] 已验证：真实畸形图片请求返回 `422/error`，结果持久化并进入 `held`，不进入 allow/pending
 - [CX] 已验证：14 个生成 smoke fixture 经新的解码边界和本地模型评测无 error；block recall 仍为 `SKIP_NO_EXPECTED_BLOCK`
-- [CX] 已实现：审核台 UI 已重新清理并按参考稿重建；队列首屏只显示 AI 未闭环的例外，使用浅灰侧栏、克制顶栏、104px 行式队列、低饱和状态标签，以及左证据右大图的单项详情；登录页和八个支持页已统一视觉，批量执行仍未接入
+- [CX] 已实现：审核台 UI 已重新清理并按参考稿重建；队列首屏只显示 AI 未闭环的例外，使用浅灰侧栏、克制顶栏、紧凑行式队列、低饱和状态标签，以及左证据右大图的单项详情；登录页和八个支持页已统一视觉
 - [CX] 已实现：P2 私有 corpus 工具链（manifest schema、导入、SHA-256/平均哈希去重、受控路径校验和分层门槛报告）；14 个生成 fixture 只能报告 `INCOMPLETE/SKIP`，不能作为头像准确率验收
 - [CX] 已记录：`artifacts/avatar-service-benchmark.json` 的本机 CPU 10 样本 API-only/API+SQLite/API+worker 基线；不是 M3/MPS 或真实头像准确率验收
 - [CX] 已实现：Cravatar 本地 shadow contract 默认关闭且只记录 metadata，不连接 WordPress
@@ -19,10 +19,14 @@
 - [CX] 已验证：Cravatar 生产只读快照确认真实队列为 `wp_cavalcade_jobs`；5 条 bypass-completed canary 本地复审均为 allow，样本量不足，不作为准确率通过
 - [CX] 已实现：审核队列紧凑列表、视觉网格、快速标记和显式批量模式；批量动作最多 50 项并逐项写审计事件
 - [CX] 已实现：`cravatar://<32 位 MD5>` 预览引用只拼接到 allowlisted `https://cn.cravatar.com/avatar/`，不接受任意远程图片 URL
-- [CX] 已记录：结构化原因标签、误报/漏报/模型分歧反馈、受控样本留存和区域标注的分阶段边界；标签与样本库尚未实现
-- [CX] 已验证：62 个 pytest、8 个 subtest、ruff、compileall、diff check 通过；真实浏览器完成登录、队列、详情、备注和留置动作，动作后全局数量正确更新；已保存 1440×900、1280×800、390×844 队列截图及桌面详情截图
+- [CX] 已实现：版本化质量标签、受控样本留存、双人复核和最小仲裁持久对象；代表性样本仍未收集，质量页尚未成为完整标注工具
+- [CX] 已实现：provider-neutral 高级视觉 worker、自动一审/二审任务、幂等、lease 回收、指数退避、死信和人工 retry 新建任务；G2A 私网 HTTP 仅在显式开关且 endpoint 为私网 IP/loopback 时允许
+- [CX] 已实现：服务端 cursor 分页、工作区切换、consumer 约束、最多 50 项的批量 API 与特殊风险服务端禁批
+- [CX] 已实现：Cravatar 增量 cursor、幂等、暂停/恢复、失败重放和水位 CLI；仅允许 loopback WordYeah endpoint
+- [CX] 已验证：162 个 pytest、12 个 subtest 和 diff check 通过；真实浏览器验证 1280×800 批量限制、390×844 工作区切换、队列和详情，无审核动作弹窗
 - [CX] 已完成 UI 细节复查：审核队列与八个支持页已统一导航、顶栏、间距、线条和组件样式；详情首屏可见图片与人工动作，历史表格长值已压缩显示，移动端导航收为单行横向滚动；结构化视觉复核 92/100
-- [CX] 未完成：高级视觉模型 provider/worker 实接、人工 retry 自动创建新模型 job、服务端 cursor 分页、抽检/仲裁执行、代表性头像准确率与大规模 shadow
+- [CX] 未完成：代表性头像 corpus、10% 双人复核、15 分钟两倍峰值压测、大规模 Cravatar shadow、质量标注 UI 和生产级调度服务
+- [CX] 外部限制：G2A 实际 canary 已到达网关，但 `grok-4.5` 与 `grok-4.3` 均返回 HTTP 429；重试分类有效，尚不能验证真实视觉响应、准确率或延迟
 - 生产接入：只读 canary 已完成；未写回 WordPress/头像/队列
 - 外部审查 API：禁止
 - 首个接入方：Cravatar，使用独立适配器
