@@ -48,3 +48,40 @@ The committed smoke manifest contains generated safe fixtures only. A separate
 local-only benchmark may add a small public dataset subset, but its labels and
 domain must be recorded separately; it is not a real-avatar or production
 accuracy set.
+
+## Public candidate staging
+
+Public datasets may be used to prepare a review inbox, but their source labels are
+not WordYeah ground truth. Candidate manifests deliberately use
+`review_status=unreviewed`, `ground_truth=false` in the report, and contain no
+`expected_decision` field. They cannot pass `dataset_validate.py` or the avatar MVP
+aggregate gate until reviewed entries are promoted into the controlled manifest.
+
+The viewer collector calls only `datasets-server.huggingface.co`, rejects redirects
+and non-`/cached-assets/` image URLs, applies the normal image decode limits, and
+writes a private 0600 manifest plus 0600 image files under a 0700 dataset directory:
+
+```bash
+python3 scripts/prepare_hf_avatar_candidates.py \
+  --dataset LakoreAI/human-nonhuman-face-classification \
+  --config default --split test --label 0 --count 300 \
+  --output-root /private/wordyeah/avatar-corpus-candidates \
+  --source-url https://huggingface.co/datasets/LakoreAI/human-nonhuman-face-classification \
+  --license mit --style-candidate real --decision-candidate allow
+```
+
+For a locally downloaded Hugging Face zip, the archive collector bounds archive,
+member and compression sizes, ignores traversal/symlink entries and extracts only
+validated images:
+
+```bash
+python3 scripts/prepare_hf_archive_candidates.py /private/cache/data.zip \
+  --dataset huggan/anime-faces --count 300 \
+  --output-root /private/wordyeah/avatar-corpus-candidates \
+  --source-url https://huggingface.co/datasets/huggan/anime-faces \
+  --license cc0-1.0 --style-candidate anime --decision-candidate allow
+```
+
+The `style-candidate` and `decision-candidate` values are routing hints only. Every
+candidate remains unreviewed, including rows whose source dataset calls them human,
+safe or explicit.
