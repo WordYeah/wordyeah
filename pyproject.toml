@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wordyeah"
+version = "0.1.0"
+description = "Self-hosted multimodal content moderation and review"
+requires-python = ">=3.11"
+dependencies = [
+  "Pillow>=10",
+  "torch>=2.2",
+  "transformers>=4.40",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
+api = ["fastapi>=0.110", "uvicorn>=0.29", "python-multipart>=0.0.9"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
