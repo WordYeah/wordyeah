@@ -11,10 +11,13 @@ Returns service liveness and states that model calls are local-only.
 
 - Bind: `127.0.0.1:18765` by default (`WORDYEAH_BIND`/`WORDYEAH_PORT`)
 - Body: raw image bytes (`Content-Length` required)
+- Supported content types: `image/jpeg`, `image/png`, `image/webp`, `image/gif`, `image/bmp`
 - Maximum body: 10 MiB by default (`WORDYEAH_MAX_BODY_BYTES`)
 - No URL input; the service does not fetch remote content.
 - Model loading uses `local_files_only=True`.
 - If `WORDYEAH_API_KEY` is set, requests require `Authorization: Bearer ...`.
+- Results are bounded in-memory by content SHA-256 for repeated-request
+  idempotency; image bytes are not stored.
 
 Example response shape:
 
