@@ -784,6 +784,14 @@ def create_app(
     async def review_workbench_script() -> Response:
         return Response(WORKBENCH_JS, media_type="application/javascript")
 
+    @app.get("/review/assets/cravatar-ban.png", response_class=FileResponse, response_model=None)
+    async def review_cravatar_ban_asset() -> FileResponse:
+        return FileResponse(
+            Path(__file__).with_name("assets") / "cravatar-ban.png",
+            media_type="image/png",
+            headers={"Cache-Control": "public, max-age=86400, immutable"},
+        )
+
     def _support_page_data(page: str) -> dict[str, object]:
         items = _consumer_items()
         consumer_item_ids = {item.item_id for item in items}

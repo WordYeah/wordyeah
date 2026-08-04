@@ -153,7 +153,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   margin: 24px auto;
   border: 1px solid var(--line);
   border-radius: var(--radius-app);
-  box-shadow: var(--shadow-app);
+  box-shadow: none;
 }
 
 :root[data-layout="boxed"] .queue-list[data-view="grid"] {
@@ -225,7 +225,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   text-decoration: none;
   font-size: 13px;
   font-weight: 500;
-  transition: background 140ms ease, color 140ms ease, box-shadow 140ms ease;
+  transition: background 140ms ease, color 140ms ease;
 }
 
 .nav-item:hover,
@@ -237,7 +237,6 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .nav-item.is-active {
   background: var(--panel);
   color: var(--accent);
-  box-shadow: var(--shadow-sm);
   font-weight: 600;
 }
 
@@ -281,7 +280,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   border: 1px solid var(--line);
   border-radius: 18px;
   background: var(--panel);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.03);
+  box-shadow: none;
 }
 
 .usage-card-head {
@@ -616,7 +615,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   border: 1px solid var(--line);
   border-radius: 14px;
   background: var(--panel);
-  box-shadow: 0 18px 48px rgba(0, 0, 0, .25);
+  box-shadow: none;
 }
 .account-popover p { margin: 0 0 10px; color: var(--muted); font-size: 12px; }
 .account-popover .toolbar-logout button { width: 100%; justify-content: center; border-radius: 10px; }
@@ -1041,7 +1040,6 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .view-switch a.is-active {
   background: var(--panel);
   color: var(--text);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .batch-toggle {
@@ -1075,7 +1073,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   border: 1px solid var(--line-strong);
   border-radius: 13px;
   background: var(--panel-soft);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  box-shadow: none;
   backdrop-filter: blur(12px);
 }
 
@@ -1145,8 +1143,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
 
 .review-card.is-focused {
   border-color: var(--line-strong);
+  border-left-width: 3px;
   background: var(--panel-soft);
-  box-shadow: inset 3px 0 0 var(--line-strong);
 }
 
 .row-identity { display: grid; gap: 2px; }
@@ -1284,23 +1282,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   background: var(--panel-muted);
 }
 .avatar-state img { width: 100%; height: 100%; object-fit: cover; }
-.avatar-state.is-blocked img { filter: grayscale(1); opacity: 0.38; }
-.avatar-state.is-blocked::after {
-  position: absolute;
-  inset: 50% auto auto 50%;
-  display: grid;
-  width: 30px;
-  height: 30px;
-  place-items: center;
-  border: 2px solid #ffffff;
-  border-radius: 50%;
-  background: var(--red);
-  color: #ffffff;
-  content: "×";
-  font-size: 20px;
-  line-height: 1;
-  transform: translate(-50%, -50%);
-}
+.avatar-state.is-blocked img { opacity: 1; }
 
 .row-risk-dot {
   position: absolute;
@@ -1388,6 +1370,22 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .status-pill.status-approved { background: var(--green-soft); color: var(--green); }
 .status-pill.status-rejected { background: var(--red-soft); color: var(--red); }
 
+.risk-label {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: var(--panel-muted);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+.risk-label.risk-low { background: var(--green-soft); color: var(--green); }
+.risk-label.risk-guarded { background: var(--accent-soft); color: var(--accent); }
+.risk-label.risk-elevated { background: var(--amber-soft); color: var(--amber); }
+.risk-label.risk-critical { background: var(--red-soft); color: var(--red); }
+
 .row-confidence strong { font-size: 16px; letter-spacing: -0.04em; }
 
 .row-open {
@@ -1455,6 +1453,12 @@ button, a { -webkit-tap-highlight-color: transparent; }
   place-items: center;
   border-radius: 10px;
   color: var(--quiet);
+}
+.detail-close svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  stroke-width: 1.8;
 }
 
 .detail-close:hover,
@@ -1614,7 +1618,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   font-weight: 700;
   cursor: pointer;
   backdrop-filter: blur(8px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: none;
 }
 
 .preview-unblur-toggle:hover {
@@ -1798,11 +1802,16 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .bg-mode-bar button.is-active {
   background: var(--panel-muted);
   color: var(--text);
-  box-shadow: inset 0 0 0 1px var(--line-strong);
+  outline: 1px solid var(--line-strong);
+  outline-offset: -1px;
 }
 
 .lightbox-trigger {
-  padding: 4px 10px;
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--panel);
@@ -1841,7 +1850,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   border: 1px solid var(--line);
   border-radius: 18px;
   background: var(--panel);
-  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.35);
+  box-shadow: none;
 }
 .lightbox-toolbar {
   display: flex;
@@ -1853,6 +1862,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   background: var(--panel);
 }
 .lightbox-toolbar strong { font-size: 13px; font-weight: 700; }
+.lightbox-zoom-hint { margin-left: 8px; color: var(--quiet); font-size: 11px; font-weight: 500; }
 .lightbox-toolbar-actions { display: flex; align-items: center; gap: 4px; }
 .lightbox-toolbar button {
   min-width: 34px;
@@ -1878,21 +1888,21 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 .lightbox-stage.is-blocked::after {
   position: absolute;
-  inset: 50% auto auto 50%;
-  display: grid;
-  width: 52px;
-  height: 52px;
-  place-items: center;
-  border: 3px solid #ffffff;
-  border-radius: 50%;
+  inset: 16px 16px auto auto;
+  display: inline-flex;
+  height: 26px;
+  align-items: center;
+  padding: 0 9px;
+  border: 1px solid rgba(255, 255, 255, .72);
+  border-radius: 7px;
   background: var(--red);
   color: #ffffff;
-  content: "×";
-  font-size: 34px;
-  line-height: 1;
-  transform: translate(-50%, -50%);
+  content: "Cravatar 已屏蔽";
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 24px;
 }
-.lightbox-stage.is-blocked img { filter: grayscale(1); opacity: 0.42; }
+.lightbox-stage.is-blocked img { opacity: 1; }
 .lightbox-stage img {
   display: block;
   max-width: 100%;
@@ -1900,7 +1910,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   object-fit: contain;
   transform-origin: center center;
   transition: transform 120ms ease;
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+  box-shadow: none;
 }
 
 .keyboard-help-popover { position: relative; display: inline-block; }
@@ -1948,7 +1958,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   border-radius: 14px;
   background: var(--panel);
   backdrop-filter: blur(16px);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+  box-shadow: none;
 }
 .keyboard-popover-content strong { display: block; margin-bottom: 8px; font-size: 12px; color: var(--text); }
 .keyboard-popover-content ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
@@ -2007,7 +2017,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   border: 1px solid var(--line-strong);
   border-radius: 14px;
   background: var(--panel);
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.2);
+  box-shadow: none;
   backdrop-filter: blur(16px);
   color: var(--text);
   font-size: 12px;
@@ -2255,6 +2265,54 @@ button, a { -webkit-tap-highlight-color: transparent; }
   border-radius: 10px;
   background: var(--panel);
 }
+
+.detail-audit {
+  margin-top: 0;
+  overflow: hidden;
+}
+
+.detail-audit > summary {
+  display: flex;
+  min-height: 46px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 14px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 650;
+  list-style: none;
+}
+
+.detail-audit > summary::-webkit-details-marker { display: none; }
+.audit-summary-main { display: inline-flex; align-items: center; gap: 8px; }
+.audit-summary-main svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  color: var(--quiet);
+  transition: transform 140ms ease;
+}
+.detail-audit[open] .audit-summary-main svg { transform: rotate(90deg); }
+.detail-audit .quiet { color: var(--quiet); font-size: 11px; font-weight: 500; }
+.audit-summary-meta {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  padding-left: 12px;
+  border-left: 1px solid var(--line);
+  white-space: nowrap;
+}
+.audit-log-body { padding: 0 14px 14px; border-top: 1px solid var(--line); }
+.detail-audit .event-list { gap: 0; }
+.detail-audit .event-item {
+  padding: 12px 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+}
+.detail-audit .event-item:last-child { border-bottom: 0; }
 
 @media (max-width: 980px) {
   .app-frame { grid-template-columns: 1fr; }
@@ -2525,6 +2583,20 @@ WORKBENCH_JS = r"""
     if (label) label.textContent = `${Math.round(window.lightboxScale * 100)}%`;
   };
 
+  window.zoomLightboxAtPoint = (nextScale, clientX, clientY) => {
+    const stage = document.querySelector('.lightbox-stage');
+    const img = document.querySelector('#lightbox-img');
+    if (!stage || !img) return;
+    const previousScale = window.lightboxScale || 1;
+    const rect = stage.getBoundingClientRect();
+    const pointX = clientX - rect.left + stage.scrollLeft;
+    const pointY = clientY - rect.top + stage.scrollTop;
+    window.setLightboxScale(nextScale);
+    const ratio = window.lightboxScale / previousScale;
+    stage.scrollLeft = pointX * ratio - (clientX - rect.left);
+    stage.scrollTop = pointY * ratio - (clientY - rect.top);
+  };
+
   window.resetLightboxScale = () => {
     const img = document.querySelector('#lightbox-img');
     if (!img) return;
@@ -2549,7 +2621,7 @@ WORKBENCH_JS = r"""
       modal.innerHTML = `
         <div class="lightbox-content">
           <div class="lightbox-toolbar">
-            <strong>受控大图预览</strong>
+            <strong>受控大图预览<span class="lightbox-zoom-hint">滚轮缩放</span></strong>
             <div class="lightbox-toolbar-actions">
               <button type="button" onclick="window.setLightboxScale(window.lightboxScale - .25)" aria-label="缩小">−</button>
               <button type="button" data-lightbox-scale onclick="window.resetLightboxScale()" aria-label="适应窗口">适应</button>
@@ -2563,6 +2635,12 @@ WORKBENCH_JS = r"""
       modal.addEventListener('click', (e) => {
         if (e.target === modal) window.closeLightbox();
       });
+      const lightboxStage = modal.querySelector('.lightbox-stage');
+      lightboxStage?.addEventListener('wheel', (event) => {
+        event.preventDefault();
+        const direction = event.deltaY < 0 ? 1 : -1;
+        window.zoomLightboxAtPoint(window.lightboxScale + direction * .2, event.clientX, event.clientY);
+      }, { passive: false });
     }
     const img = modal.querySelector('#lightbox-img');
     const stage = modal.querySelector('.lightbox-stage');
@@ -3304,7 +3382,7 @@ def _detail_panel(
             <div class="detail-facts summary-facts">
               <div class="detail-fact"><div class="label">审核状态</div><div class="value"><span class="status-pill status-{escape(item.status)}">{escape(_status_label(item.status))}</span></div></div>
               <div class="detail-fact"><div class="label">AI 建议</div><div class="value">{escape(_decision_label(item.decision_hint))}</div></div>
-              <div class="detail-fact"><div class="label">风险等级</div><div class="value"><span class="risk-{escape(risk_band)}">{escape(_risk_label(risk_band))}</span></div></div>
+              <div class="detail-fact"><div class="label">风险等级</div><div class="value"><span class="risk-label risk-{escape(risk_band)}">{escape(_risk_label(risk_band))}</span></div></div>
               <div class="detail-fact"><div class="label">模型置信度</div><div class="value">{escape(confidence_text)}</div></div>
             </div>
           </section>
@@ -3348,7 +3426,7 @@ def _detail_panel(
           </section>
 
           <details class="audit-log detail-audit">
-            <summary><span>这张图片的操作记录</span><span class="quiet">AI 操作记录<span class="sr-only">Agent action log</span></span></summary>
+            <summary><span class="audit-summary-main">{_top_icon("arrow")}<span>这张图片的操作记录</span></span><span class="quiet audit-summary-meta">AI 自动记录<span class="sr-only">Agent action log</span></span></summary>
             <div class="audit-log-body">
               <ul class="event-list">{timeline}</ul>
             </div>
@@ -3361,7 +3439,8 @@ def _detail_panel(
 
 def _media_thumbnail(item: ReviewItem) -> str:
     if item.status == "rejected":
-        return _avatar_state("blocked", size=160)
+        blocked_source = _cravatar_preview_url(item, size=160) or _blocked_avatar_url()
+        return _avatar_state("blocked", size=160, source=blocked_source)
     cravatar_url = _cravatar_preview_url(item, size=160)
     if cravatar_url is not None:
         return (
@@ -3398,13 +3477,13 @@ def _media_preview(item: ReviewItem) -> str:
             "<span>暂无受控本地预览</span></div></div>"
         )
     img_src = (
-        escape(_default_avatar_url(size=512))
+        escape(cravatar_url or _blocked_avatar_url())
         if blocked
         else escape(cravatar_url)
         if cravatar_url is not None
         else f"/review/items/{escape(item.item_id)}/media"
     )
-    note_text = "已屏蔽头像使用 Cravatar 官方默认头像表示，不再展示原始头像。" if blocked else "预览按 Cravatar 官方 API 生成 <code>cn.cravatar.com/avatar/&lt;hash&gt;</code> 地址，仅允许尺寸与 404 默认图参数。" if cravatar_url is not None else "预览通过 reviewer session 和 allowlisted <code>media://</code> 引用提供；浏览器不会收到原始存储路径。"
+    note_text = "已屏蔽头像显示 Cravatar 源站 ban 状态图，不再展示原始违规头像。" if blocked else "预览按 Cravatar 官方 API 生成 <code>cn.cravatar.com/avatar/&lt;hash&gt;</code> 地址，仅允许尺寸与 404 默认图参数。" if cravatar_url is not None else "预览通过 reviewer session 和 allowlisted <code>media://</code> 引用提供；浏览器不会收到原始存储路径。"
     preview_image = (
         f'<div class="avatar-state is-blocked"><img src="{img_src}" alt="已屏蔽头像" loading="eager" decoding="async" id="preview-img-target"></div>'
         if blocked
@@ -3426,8 +3505,8 @@ def _media_preview(item: ReviewItem) -> str:
     """
 
 
-def _avatar_state(state: str, *, size: int) -> str:
-    source = _default_avatar_url(size=size)
+def _avatar_state(state: str, *, size: int, source: str | None = None) -> str:
+    source = source or (_blocked_avatar_url() if state == "blocked" else _default_avatar_url(size=size))
     state_class = " is-blocked" if state == "blocked" else ""
     label = "已屏蔽头像" if state == "blocked" else "默认头像"
     return f'<div class="avatar-state{state_class}"><img src="{source}" alt="{label}" loading="lazy" decoding="async"></div>'
@@ -3435,7 +3514,11 @@ def _avatar_state(state: str, *, size: int) -> str:
 
 def _default_avatar_url(*, size: int) -> str:
     bounded_size = min(max(size, 16), 1024)
-    return f"https://cn.cravatar.com/avatar/{'0' * 32}?s={bounded_size}&d=mp&f=y"
+    return f"https://cn.cravatar.com/avatar/{'0' * 32}?s={bounded_size}&f=y"
+
+
+def _blocked_avatar_url() -> str:
+    return "/review/assets/cravatar-ban.png"
 
 
 def _cravatar_preview_url(item: ReviewItem, *, size: int) -> str | None:

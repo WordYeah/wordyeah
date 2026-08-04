@@ -7,7 +7,7 @@ from urllib.parse import urlencode
 from PIL import Image
 
 from wy_api.app import ApiSettings, create_app
-from wy_api.review_ui import _avatar_state, _default_avatar_url
+from wy_api.review_ui import _avatar_state, _blocked_avatar_url, _default_avatar_url
 from wy_core.contracts import ModerationResult
 from wy_media.falconsai import ImageScores
 from wy_media.service import MediaModerationService
@@ -36,12 +36,24 @@ class AvatarReviewApiTest(unittest.TestCase):
         default_url = _default_avatar_url(size=160)
         self.assertEqual(
             default_url,
-            "https://cn.cravatar.com/avatar/00000000000000000000000000000000?s=160&d=mp&f=y",
+            "https://cn.cravatar.com/avatar/00000000000000000000000000000000?s=160&f=y",
         )
         self.assertIn('alt="默认头像"', _avatar_state("default", size=160))
         blocked = _avatar_state("blocked", size=512)
         self.assertIn('class="avatar-state is-blocked"', blocked)
         self.assertIn('alt="已屏蔽头像"', blocked)
+        self.assertIn(_blocked_avatar_url(), blocked)
+
+    def test_cravatar_ban_asset_is_served_from_the_review_origin(self) -> None:
+        from fastapi.testclient import TestClient
+
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            settings = ApiSettings(database_path=str(Path(temporary_dir) / "review.sqlite3"))
+            with TestClient(create_app(settings=settings, service=MediaModerationService(BlockClassifier()))) as client:
+                response = client.get(_blocked_avatar_url())
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.headers["content-type"], "image/png")
+                self.assertGreater(len(response.content), 1000)
 
     def _moderate_png(self, client, color: tuple[int, int, int]) -> dict[str, object]:
         image = io.BytesIO()
