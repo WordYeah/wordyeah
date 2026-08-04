@@ -4,6 +4,7 @@ import base64
 import json
 import os
 import socket
+import ipaddress
 from dataclasses import dataclass
 from typing import Callable, Mapping
 from urllib.error import HTTPError, URLError
@@ -34,6 +35,7 @@ class G2AConfig:
     timeout_seconds: float = 20.0
     prompt_version: str = DEFAULT_PROMPT_VERSION
     max_image_bytes: int = 10 * 1024 * 1024
+    allow_private_http: bool = False
 
     def __post_init__(self) -> None:
         if self.timeout_seconds <= 0 or self.timeout_seconds > 300:
@@ -47,7 +49,14 @@ class G2AConfig:
             if parsed.scheme not in {"http", "https"} or not parsed.netloc:
                 raise ValueError("G2A endpoint must be an absolute HTTP(S) URL")
             if parsed.scheme != "https" and parsed.hostname not in {"127.0.0.1", "::1", "localhost"}:
-                raise ValueError("enabled G2A requires HTTPS except for a loopback endpoint")
+                try:
+                    private_address = ipaddress.ip_address(parsed.hostname or "").is_private
+                except ValueError:
+                    private_address = False
+                if not (self.allow_private_http and private_address):
+                    raise ValueError(
+                        "enabled G2A requires HTTPS except for loopback or explicitly allowed private IP"
+                    )
         if not self.prompt_version:
             raise ValueError("G2A prompt_version is required")
 
@@ -69,6 +78,9 @@ class G2AConfig:
             timeout_seconds=timeout,
             prompt_version=values.get("WORDYEAH_G2A_PROMPT_VERSION", DEFAULT_PROMPT_VERSION).strip(),
             max_image_bytes=max_bytes,
+            allow_private_http=_parse_bool(
+                values.get("WORDYEAH_G2A_ALLOW_PRIVATE_HTTP", "false")
+            ),
         )
 
 

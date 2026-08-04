@@ -55,6 +55,19 @@ class G2AProviderTests(unittest.TestCase):
         self.assertTrue(
             enabled_config(endpoint="http://127.0.0.1:8080/v1/chat/completions").enabled
         )
+        with self.assertRaisesRegex(ValueError, "requires HTTPS"):
+            enabled_config(endpoint="http://10.211.55.107:18000/v1/chat/completions")
+        self.assertTrue(
+            enabled_config(
+                endpoint="http://10.211.55.107:18000/v1/chat/completions",
+                allow_private_http=True,
+            ).enabled
+        )
+        with self.assertRaisesRegex(ValueError, "requires HTTPS"):
+            enabled_config(
+                endpoint="http://8.8.8.8/v1/chat/completions",
+                allow_private_http=True,
+            )
 
     def test_mock_transport_receives_timeout_and_returns_structured_conclusion(self) -> None:
         seen: dict[str, object] = {}
