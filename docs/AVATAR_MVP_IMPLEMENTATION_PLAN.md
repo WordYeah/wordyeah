@@ -169,9 +169,10 @@ Cravatar 增量 shadow 输入
 
 ## 9. 2026-08-05 验证记录
 
-- 全量测试：177 passed，12 subtests passed；仅有 Starlette/httpx 弃用警告。
+- 全量测试：178 passed，12 subtests passed；仅有 Starlette/httpx 弃用警告。
 - 浏览器：1280×800 验证工作区切换、列表和高风险禁批；390×844 验证支持页移动工作区菜单、质量双审动作、队列与单项审核，决定动作不弹确认框。
 - 持久队列负载：50 jobs/s 连续 900 秒，完成 45,000 项、零 active 残留、49.9998 jobs/s、cycle p95 1.02ms；时长与速率门槛均 `PASS`。结果保存在本地忽略文件 `artifacts/review-queue-load-15m.json`。
 - G2A canary：网关可达，`grok-4.5` 与 `grok-4.3` 返回 HTTP 429；限流重试分类通过，真实视觉能力未验收。
+- 故障演练：数据库重启持久性、过期 lease 回收、死信、provider 关闭、429、无效响应和 shadow 非写入均通过；证据保存在本地忽略文件 `artifacts/avatar-fault-drills-mvp.json`。
 - corpus：没有达到类别样本门槛，必须保持 `INCOMPLETE/SKIP`。
 - 生产边界：没有 WordPress、头像、Cavalcade、腾讯云或生产数据库写入。

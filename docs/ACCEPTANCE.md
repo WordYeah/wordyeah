@@ -34,6 +34,16 @@
 - 原始媒体不进入 SQLite；预览只能通过受控 media ref
 - 所有 review 动作有 reviewer、时间、前后状态、策略版本和 request id
 
+可复现故障演练：
+
+```bash
+PYTHONPATH=src .venv/bin/python scripts/run_avatar_fault_drills.py \
+  --output artifacts/avatar-fault-drills-mvp.json
+```
+
+报告必须覆盖数据库重启、worker lease 回收、死信、provider 关闭、429、无效响应
+以及 Cravatar shadow 非写入语义；任何 provider 错误都不得产生 `allow`。
+
 ## Cravatar shadow
 
 - `shadow` 和 `review` 的 `mutates_avatar` 必须为 false
