@@ -1103,6 +1103,7 @@ def create_app(
         reviewer_id: str | None = None,
         csrf_token: str | None = None,
         quality_offset: int = 0,
+        quality_batch_id: str | None = None,
     ) -> dict[str, object]:
         items = _consumer_items(consumer_id)
         consumer_item_ids = {item.item_id for item in items}
@@ -1243,14 +1244,36 @@ def create_app(
         if page == "quality":
             _quality_vocabulary(consumer_id)
             report = quality_store.report(consumer_id=consumer_id)
+            batches = quality_store.list_review_batches(consumer_id=consumer_id)
+            selected_batch = next(
+                (batch for batch in batches if batch.batch_id == quality_batch_id),
+                batches[0] if batches and not quality_batch_id else None,
+            )
+            if quality_batch_id and selected_batch is None:
+                raise HTTPException(status_code=404, detail="quality review batch not found")
+            batch_report = (
+                quality_store.review_batch_report(
+                    consumer_id=consumer_id, batch_id=selected_batch.batch_id
+                )
+                if selected_batch else None
+            )
             page_size = 24
-            total_samples = int(report.get("sample_count", 0))
+            source_samples = int(report.get("sample_count", 0))
+            total_samples = (
+                selected_batch.selected_count if selected_batch else source_samples
+            )
             safe_offset = min(max(quality_offset, 0), max(total_samples - 1, 0))
             safe_offset = safe_offset // page_size * page_size
-            samples = quality_store.list_samples(
-                consumer_id=consumer_id,
-                limit=page_size,
-                offset=safe_offset,
+            samples = (
+                quality_store.list_batch_samples(
+                    consumer_id=consumer_id,
+                    batch_id=selected_batch.batch_id,
+                    limit=page_size,
+                    offset=safe_offset,
+                )
+                if selected_batch else quality_store.list_samples(
+                    consumer_id=consumer_id, limit=page_size, offset=safe_offset
+                )
             )
             sample_rows = []
             for sample in samples:
@@ -1285,6 +1308,7 @@ def create_app(
                             else None
                         ),
                         "offset": safe_offset,
+                        "batch_id": selected_batch.batch_id if selected_batch else None,
                         "action_url": action_url,
                         "csrf_token": csrf_token,
                     }
@@ -1292,15 +1316,17 @@ def create_app(
             return {
                 "exceptions": common_exceptions,
                 "metrics": [
-                    {"label": "抽检样本", "value": total_samples, "detail": f"报告状态 {report['status']}"},
-                    {"label": "待双审", "value": report.get("samples_by_status", {}).get("awaiting_reviews", 0), "detail": "需要两个独立 reviewer"},
-                    {"label": "待仲裁", "value": report.get("samples_by_status", {}).get("arbitration_required", 0), "detail": "双审结论不一致"},
+                    {"label": "冻结批次", "value": total_samples, "detail": f"源样本 {source_samples}"},
+                    {"label": "待双审", "value": batch_report.get("untouched", 0) if batch_report else report.get("samples_by_status", {}).get("awaiting_reviews", 0), "detail": "需要两个独立 reviewer"},
+                    {"label": "待仲裁", "value": batch_report.get("arbitration_required", 0) if batch_report else report.get("samples_by_status", {}).get("arbitration_required", 0), "detail": "双审结论不一致"},
                 ],
                 "sampling": {
-                    "coverage": f"{total_samples} 样本",
+                    "coverage": f"{total_samples} / {source_samples} 样本" if selected_batch else f"{total_samples} 样本",
                     "false_positive": "待标注" if total_samples else "SKIP",
-                    "disagreement": report.get("samples_by_status", {}).get("arbitration_required", 0),
+                    "disagreement": batch_report.get("arbitration_required", 0) if batch_report else report.get("samples_by_status", {}).get("arbitration_required", 0),
                 },
+                "review_batch": asdict(selected_batch) if selected_batch else None,
+                "review_batch_report": batch_report,
                 "samples": sample_rows,
                 "labels": CONTROLLED_QUALITY_LABELS,
                 "retention": {
@@ -1313,11 +1339,17 @@ def create_app(
                     "page_size": page_size,
                     "total": total_samples,
                     "previous_url": (
-                        f"/review/quality?offset={max(0, safe_offset - page_size)}"
+                        "/review/quality?" + urlencode({
+                            "batch": selected_batch.batch_id if selected_batch else "",
+                            "offset": max(0, safe_offset - page_size),
+                        })
                         if safe_offset > 0 else None
                     ),
                     "next_url": (
-                        f"/review/quality?offset={safe_offset + page_size}"
+                        "/review/quality?" + urlencode({
+                            "batch": selected_batch.batch_id if selected_batch else "",
+                            "offset": safe_offset + page_size,
+                        })
                         if safe_offset + page_size < total_samples else None
                     ),
                 },
@@ -1369,6 +1401,7 @@ def create_app(
             quality_offset = int(request.query_params.get("offset", "0"))
         except ValueError:
             quality_offset = 0
+        quality_batch_id = request.query_params.get("batch") or None
         return HTMLResponse(
             render_review_page(
                 page,
@@ -1378,6 +1411,7 @@ def create_app(
                     reviewer,
                     csrf_token,
                     quality_offset=quality_offset,
+                    quality_batch_id=quality_batch_id,
                 ),
                 context=ReviewPageContext(
                     consumer_id=workspace.workspace_id,
@@ -1414,6 +1448,7 @@ def create_app(
     async def list_quality_samples(
         request: Request,
         status: str | None = None,
+        batch: str | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> dict[str, object]:
@@ -1421,16 +1456,31 @@ def create_app(
         workspace = _review_workspace(request)
         _quality_vocabulary(workspace.workspace_id)
         try:
-            samples = quality_store.list_samples(
-                consumer_id=workspace.workspace_id,
-                status=status,  # type: ignore[arg-type]
-                limit=limit,
-                offset=offset,
-            )
+            if batch:
+                if status is not None:
+                    raise ValueError("status cannot be combined with a frozen batch")
+                samples = quality_store.list_batch_samples(
+                    consumer_id=workspace.workspace_id, batch_id=batch,
+                    limit=limit, offset=offset,
+                )
+                batch_report = quality_store.review_batch_report(
+                    consumer_id=workspace.workspace_id, batch_id=batch
+                )
+            else:
+                samples = quality_store.list_samples(
+                    consumer_id=workspace.workspace_id,
+                    status=status,  # type: ignore[arg-type]
+                    limit=limit,
+                    offset=offset,
+                )
+                batch_report = None
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return {
             "report": quality_store.report(consumer_id=workspace.workspace_id),
+            "batch_report": batch_report,
             "samples": [asdict(sample) for sample in samples],
             "pagination": {"limit": limit, "offset": offset, "returned": len(samples)},
         }
@@ -1519,8 +1569,12 @@ def create_app(
                 offset = int(raw_offset) if raw_offset not in (None, "") else 0
             except (TypeError, ValueError):
                 offset = 0
+            parameters = {"offset": offset}
+            if payload.get("batch"):
+                parameters["batch"] = str(payload["batch"])
             return RedirectResponse(
-                f"/review/quality?offset={offset}" if 0 <= offset <= 10_000_000 else "/review/quality",
+                "/review/quality?" + urlencode(parameters)
+                if 0 <= offset <= 10_000_000 else "/review/quality",
                 status_code=303,
             )
         return JSONResponse(asdict(sample))
@@ -1555,8 +1609,12 @@ def create_app(
                 offset = int(raw_offset) if raw_offset not in (None, "") else 0
             except (TypeError, ValueError):
                 offset = 0
+            parameters = {"offset": offset}
+            if payload.get("batch"):
+                parameters["batch"] = str(payload["batch"])
             return RedirectResponse(
-                f"/review/quality?offset={offset}" if 0 <= offset <= 10_000_000 else "/review/quality",
+                "/review/quality?" + urlencode(parameters)
+                if 0 <= offset <= 10_000_000 else "/review/quality",
                 status_code=303,
             )
         return JSONResponse(asdict(sample))

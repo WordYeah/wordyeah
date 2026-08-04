@@ -48,10 +48,17 @@ def test_freezes_exact_stratified_ten_percent_idempotently(tmp_path: Path) -> No
     assert first["ground_truth"] is False
     assert first["dual_review_completed"] == 0
     assert second["reused"] is True
+    assert second["batch_id"] == "dual-review-10pct-v2"
     assert len({row["sample_id"] for row in rows}) == 3
     assert all(row["required_independent_reviewers"] == 2 for row in rows)
     assert all(row["ground_truth"] is False for row in rows)
     assert output.stat().st_mode & 0o777 == 0o600
+    store = QualityStore(str(database))
+    batches = store.list_review_batches(consumer_id="corpus-avatar")
+    assert [(batch.batch_id, batch.selected_count) for batch in batches] == [
+        ("dual-review-10pct-v2", 3)
+    ]
+    store.close()
 
 
 def test_refuses_to_overwrite_frozen_selection_after_source_changes(tmp_path: Path) -> None:

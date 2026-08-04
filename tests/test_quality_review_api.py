@@ -14,6 +14,7 @@ from wy_core.contracts import ModerationResult
 from wy_media.falconsai import ImageScores
 from wy_media.service import MediaModerationService
 from wy_review.store import ReviewStore
+from wy_review.quality import QualityStore
 from wy_review.corpus_quality_import import import_candidate_manifests
 
 
@@ -174,3 +175,54 @@ def test_imported_corpus_sample_has_session_protected_controlled_preview() -> No
             )
             assert decision.status_code == 303
             assert decision.headers["location"] == "/review/quality?offset=24"
+
+
+def test_quality_page_defaults_to_frozen_batch_and_preserves_batch_navigation() -> None:
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        database = root / "wordyeah.sqlite3"
+        store = QualityStore(str(database))
+        store.create_vocabulary(consumer_id="corpus-avatar")
+        samples = [
+            store.create_sample(
+                consumer_id="corpus-avatar", item_id=f"sample-{index}",
+                content_sha256=f"{index:064x}",
+                media_ref=f"media://fixture/{index}.png", reason="quality_sample",
+                stratum="boundary", retention_status="private_corpus",
+            )
+            for index in range(2)
+        ]
+        store.create_review_batch(
+            consumer_id="corpus-avatar", batch_id="frozen-ui",
+            source_sha256="a" * 64, fraction=0.5, seed="ui-seed",
+            items=((samples[1].sample_id, "boundary"),),
+        )
+        store.close()
+        app = create_app(
+            settings=ApiSettings(
+                database_path=str(database), media_root=root / "media",
+                consumer_id="corpus-avatar", local_review_no_auth=True,
+            ),
+            service=MediaModerationService(Classifier()),
+        )
+        with TestClient(app) as client:
+            page = client.get("/review/quality")
+            assert page.status_code == 200
+            assert samples[1].sample_id[:12] in page.text
+            assert samples[0].sample_id[:12] not in page.text
+            assert "1 / 2 样本" in page.text
+            assert 'name="batch" value="frozen-ui"' in page.text
+            listing = client.get("/review/quality/samples?batch=frozen-ui")
+            assert [row["sample_id"] for row in listing.json()["samples"]] == [
+                samples[1].sample_id
+            ]
+            csrf = client.post("/review/login").json()["csrf_token"]
+            decision = client.post(
+                f"/review/quality/samples/{samples[1].sample_id}/decision",
+                data={
+                    "decision": "review", "csrf_token": csrf,
+                    "offset": "0", "batch": "frozen-ui",
+                },
+                headers={"Accept": "text/html"}, follow_redirects=False,
+            )
+            assert decision.headers["location"] == "/review/quality?offset=0&batch=frozen-ui"

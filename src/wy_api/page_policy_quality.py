@@ -174,10 +174,12 @@ def render_policy_body(data: object = None) -> str:
 
 def _quality_stats(source: Mapping[str, object]) -> str:
     sampling = _map(source.get("sampling"))
+    def value(name: str, fallback: str) -> object:
+        return sampling[name] if name in sampling else source.get(fallback)
     stats = (
-        ("抽检覆盖", sampling.get("coverage") or source.get("sample_coverage"), "覆盖的自动决策"),
-        ("误判", sampling.get("false_positive") or source.get("false_positive"), "经复核确认"),
-        ("模型分歧", sampling.get("disagreement") or source.get("disagreement"), "多模型结论不一致"),
+        ("抽检覆盖", value("coverage", "sample_coverage"), "覆盖的自动决策"),
+        ("误判", value("false_positive", "false_positive"), "经复核确认"),
+        ("模型分歧", value("disagreement", "disagreement"), "多模型结论不一致"),
     )
     return "".join(
         f'<div class="pq-sample-stat"><span>{_e(label)}</span><strong>{_e(value, "未采集")}</strong><small>{_e(detail)}</small></div>'
@@ -205,6 +207,7 @@ def render_quality_body(data: object = None) -> str:
                 f'<form class="pq-case-action" method="post" action="{_e(action_url)}">'
                 f'<input type="hidden" name="csrf_token" value="{_e(csrf_token)}">'
                 f'<input type="hidden" name="offset" value="{_e(item.get("offset") or 0)}">'
+                f'<input type="hidden" name="batch" value="{_e(item.get("batch_id"))}">'
                 '<button type="submit" name="decision" value="allow">通过</button>'
                 '<button type="submit" name="decision" value="review">需复核</button>'
                 '<button type="submit" name="decision" value="block">拒绝</button></form>'

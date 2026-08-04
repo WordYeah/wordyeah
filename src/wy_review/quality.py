@@ -112,6 +112,19 @@ class QualitySample:
     resolved_at: str | None
 
 
+@dataclass(frozen=True)
+class QualityReviewBatch:
+    batch_id: str
+    consumer_id: str
+    source_sha256: str
+    fraction: float
+    seed: str
+    required_reviewers: int
+    status: str
+    created_at: str
+    selected_count: int
+
+
 class QualityStore:
     """Consumer-scoped quality sampling and review state stored in SQLite.
 
@@ -221,6 +234,34 @@ class QualityStore:
                 created_at TEXT NOT NULL,
                 FOREIGN KEY (sample_id) REFERENCES quality_samples(sample_id)
             );
+
+            CREATE TABLE IF NOT EXISTS quality_review_batches (
+                batch_id TEXT NOT NULL,
+                consumer_id TEXT NOT NULL,
+                source_sha256 TEXT NOT NULL,
+                fraction REAL NOT NULL CHECK(fraction > 0 AND fraction <= 1),
+                seed TEXT NOT NULL,
+                required_reviewers INTEGER NOT NULL DEFAULT 2 CHECK(required_reviewers >= 2),
+                status TEXT NOT NULL DEFAULT 'frozen' CHECK(status = 'frozen'),
+                created_at TEXT NOT NULL,
+                PRIMARY KEY (consumer_id, batch_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS quality_review_batch_items (
+                consumer_id TEXT NOT NULL,
+                batch_id TEXT NOT NULL,
+                sample_id TEXT NOT NULL,
+                stratum TEXT NOT NULL,
+                ordinal INTEGER NOT NULL CHECK(ordinal >= 1),
+                PRIMARY KEY (consumer_id, batch_id, sample_id),
+                UNIQUE (consumer_id, batch_id, ordinal),
+                FOREIGN KEY (consumer_id, batch_id)
+                    REFERENCES quality_review_batches(consumer_id, batch_id),
+                FOREIGN KEY (sample_id) REFERENCES quality_samples(sample_id)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_quality_batch_items_sample
+                ON quality_review_batch_items(consumer_id, sample_id);
             """
         )
         self.connection.commit()
@@ -722,6 +763,168 @@ class QualityStore:
 
     quality_report = report
 
+    def create_review_batch(
+        self,
+        *,
+        consumer_id: str,
+        batch_id: str,
+        source_sha256: str,
+        fraction: float,
+        seed: str,
+        items: Sequence[tuple[str, str]],
+        required_reviewers: int = 2,
+    ) -> QualityReviewBatch:
+        """Create an immutable ordered batch, or return the exact existing batch."""
+
+        _required(consumer_id, "consumer_id", 128)
+        _required(batch_id, "batch_id", 128)
+        _required(source_sha256, "source_sha256", 128)
+        _required(seed, "seed", 256)
+        if not 0 < fraction <= 1:
+            raise ValueError("fraction must be greater than zero and at most one")
+        if required_reviewers < 2:
+            raise ValueError("required_reviewers must be at least two")
+        normalized = tuple(items)
+        if not normalized or len({sample_id for sample_id, _ in normalized}) != len(normalized):
+            raise ValueError("review batch items must be non-empty and unique")
+        for sample_id, stratum in normalized:
+            _required(sample_id, "sample_id")
+            _required(stratum, "stratum", 128)
+
+        cursor = self.connection.cursor()
+        try:
+            cursor.execute("BEGIN IMMEDIATE")
+            existing = cursor.execute(
+                "SELECT * FROM quality_review_batches WHERE consumer_id = ? AND batch_id = ?",
+                (consumer_id, batch_id),
+            ).fetchone()
+            if existing is not None:
+                current_items = tuple(
+                    (row["sample_id"], row["stratum"])
+                    for row in cursor.execute(
+                        """SELECT sample_id, stratum FROM quality_review_batch_items
+                        WHERE consumer_id = ? AND batch_id = ? ORDER BY ordinal""",
+                        (consumer_id, batch_id),
+                    ).fetchall()
+                )
+                metadata_matches = (
+                    existing["source_sha256"] == source_sha256
+                    and float(existing["fraction"]) == float(fraction)
+                    and existing["seed"] == seed
+                    and int(existing["required_reviewers"]) == required_reviewers
+                )
+                if not metadata_matches or current_items != normalized:
+                    raise QualityConflictError("review batch is immutable")
+                self.connection.commit()
+                return self._batch_row(existing, len(current_items))
+
+            placeholders = ",".join("?" for _ in normalized)
+            rows = cursor.execute(
+                f"SELECT sample_id, consumer_id FROM quality_samples WHERE sample_id IN ({placeholders})",
+                tuple(sample_id for sample_id, _ in normalized),
+            ).fetchall()
+            found = {row["sample_id"] for row in rows if row["consumer_id"] == consumer_id}
+            if found != {sample_id for sample_id, _ in normalized}:
+                raise KeyError("review batch contains a missing or cross-consumer sample")
+            created_at = _now()
+            cursor.execute(
+                """INSERT INTO quality_review_batches
+                (batch_id, consumer_id, source_sha256, fraction, seed,
+                 required_reviewers, status, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, 'frozen', ?)""",
+                (batch_id, consumer_id, source_sha256, fraction, seed, required_reviewers, created_at),
+            )
+            cursor.executemany(
+                """INSERT INTO quality_review_batch_items
+                (consumer_id, batch_id, sample_id, stratum, ordinal)
+                VALUES (?, ?, ?, ?, ?)""",
+                (
+                    (consumer_id, batch_id, sample_id, stratum, ordinal)
+                    for ordinal, (sample_id, stratum) in enumerate(normalized, 1)
+                ),
+            )
+            self.connection.commit()
+            return QualityReviewBatch(
+                batch_id, consumer_id, source_sha256, fraction, seed,
+                required_reviewers, "frozen", created_at, len(normalized),
+            )
+        except Exception:
+            self.connection.rollback()
+            raise
+
+    def list_review_batches(self, *, consumer_id: str) -> list[QualityReviewBatch]:
+        _required(consumer_id, "consumer_id", 128)
+        rows = self.connection.execute(
+            """SELECT batch.*, COUNT(items.sample_id) AS selected_count
+            FROM quality_review_batches batch
+            LEFT JOIN quality_review_batch_items items
+              ON items.consumer_id = batch.consumer_id AND items.batch_id = batch.batch_id
+            WHERE batch.consumer_id = ?
+            GROUP BY batch.consumer_id, batch.batch_id
+            ORDER BY batch.created_at DESC, batch.batch_id DESC""",
+            (consumer_id,),
+        ).fetchall()
+        return [self._batch_row(row, int(row["selected_count"])) for row in rows]
+
+    def list_batch_samples(
+        self, *, consumer_id: str, batch_id: str, limit: int | None = None, offset: int = 0
+    ) -> list[QualitySample]:
+        _required(consumer_id, "consumer_id", 128)
+        _required(batch_id, "batch_id", 128)
+        if offset < 0 or limit is not None and (limit < 1 or limit > 200):
+            raise ValueError("quality sample pagination is invalid")
+        parameters: list[object] = [consumer_id, batch_id]
+        pagination = ""
+        if limit is not None:
+            pagination = " LIMIT ? OFFSET ?"
+            parameters.extend((limit, offset))
+        rows = self.connection.execute(
+            """SELECT sample.* FROM quality_review_batch_items item
+            JOIN quality_samples sample ON sample.sample_id = item.sample_id
+            WHERE item.consumer_id = ? AND item.batch_id = ?
+            ORDER BY item.ordinal""" + pagination,
+            parameters,
+        ).fetchall()
+        return [self._sample_row(row) for row in rows]
+
+    def review_batch_report(self, *, consumer_id: str, batch_id: str) -> dict[str, object]:
+        batches = {batch.batch_id: batch for batch in self.list_review_batches(consumer_id=consumer_id)}
+        batch = batches.get(batch_id)
+        if batch is None:
+            raise KeyError(f"quality review batch not found: {batch_id}")
+        rows = self.connection.execute(
+            """SELECT sample.status, COUNT(decision.decision_id) AS review_count
+            FROM quality_review_batch_items item
+            JOIN quality_samples sample ON sample.sample_id = item.sample_id
+            LEFT JOIN quality_decisions decision
+              ON decision.sample_id = sample.sample_id AND decision.consumer_id = item.consumer_id
+            WHERE item.consumer_id = ? AND item.batch_id = ?
+            GROUP BY sample.sample_id, sample.status""",
+            (consumer_id, batch_id),
+        ).fetchall()
+        untouched = sum(int(row["review_count"]) == 0 for row in rows)
+        one_review = sum(int(row["review_count"]) == 1 for row in rows)
+        arbitration = sum(row["status"] == "arbitration_required" for row in rows)
+        resolved = sum(row["status"] == "resolved" for row in rows)
+        if resolved == batch.selected_count:
+            status = "DUAL_REVIEW_COMPLETE"
+        elif untouched == batch.selected_count:
+            status = "FROZEN_AWAITING_REVIEWS"
+        else:
+            status = "IN_PROGRESS"
+        return {
+            "batch_id": batch_id,
+            "consumer_id": consumer_id,
+            "status": status,
+            "selected_count": batch.selected_count,
+            "untouched": untouched,
+            "one_review": one_review,
+            "arbitration_required": arbitration,
+            "resolved": resolved,
+            "ground_truth": status == "DUAL_REVIEW_COMPLETE",
+            "source_sha256": batch.source_sha256,
+        }
+
     def _migrate_review_decision_schema(self) -> None:
         """Preserve quality data while widening decisions to allow/review/block."""
 
@@ -905,6 +1108,15 @@ class QualityStore:
             final_decision=row["final_decision"], policy_version=row["policy_version"],
             model_versions=json.loads(row["model_versions_json"]), request_id=row["request_id"],
             created_at=row["created_at"], resolved_at=row["resolved_at"],
+        )
+
+    @staticmethod
+    def _batch_row(row: sqlite3.Row, selected_count: int) -> QualityReviewBatch:
+        return QualityReviewBatch(
+            batch_id=row["batch_id"], consumer_id=row["consumer_id"],
+            source_sha256=row["source_sha256"], fraction=float(row["fraction"]),
+            seed=row["seed"], required_reviewers=int(row["required_reviewers"]),
+            status=row["status"], created_at=row["created_at"], selected_count=selected_count,
         )
 
     @staticmethod

@@ -24,6 +24,7 @@ def main() -> int:
     parser.add_argument("--consumer-id", default="corpus-avatar")
     parser.add_argument("--fraction", type=float, default=0.10)
     parser.add_argument("--seed", default="avatar-mvp-dual-review-v1")
+    parser.add_argument("--batch-id", default="dual-review-10pct-v2")
     args = parser.parse_args()
     try:
         report = freeze_dual_review_selection(
@@ -32,6 +33,7 @@ def main() -> int:
             consumer_id=args.consumer_id,
             fraction=args.fraction,
             seed=args.seed,
+            batch_id=args.batch_id,
         )
     except (OSError, QualitySelectionError, ValueError) as exc:
         print(json.dumps({"kind": "wordyeah_dual_review_selection", "error": str(exc)}), file=sys.stderr)

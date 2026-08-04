@@ -138,11 +138,18 @@ Freeze the required 10% independent dual-review subset before labeling:
 ```bash
 python3 scripts/freeze_corpus_dual_review.py \
   --database /private/wordyeah/avatar-review/wordyeah.sqlite3 \
-  --output /private/wordyeah/avatar-review/dual-review-10pct-v1.jsonl \
-  --consumer-id corpus-avatar --fraction 0.10
+  --output /private/wordyeah/avatar-review/dual-review-10pct-v2.jsonl \
+  --consumer-id corpus-avatar --fraction 0.10 \
+  --batch-id dual-review-10pct-v2
 ```
 
 The selection is deterministic by seed and content hash, includes a fingerprint
 of all source samples, and refuses to overwrite a different frozen result. Its
 initial state remains `FROZEN_AWAITING_REVIEWS`, `ground_truth=false`, and
 `dual_review_completed=0`.
+
+The same command registers the exact ordered selection as an immutable review
+batch in the private quality database. Reusing a `consumer_id + batch_id`
+requires an exact metadata and item-order match. When a frozen batch exists,
+the quality page defaults to that batch instead of mixing in the remaining
+source samples.

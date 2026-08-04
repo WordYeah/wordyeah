@@ -147,6 +147,54 @@ class QualityStoreTest(unittest.TestCase):
             sample_id=sample.sample_id, consumer_id="consumer-a"
         )), 2)
 
+    def test_review_batch_is_ordered_immutable_scoped_and_reports_progress(self) -> None:
+        first = self.create_sample(item_id="batch-1")
+        second = self.create_sample(item_id="batch-2")
+        batch = self.store.create_review_batch(
+            consumer_id="consumer-a", batch_id="frozen-10pct",
+            source_sha256="f" * 64, fraction=0.1, seed="fixed-seed",
+            items=((second.sample_id, "boundary"), (first.sample_id, "human")),
+        )
+        self.assertEqual(batch.selected_count, 2)
+        self.assertEqual(
+            [sample.sample_id for sample in self.store.list_batch_samples(
+                consumer_id="consumer-a", batch_id="frozen-10pct"
+            )],
+            [second.sample_id, first.sample_id],
+        )
+        self.store.create_review_batch(
+            consumer_id="consumer-a", batch_id="frozen-10pct",
+            source_sha256="f" * 64, fraction=0.1, seed="fixed-seed",
+            items=((second.sample_id, "boundary"), (first.sample_id, "human")),
+        )
+        with self.assertRaises(QualityConflictError):
+            self.store.create_review_batch(
+                consumer_id="consumer-a", batch_id="frozen-10pct",
+                source_sha256="f" * 64, fraction=0.1, seed="fixed-seed",
+                items=((first.sample_id, "human"), (second.sample_id, "boundary")),
+            )
+        with self.assertRaises(KeyError):
+            self.store.create_review_batch(
+                consumer_id="consumer-b", batch_id="foreign",
+                source_sha256="e" * 64, fraction=0.1, seed="fixed-seed",
+                items=((first.sample_id, "human"),),
+            )
+        self.assertEqual(
+            self.store.review_batch_report(
+                consumer_id="consumer-a", batch_id="frozen-10pct"
+            )["status"],
+            "FROZEN_AWAITING_REVIEWS",
+        )
+        self.store.submit_decision(
+            sample_id=first.sample_id, consumer_id="consumer-a",
+            reviewer_id="reviewer-1", decision="review",
+        )
+        progress = self.store.review_batch_report(
+            consumer_id="consumer-a", batch_id="frozen-10pct"
+        )
+        self.assertEqual((progress["untouched"], progress["one_review"]), (1, 1))
+        self.assertEqual(progress["status"], "IN_PROGRESS")
+
     def test_matching_review_decisions_preserve_boundary_ground_truth(self) -> None:
         sample = self.create_sample(item_id="boundary-item")
         self.store.submit_decision(

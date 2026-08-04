@@ -21,16 +21,16 @@ def freeze_dual_review_selection(
     consumer_id: str,
     fraction: float = 0.10,
     seed: str = "avatar-mvp-dual-review-v1",
+    batch_id: str = "dual-review-10pct-v2",
 ) -> dict[str, object]:
     if not 0 < fraction <= 1:
         raise QualitySelectionError("fraction must be greater than zero and at most one")
     if not seed.strip() or len(seed) > 256:
         raise QualitySelectionError("seed must be between 1 and 256 characters")
+    if not batch_id.strip() or len(batch_id) > 128:
+        raise QualitySelectionError("batch_id must be between 1 and 128 characters")
     store = QualityStore(str(database.expanduser()))
-    try:
-        samples = store.list_samples(consumer_id=consumer_id)
-    finally:
-        store.close()
+    samples = store.list_samples(consumer_id=consumer_id)
     if not samples:
         raise QualitySelectionError("quality inbox has no samples")
     source_fingerprint = hashlib.sha256(
@@ -100,10 +100,23 @@ def freeze_dual_review_selection(
         finally:
             temporary.unlink(missing_ok=True)
     path.chmod(0o600)
+    try:
+        store.create_review_batch(
+            consumer_id=consumer_id,
+            batch_id=batch_id,
+            source_sha256=source_fingerprint,
+            fraction=fraction,
+            seed=seed,
+            items=tuple((str(row["sample_id"]), str(row["stratum"])) for row in selected),
+            required_reviewers=2,
+        )
+    finally:
+        store.close()
     return {
         "kind": "wordyeah_dual_review_selection",
         "status": "FROZEN_AWAITING_REVIEWS",
         "consumer_id": consumer_id,
+        "batch_id": batch_id,
         "source_sample_count": len(samples),
         "selected_count": len(selected),
         "fraction": fraction,
