@@ -1,18 +1,62 @@
 from __future__ import annotations
 
 import argparse
+import os
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping, Sequence
 
 from wy_core.config import load_policy_config
 from wy_core.result_store import ResultStore
 from wy_media.falconsai import FalconsaiClassifier
+from wy_media.g2a import G2AConfig, G2AVisionProvider
 from wy_media.service import MediaModerationService
+from wy_media.vision_worker import VisionReviewWorker
+from wy_review.attempt_store import ReviewAttemptStore
 from wy_review.store import ReviewStore
 
 from .store import Job, JobStore
 from .worker import JobWorker
+
+
+_G2A_ENV_NAMES = (
+    "ENABLED",
+    "ENDPOINT",
+    "API_KEY",
+    "MODEL",
+    "MODEL_VERSION",
+    "TIMEOUT_SECONDS",
+    "PROMPT_VERSION",
+    "MAX_IMAGE_BYTES",
+)
+
+
+class VisionProviderDisabledError(RuntimeError):
+    """Raised before opening stores when advanced vision is not enabled."""
+
+
+def _secondary_g2a_config(env: Mapping[str, str] | None = None) -> G2AConfig:
+    values = os.environ if env is None else env
+    secondary = {
+        f"WORDYEAH_G2A_{name}": values[f"WORDYEAH_G2A_SECONDARY_{name}"]
+        for name in _G2A_ENV_NAMES
+        if f"WORDYEAH_G2A_SECONDARY_{name}" in values
+    }
+    return G2AConfig.from_env(secondary)
+
+
+def _vision_providers(
+    env: Mapping[str, str] | None = None,
+) -> dict[str, G2AVisionProvider]:
+    primary_config = G2AConfig.from_env(env)
+    if not primary_config.enabled:
+        raise VisionProviderDisabledError(
+            "advanced vision is disabled; set WORDYEAH_G2A_ENABLED=true"
+        )
+    return {
+        "primary": G2AVisionProvider(primary_config),
+        "secondary": G2AVisionProvider(_secondary_g2a_config(env)),
+    }
 
 
 def _safe_media_path(media_root: Path, media_ref: str) -> Path:
@@ -28,7 +72,39 @@ def _safe_media_path(media_root: Path, media_ref: str) -> Path:
     return path
 
 
-def main() -> None:
+def _run_vision(args: argparse.Namespace) -> None:
+    # Validate provider configuration before opening any database handles. Error
+    # messages intentionally never include configuration objects or secrets.
+    providers = _vision_providers()
+    store = JobStore(args.database)
+    attempt_store: ReviewAttemptStore | None = None
+    review_store: ReviewStore | None = None
+    try:
+        attempt_store = ReviewAttemptStore(args.database)
+        review_store = ReviewStore(args.database)
+        worker = VisionReviewWorker(
+            job_store=store,
+            attempt_store=attempt_store,
+            review_store=review_store,
+            providers=providers,
+            media_root=Path(args.media_root),
+            worker_id=args.worker_id,
+        )
+        while True:
+            job = worker.run_once()
+            if args.once:
+                return
+            if job is None:
+                time.sleep(max(args.poll_interval, 0.05))
+    finally:
+        if review_store is not None:
+            review_store.close()
+        if attempt_store is not None:
+            attempt_store.close()
+        store.close()
+
+
+def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Run one or more WordYeah avatar jobs")
     parser.add_argument("--database", default="./var/wordyeah.sqlite3")
     parser.add_argument("--media-root", default="./var/media")
@@ -36,9 +112,21 @@ def main() -> None:
     parser.add_argument("--device", default="auto")
     parser.add_argument("--policy-path", default="./config/policy.avatar.example.json")
     parser.add_argument("--worker-id", default="")
+    parser.add_argument(
+        "--vision",
+        action="store_true",
+        help="process queued advanced-vision review jobs instead of fast-scan jobs",
+    )
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--poll-interval", type=float, default=1.0)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
+
+    if args.vision:
+        try:
+            _run_vision(args)
+        except VisionProviderDisabledError as exc:
+            parser.error(str(exc))
+        return
 
     policy_config = load_policy_config(args.policy_path)
     store = JobStore(args.database)

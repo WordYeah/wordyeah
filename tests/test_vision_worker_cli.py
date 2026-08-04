@@ -1,0 +1,127 @@
+from __future__ import annotations
+
+import io
+import unittest
+from contextlib import redirect_stderr
+from unittest.mock import MagicMock, call, patch
+
+from wy_jobs import __main__ as worker_cli
+from wy_media.g2a import G2AConfig
+
+
+class VisionWorkerCliTests(unittest.TestCase):
+    def test_vision_once_constructs_providers_stores_and_worker_without_network(self) -> None:
+        primary = G2AConfig(
+            enabled=True,
+            endpoint="https://primary.invalid/v1/chat/completions",
+            api_key="primary-secret",
+            model_id="primary-model",
+        )
+        secondary = G2AConfig(
+            enabled=True,
+            endpoint="https://secondary.invalid/v1/chat/completions",
+            api_key="secondary-secret",
+            model_id="secondary-model",
+        )
+        job_store = MagicMock()
+        attempt_store = MagicMock()
+        review_store = MagicMock()
+        vision_worker = MagicMock()
+        vision_worker.run_once.return_value = None
+
+        with (
+            patch.object(worker_cli.G2AConfig, "from_env", side_effect=[primary, secondary]) as config,
+            patch.object(worker_cli, "G2AVisionProvider", side_effect=["primary", "secondary"]) as provider,
+            patch.object(worker_cli, "JobStore", return_value=job_store) as jobs,
+            patch.object(worker_cli, "ReviewAttemptStore", return_value=attempt_store) as attempts,
+            patch.object(worker_cli, "ReviewStore", return_value=review_store) as reviews,
+            patch.object(worker_cli, "VisionReviewWorker", return_value=vision_worker) as worker,
+        ):
+            worker_cli.main(
+                [
+                    "--vision",
+                    "--once",
+                    "--database",
+                    "fixture.sqlite3",
+                    "--media-root",
+                    "fixture-media",
+                    "--worker-id",
+                    "fixture-worker",
+                ]
+            )
+
+        self.assertEqual(config.call_count, 2)
+        self.assertEqual(provider.call_args_list, [call(primary), call(secondary)])
+        jobs.assert_called_once_with("fixture.sqlite3")
+        attempts.assert_called_once_with("fixture.sqlite3")
+        reviews.assert_called_once_with("fixture.sqlite3")
+        worker.assert_called_once()
+        kwargs = worker.call_args.kwargs
+        self.assertEqual(kwargs["providers"], {"primary": "primary", "secondary": "secondary"})
+        self.assertEqual(kwargs["worker_id"], "fixture-worker")
+        self.assertEqual(str(kwargs["media_root"]), "fixture-media")
+        vision_worker.run_once.assert_called_once_with()
+        review_store.close.assert_called_once_with()
+        attempt_store.close.assert_called_once_with()
+        job_store.close.assert_called_once_with()
+
+    def test_disabled_vision_exits_before_stores_without_leaking_secret(self) -> None:
+        disabled = G2AConfig(
+            enabled=False,
+            api_key="must-not-appear",
+            endpoint="https://disabled.invalid/v1/chat/completions",
+            model_id="disabled-model",
+        )
+        stderr = io.StringIO()
+
+        with (
+            patch.object(worker_cli.G2AConfig, "from_env", return_value=disabled),
+            patch.object(worker_cli, "G2AVisionProvider") as provider,
+            patch.object(worker_cli, "JobStore") as jobs,
+            patch.object(worker_cli, "ReviewAttemptStore") as attempts,
+            patch.object(worker_cli, "ReviewStore") as reviews,
+            patch.object(worker_cli, "VisionReviewWorker") as worker,
+            redirect_stderr(stderr),
+            self.assertRaises(SystemExit) as raised,
+        ):
+            worker_cli.main(["--vision", "--once"])
+
+        self.assertEqual(raised.exception.code, 2)
+        output = stderr.getvalue()
+        self.assertIn("advanced vision is disabled", output)
+        self.assertNotIn("must-not-appear", output)
+        provider.assert_not_called()
+        jobs.assert_not_called()
+        attempts.assert_not_called()
+        reviews.assert_not_called()
+        worker.assert_not_called()
+
+    def test_secondary_configuration_uses_only_secondary_namespace(self) -> None:
+        env = {
+            "WORDYEAH_G2A_ENABLED": "true",
+            "WORDYEAH_G2A_API_KEY": "primary-secret",
+            "WORDYEAH_G2A_SECONDARY_ENABLED": "true",
+            "WORDYEAH_G2A_SECONDARY_ENDPOINT": "https://secondary.invalid/v1/chat/completions",
+            "WORDYEAH_G2A_SECONDARY_API_KEY": "secondary-secret",
+            "WORDYEAH_G2A_SECONDARY_MODEL": "secondary-model",
+        }
+
+        config = worker_cli._secondary_g2a_config(env)
+
+        self.assertTrue(config.enabled)
+        self.assertEqual(config.api_key, "secondary-secret")
+        self.assertNotEqual(config.api_key, env["WORDYEAH_G2A_API_KEY"])
+
+    def test_default_mode_does_not_construct_vision_worker(self) -> None:
+        with (
+            patch.object(worker_cli, "VisionReviewWorker") as vision_worker,
+            patch.object(worker_cli, "load_policy_config", side_effect=RuntimeError("legacy path")),
+            self.assertRaisesRegex(RuntimeError, "legacy path"),
+        ):
+            worker_cli.main(["--once"])
+
+        vision_worker.assert_not_called()
+
+
+if __name__ == "__main__":
+    unittest.main()
