@@ -295,6 +295,10 @@ code,
   color: var(--text);
   font-weight: 700;
 }
+.support-mobile-workspace { display: none; position: relative; }
+.support-mobile-workspace > summary { min-height: 34px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); font-size: 11px; font-weight: 700; line-height: 32px; list-style: none; cursor: pointer; }
+.support-mobile-workspace > summary::-webkit-details-marker { display: none; }
+.support-mobile-workspace .consumer-popover-menu { right: 0; left: auto; min-width: 250px; }
 
 .support-hero {
   display: flex;
@@ -690,6 +694,7 @@ tbody tr:hover { background: var(--support-panel-soft); }
 }
 
 @media (max-width: 760px) {
+  .support-mobile-workspace { display: block; }
   .dashboard-grid,
   .charts-row { grid-template-columns: 1fr; }
   .donut-layout { grid-template-columns: 108px minmax(0, 1fr); }
@@ -1205,6 +1210,7 @@ def render_review_page(
 </aside>
 <div class="app-main"><header class="topbar"><div class="toolbar-title"><nav class="topbar-breadcrumbs" aria-label="面包屑"><a href="/review/overview">WordYeah</a><span class="divider" aria-hidden="true">/</span><span class="current-crumb">{escape(nav_label)}</span></nav></div>
 <div class="toolbar-actions">
+<details class="support-mobile-workspace"><summary aria-label="切换工作区">{escape(ctx.consumer_id)}⌄</summary><div class="consumer-popover-menu"><div class="consumer-popover-header">切换工作区</div><div class="consumer-popover-list">{workspace_items}</div></div></details>
 <button class="theme-toggle-btn" type="button" data-action="toggle-layout" title="切换全宽/盒装居中" aria-label="切换全宽/盒装居中">{_top_icon('layout')}</button>
 <button class="theme-toggle-btn" type="button" data-action="toggle-theme" title="切换深色/浅色模式" aria-label="切换深色/浅色模式"><span class="theme-icon-sun">{_top_icon('sun')}</span><span class="theme-icon-moon">{_top_icon('moon')}</span></button>
 <span class="topbar-icon service-status" data-tone="{service_tone}" role="status" title="{service_label}" aria-label="{service_label}">{service_icon}</span>
