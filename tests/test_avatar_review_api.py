@@ -331,6 +331,8 @@ class AvatarReviewApiTest(unittest.TestCase):
                 page = client.get(f"/review?focus={item['item_id']}")
                 self.assertEqual(page.status_code, 200)
                 self.assertIn("Controlled media preview", page.text)
+                self.assertIn('class="preview-image-button"', page.text)
+                self.assertIn('aria-label="打开大图预览"', page.text)
                 self.assertIn("Model finding summary", page.text)
                 self.assertIn("Agent action log", page.text)
                 self.assertIn("留置人工复核", page.text)

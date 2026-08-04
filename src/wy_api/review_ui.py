@@ -1601,6 +1601,24 @@ button, a { -webkit-tap-highlight-color: transparent; }
   align-items: center;
 }
 
+.preview-image-button {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: zoom-in;
+}
+
+.preview-image-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -3px;
+}
+
 .media-preview img {
   width: 100%;
   max-height: clamp(280px, calc(100vh - 580px), 380px);
@@ -2098,8 +2116,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
   z-index: 4;
   bottom: 16px;
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) minmax(360px, 1.15fr);
-  gap: 8px 16px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 14px;
   padding: 12px;
   border: 1px solid var(--line);
   border-radius: var(--radius-panel);
@@ -2109,6 +2127,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 
 .action-form label {
   grid-column: 1;
+  grid-row: 1;
   color: var(--quiet);
   font-size: 11px;
   font-weight: 650;
@@ -2116,7 +2135,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 
 .action-form input[type="text"] {
-  grid-column: 1;
+  grid-column: 1 / -1;
+  grid-row: 2;
   width: 100%;
   min-height: 42px;
   padding: 0 14px;
@@ -2133,18 +2153,19 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 
 .action-caption {
-  grid-column: 1;
+  grid-column: 2;
+  grid-row: 1;
+  text-align: right;
   color: var(--muted);
   font-size: 12px;
 }
 
 .action-buttons {
-  grid-column: 2;
-  grid-row: 1 / span 3;
-  align-self: center;
+  grid-column: 1 / -1;
+  grid-row: 3;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
 }
 
 .action-buttons button {
@@ -2176,9 +2197,9 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 
 .action-buttons button[data-action="blacklist"] {
-  border-color: transparent;
-  background: var(--red);
-  color: #ffffff;
+  border-color: color-mix(in srgb, var(--red) 42%, var(--line));
+  background: var(--panel);
+  color: var(--red);
 }
 
 .action-buttons button[data-action="hold"] {
@@ -3521,7 +3542,9 @@ def _media_preview(item: ReviewItem) -> str:
         <button type="button" class="lightbox-trigger" onclick="openLightbox('{img_src}', {str(blocked).lower()})">{_top_icon("zoom")}<span>放大预览</span><kbd>Space</kbd></button>
       </div>
       <div class="preview-wrapper">
-        {preview_image}
+        <button type="button" class="preview-image-button" aria-label="打开大图预览" onclick="openLightbox('{img_src}', {str(blocked).lower()})">
+          {preview_image}
+        </button>
         {toggle_button}
       </div>
       <p class="sr-only">{note_text}</p>
