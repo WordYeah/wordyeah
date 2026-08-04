@@ -38,8 +38,15 @@ wp --allow-root eval-file scripts/cravatar_cavalcade_export.php \
 # WordYeah host: local/CDN-read-only collection and atomic manifest publish.
 python scripts/cravatar_collect_export.py /controlled-export/cravatar-jobs.jsonl \
   --root /var/lib/wordyeah/inbox/images \
-  --manifest /var/lib/wordyeah/inbox/cravatar-manifest.jsonl
+  --manifest /var/lib/wordyeah/inbox/cravatar-manifest.jsonl \
+  --workers 8
 ```
+
+如果生产主机不允许安装脚本，或 `wp eval-file /dev/stdin` 不执行输入，使用
+WP-CLI 的只读 `SELECT id,status,start,TO_BASE64(args)` 导出 TSV，再在本机运行
+`scripts/cravatar_cavalcade_tsv_convert.php`。转换器兼容 MySQL `TO_BASE64`
+产生的换行；远端仍只执行 SELECT，不创建文件、不更新 Cavalcade 或头像。
+并发采集限制为 1–32 个 worker，默认 8，输出顺序保持与导出顺序一致。
 
 Advance `WORDYEAH_CRAVATAR_EXPORT_AFTER_ID` only after collection reports zero
 failures and the shadow runner reports no failed records. If either stage has a
@@ -78,6 +85,10 @@ Acceptance requires `mutates_avatar=false`, expected `source_count`, no
 unexpected failures, a stable cursor after rerunning the same manifest, and a
 WordYeah queue scoped to the `cravatar` workspace. Service enablement is a
 separate host decision; this repository does not perform it.
+
+验收证据由 `scripts/audit_cravatar_shadow.py` 从前后两次只读导出、首次运行、
+稳定重跑、暂停耗时和采集报告生成。它要求选中源记录前后完全一致、完成数达到
+门槛、失败数为 0、重跑没有新 outcome，且暂停耗时不超过 60 秒。
 
 ## Stop and rollback
 

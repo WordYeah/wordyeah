@@ -7,6 +7,7 @@ import io
 import json
 import os
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterable
@@ -78,15 +79,18 @@ def collect_export(
     controlled_root: Path,
     manifest_path: Path,
     fetch: Callable[[str], bytes] | None = None,
+    workers: int = 8,
 ) -> dict[str, object]:
     """Fetch allowlisted public avatars and atomically publish a shadow manifest."""
 
     controlled_root.mkdir(parents=True, exist_ok=True)
     os.chmod(controlled_root, 0o700)
     fetch_image = fetch or _fetch_image
-    rows: list[dict[str, object]] = []
-    failures: list[dict[str, object]] = []
-    for record in records:
+    if workers < 1 or workers > 32:
+        raise ValueError("workers must be between 1 and 32")
+    source_records = list(records)
+
+    def collect_one(record: ExportRecord) -> tuple[dict[str, object] | None, dict[str, object] | None]:
         public_url = _normalized_avatar_url(record.avatar_url, record.email_hash)
         try:
             payload = fetch_image(public_url)
@@ -94,7 +98,7 @@ def collect_export(
             digest = hashlib.sha256(payload).hexdigest()
             filename = f"{record.job_id}-{digest[:12]}.img"
             _atomic_write(controlled_root / filename, payload, mode=0o600)
-            rows.append(
+            return (
                 {
                     "path": filename,
                     "avatar_ref": f"cravatar-job:{record.job_id}",
@@ -107,10 +111,16 @@ def collect_export(
                     "email_hash": record.email_hash,
                     "image_md5": record.image_md5,
                     "mutates_avatar": False,
-                }
+                },
+                None,
             )
         except Exception as exc:  # one bad remote object must not hide the rest of the export
-            failures.append({"job_id": record.job_id, "error": str(exc)})
+            return None, {"job_id": record.job_id, "error": str(exc)}
+
+    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="cravatar-shadow") as pool:
+        results = list(pool.map(collect_one, source_records))
+    rows = [row for row, _failure in results if row is not None]
+    failures = [failure for _row, failure in results if failure is not None]
 
     manifest = "".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows)
     _atomic_write(manifest_path, manifest.encode("utf-8"), mode=0o600)

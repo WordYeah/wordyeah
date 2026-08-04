@@ -100,6 +100,19 @@ def test_bad_image_is_reported_without_publishing_it(tmp_path: Path) -> None:
     assert manifest.read_text(encoding="utf-8") == ""
 
 
+def test_collect_export_rejects_unbounded_worker_count(tmp_path: Path) -> None:
+    source = tmp_path / "export.jsonl"
+    _export(source)
+    with pytest.raises(ValueError, match="workers must be between"):
+        collect_export(
+            read_export(source),
+            controlled_root=tmp_path / "images",
+            manifest_path=tmp_path / "manifest.jsonl",
+            fetch=lambda _url: _png(),
+            workers=33,
+        )
+
+
 def test_network_fetch_rejects_redirect(monkeypatch: pytest.MonkeyPatch) -> None:
     class Response:
         def __enter__(self):

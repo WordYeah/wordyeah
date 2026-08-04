@@ -19,10 +19,14 @@ def main() -> int:
     parser.add_argument("export", type=Path, help="JSONL from cravatar_cavalcade_export.php")
     parser.add_argument("--root", type=Path, required=True, help="controlled local image directory")
     parser.add_argument("--manifest", type=Path, required=True, help="atomic output manifest")
+    parser.add_argument("--workers", type=int, default=8, help="bounded fetch workers (1-32)")
     args = parser.parse_args()
     try:
         report = collect_export(
-            read_export(args.export), controlled_root=args.root, manifest_path=args.manifest
+            read_export(args.export),
+            controlled_root=args.root,
+            manifest_path=args.manifest,
+            workers=args.workers,
         )
     except (OSError, ValueError) as exc:
         print(

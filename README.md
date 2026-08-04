@@ -17,7 +17,7 @@ read-only; WordYeah does not write to WordPress, avatar state, or Cavalcade.
 
 ## 当前阶段
 
-头像 MVP P5 实施中：FastAPI 边界、SQLite WAL 元数据表、持久 job lease、本地 Falconsai worker、高级视觉任务链、审核页面和 Cravatar 增量 shadow runner 已接入开发链路。当前不连接 Cravatar 生产判定，不调用腾讯云；高级视觉 provider 默认关闭，受控 G2A canary 只得到 HTTP 429。
+头像 MVP P5 实施中：FastAPI 边界、SQLite WAL 元数据表、持久 job lease、本地 Falconsai worker、高级视觉任务链、审核页面和 Cravatar 增量 shadow runner 已接入开发链路。当前不连接 Cravatar 生产判定，不调用腾讯云；高级视觉 provider 默认关闭。2026-08-05 的受控 G2A canary 已通过 `grok-chat-fast` 得到两次真实结构化视觉响应，`grok-4.3`、`grok-4.5` 仍因 Build 池额度返回 429。
 配置启动会校验头像 policy；`enforce` 当前固定为 `false`。队列有单 consumer 深度上限，超限返回可重试的 429。
 
 审查结果统一为：`allow`、`block`、`review`、`error`。头像接口只接收原始图片 bytes，不接受远程 URL。
@@ -32,6 +32,7 @@ PYTHONPATH=src .venv/bin/wordyeah-api
 
 API 合同见 `docs/openapi-avatar-v1.yaml`；当前首版默认绑定 loopback。
 持续 shadow 的只读 Cavalcade 导出器、本地受控采集器、禁用式 systemd 模板与安装边界见 `docs/DEPLOYMENT.md`。
+聚合 MVP 验收现有六项通过；代表性 corpus 仍必须由真人完成全量主审和固定 10% 独立双审，不能用 AI 结果替代 ground truth。
 
 ## 相关计划
 

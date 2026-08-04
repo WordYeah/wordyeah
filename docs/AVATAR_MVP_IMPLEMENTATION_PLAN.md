@@ -169,13 +169,14 @@ Cravatar 增量 shadow 输入
 
 ## 9. 2026-08-05 验证记录
 
-- 全量测试：211 passed，12 subtests passed；仅有 Starlette/httpx 弃用警告。
+- 全量测试：215 passed，12 subtests passed；覆盖 Cravatar TSV 转换、并发采集、shadow 证据审计和真实视觉 canary 默认关闭边界。仅有 Starlette/httpx 弃用警告。
 - 质量双审：人工标签结论已扩展为 `allow/review/block`，两名独立 reviewer 可把边界样本收敛为 `review`；旧 `allow/block` 文件库迁移在提交前执行外键校验，失败会完整回滚。
 - 浏览器：真实 reviewer session 下验证 1440×900 三种队列视图、显式批量模式与最多 50 项提示、快速标记四种动作且零弹窗；1280×800 验证紧凑列表；390×844 验证质量页与工作区菜单且无横向溢出。证据保存在本地忽略文件 `artifacts/browser-acceptance-mvp.json`。
 - 持久队列负载：50 jobs/s 连续 900 秒，完成 45,000 项、零 active 残留、49.9998 jobs/s、cycle p95 1.02ms；时长与速率门槛均 `PASS`。结果保存在本地忽略文件 `artifacts/review-queue-load-15m.json`。
-- G2A canary：网关可达，`grok-4.5` 与 `grok-4.3` 返回 HTTP 429；限流重试分类通过，真实视觉能力未验收。
+- G2A canary：网关可达；Web 池模型 `grok-chat-fast` 对两张合成图片返回真实、可解析的结构化视觉结论，延迟约 5.6–5.9 秒。`grok-4.5` 与 `grok-4.3` 因 Build 池可用账号为 0 继续返回 HTTP 429；这两类池的状态不得混写。
 - 故障演练：数据库重启持久性、过期 lease 回收、死信、provider 关闭、429、无效响应和 shadow 非写入均通过；证据保存在本地忽略文件 `artifacts/avatar-fault-drills-mvp.json`。
-- 聚合验收：`queue_load_15m`、`fault_drills`、`browser_acceptance` 和 `production_write_boundary` 为 PASS；`representative_corpus`、`cravatar_shadow` 与 `advanced_vision_canary` 为 INCOMPLETE，聚合退出码为 3。证据保存在本地忽略文件 `artifacts/avatar-mvp-acceptance.json`。
+- Cravatar shadow：从 `feicode-prod` 仅执行 Cavalcade SELECT，采集 2,494 张有效头像；固定选取 1,100 个内容哈希唯一样本提交本地 WordYeah，完成 1,100、失败 0。相同 manifest 重跑无新增 outcome，暂停耗时 0.09 秒；前后只读导出中选定的 1,100 条源记录逐字段一致。生产 WordPress、头像和 Cavalcade 均未写入。
+- 聚合验收：`queue_load_15m`、`fault_drills`、`browser_acceptance`、`cravatar_shadow`、`advanced_vision_canary` 和 `production_write_boundary` 为 PASS；仅 `representative_corpus` 因真人标签为 0 保持 INCOMPLETE，聚合退出码为 3。证据保存在本地忽略文件 `artifacts/avatar-mvp-acceptance.json`。
 - corpus 候选准备：通过受控 Hugging Face viewer/archive/Parquet 采集器在仓库外私有目录准备真人 300、动漫 300、logo/文字 100、边界 200、明确违规 200 条候选；共 1,100 条、哈希唯一、文件与 manifest 均为 0600。候选全部保持 `unreviewed`，没有 `expected_decision`，不能作为准确率或双审通过证据。
 - corpus 质量收件箱：上述 1,100 条已按五分层复制到仓库外 reviewer session 保护的私有媒体目录并幂等登记为质量样本；重复导入复用 1,100 条、未新增副本。质量页每页最多 24 条并提供受控缩略图与三态直接操作。所有最终决定仍为空，不能作为 ground truth 或双审通过证据。
 - 主审与 10% 双审：全部 1,100 条已登记为不可变全量主审批次，其中固定 seed 选出的 110 条另登记为独立双审子集，五分层配额为 30/30/10/20/20。其余 990 条经一名 reviewer 后收敛，110 条必须由两名独立 reviewer 一致或完成仲裁后收敛；批次和样本顺序拒绝漂移。质量页默认先显示全量主审，也可切换 10% 双审，并在分页提交中保留批次上下文。

@@ -57,12 +57,17 @@ API 接线位于 `POST /v1/review/items/{item_id}/advanced-vision`。接口只�
 
 `G2AVisionProvider` 支持注入 transport；单元测试不访问网络，也不需要真实 API key。当前验证覆盖默认关闭、请求构造、超时、HTTP 错误分类、直接/兼容 envelope 响应解析、结构化 attempt 转换和失败不放行。
 
+2026-08-05 受控 canary 结果：
+
+- `grok-chat-fast` 通过现有 G2A 网关对两张合成图片返回可解析的结构化视觉结论，决定均为 `allow`，单次延迟约 5.6–5.9 秒；验收证据只保存图片哈希、模型、决定、置信度和计数，不保存 API key 或原始响应。
+- `grok-4.3`、`grok-4.5` 仍返回 HTTP 429，原因是现有 Build 池可用账号为 0；错误被正确分类为可重试限流。Web 池的 `grok-chat-fast` 可用不代表 Build 模型恢复。
+- 真实调用脚本为 `scripts/run_vision_canary.py`；仍需显式设置 `WORDYEAH_G2A_ENABLED=true`，默认不会访问网络。
+
 以下尚未验证：
 
-- 2026-08-05 的受控 canary 已到达现有 G2A 网关；`grok-4.5` 与 `grok-4.3` 都返回 HTTP 429。可以确认错误被分类为可重试限流，但没有得到真实视觉响应，不能据此确认响应 envelope、准确率或延迟。
 - 真实调用的延迟、限流、计费、图片尺寸/MIME 约束、内容保留政策和服务条款。
 - 定时上游健康探测和生产服务守护；worker 自动创建、异步退避、lease 回收、死信与 attempt 持久化已完成测试。
 - 代表性 Cravatar 头像上的准确率、误报率、召回率、分歧率和人工介入率。
-- 生产 shadow；本草案不授权 `enforce`，也不改变 Cravatar 头像。
+- 持续生产 shadow 服务的长期稳定性；本草案不授权 `enforce`，也不改变 Cravatar 头像。
 
-在获得 endpoint 契约和单独授权前，保持 `WORDYEAH_G2A_ENABLED=false`。
+常驻服务仍保持 `WORDYEAH_G2A_ENABLED=false`；只有受控 canary 或经审批的 worker 环境显式启用。
