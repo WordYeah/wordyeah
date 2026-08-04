@@ -51,3 +51,25 @@ PYTHONPATH=src .venv/bin/python scripts/run_avatar_fault_drills.py \
 - WordYeah 超时、401、500、不可用时 Cravatar 现有流程不被阻塞
 - 关闭 feature flag 后 1 分钟内不再产生新 shadow request
 - 未经明确授权不修改 Cravatar 生产判定
+
+shadow 规模门槛默认至少 1,100 条，与代表性 corpus 五个分层的最低样本总数一致。
+证据还必须包含零失败、稳定重跑、生产状态未变化，以及关闭 feature flag 后 60 秒内停止。
+
+## 聚合验收
+
+所有门槛统一由一个只读聚合器核对：
+
+```bash
+PYTHONPATH=src .venv/bin/python scripts/audit_avatar_mvp.py \
+  --output artifacts/avatar-mvp-acceptance.json
+```
+
+退出码含义：
+
+- `0`：全部证据为 PASS。
+- `2`：证据格式错误、门槛失败，或误用了 `--enforce`。
+- `3`：证据缺失，或来源报告仍为 `SKIP/INCOMPLETE`。
+
+聚合器要求代表性 corpus、15 分钟队列负载、故障演练、浏览器主路径、至少
+1,100 条 Cravatar shadow 和真实高级视觉响应全部有证据。缺失项不会被本地 mock、
+零样本或静态页面替代。
