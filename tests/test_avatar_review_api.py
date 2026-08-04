@@ -31,6 +31,62 @@ class HighRiskClassifier(BlockClassifier):
 
 
 class AvatarReviewApiTest(unittest.TestCase):
+    def _moderate_png(self, client, color: tuple[int, int, int]) -> dict[str, object]:
+        image = io.BytesIO()
+        Image.new("RGB", (8, 8), color).save(image, format="PNG")
+        response = client.post(
+            "/v1/moderate/image",
+            content=image.getvalue(),
+            headers={"Content-Type": "image/png"},
+        )
+        self.assertEqual(response.status_code, 200)
+        return response.json()
+
+    def _route_item_to_human_required(
+        self,
+        client,
+        item_id: str,
+        *,
+        evidence: bool = True,
+        category: str = "adult_nudity",
+    ) -> dict[str, object]:
+        evidence_rows = [{"kind": "crop", "ref": "media://review/evidence.png"}] if evidence else []
+        first = client.post(
+            f"/v1/review/items/{item_id}/attempts",
+            json={
+                "stage": "vision_review_1",
+                "attempt_number": 1,
+                "provider": "test",
+                "model_id": "vision-a",
+                "model_version": "1",
+                "prompt_version": "avatar-v1",
+                "decision": "review",
+                "confidence": 0.60,
+                "findings": [{"category": category, "label": "nsfw", "score": 0.60, "source": "vision-a"}],
+                "evidence": evidence_rows,
+            },
+        )
+        self.assertEqual(first.status_code, 201)
+        self.assertEqual(first.json()["route"]["state"], "vision_review_2")
+        second = client.post(
+            f"/v1/review/items/{item_id}/attempts",
+            json={
+                "stage": "vision_review_2",
+                "attempt_number": 1,
+                "provider": "test",
+                "model_id": "vision-b",
+                "model_version": "1",
+                "prompt_version": "avatar-v1",
+                "decision": "review",
+                "confidence": 0.58,
+                "findings": [{"category": category, "label": "nsfw", "score": 0.58, "source": "vision-b"}],
+                "evidence": evidence_rows,
+            },
+        )
+        self.assertEqual(second.status_code, 201)
+        self.assertEqual(second.json()["route"]["state"], "human_required")
+        return second.json()["item"]
+
     def test_cravatar_refs_render_as_allowlisted_api_previews(self) -> None:
         try:
             from fastapi.testclient import TestClient
@@ -41,7 +97,7 @@ class AvatarReviewApiTest(unittest.TestCase):
             database = str(Path(directory) / "wordyeah.sqlite3")
             store = ReviewStore(database)
             avatar_hash = "0123456789abcdef0123456789abcdef"
-            store.enqueue(
+            item = store.enqueue(
                 ModerationResult(
                     request_id="cravatar-preview",
                     content_sha256="f" * 64,
@@ -51,6 +107,12 @@ class AvatarReviewApiTest(unittest.TestCase):
                     model_versions={"policy": "avatar-default"},
                 ),
                 f"cravatar://{avatar_hash}",
+            )
+            store.apply_route(
+                item.item_id,
+                stage="human_required",
+                final_decision=None,
+                reason_code="manual_review_queue",
             )
             settings = ApiSettings(
                 database_path=database,
@@ -88,21 +150,23 @@ class AvatarReviewApiTest(unittest.TestCase):
             )
             app = create_app(settings=settings, service=MediaModerationService(BlockClassifier()))
             with TestClient(app) as client:
-                selected: list[str] = []
                 for color in ((120, 80, 40), (40, 80, 120)):
-                    image = io.BytesIO()
-                    Image.new("RGB", (8, 8), color).save(image, format="PNG")
-                    response = client.post(
-                        "/v1/moderate/image",
-                        content=image.getvalue(),
-                        headers={"Content-Type": "image/png"},
-                    )
-                    self.assertEqual(response.status_code, 200)
+                    self._moderate_png(client, color)
 
                 login = client.post("/review/login", json={"token": "review-secret"})
                 csrf = login.json()["csrf_token"]
+                for item in client.get("/review/items?status=all").json()["items"]:
+                    self._route_item_to_human_required(client, item["item_id"])
                 items = client.get("/review/items").json()["items"]
                 selected = [f"{item['item_id']}:{item['version']}" for item in items]
+
+                queue_page = client.get("/review")
+                self.assertEqual(queue_page.status_code, 200)
+                self.assertIn('data-view="list"', queue_page.text)
+
+                invalid_view = client.get("/review?view=bogus")
+                self.assertEqual(invalid_view.status_code, 200)
+                self.assertIn('data-view="list"', invalid_view.text)
 
                 grid = client.get("/review?view=grid&batch=1")
                 self.assertEqual(grid.status_code, 200)
@@ -152,19 +216,14 @@ class AvatarReviewApiTest(unittest.TestCase):
                 )
                 self.assertEqual(browser_unauthenticated.status_code, 303)
                 self.assertEqual(browser_unauthenticated.headers["location"], "/review/login?expired=1")
-                image = io.BytesIO()
-                Image.new("RGB", (8, 8), (120, 80, 40)).save(image, format="PNG")
-                moderation = client.post(
-                    "/v1/moderate/image",
-                    content=image.getvalue(),
-                    headers={"Content-Type": "image/png"},
-                )
-                self.assertEqual(moderation.status_code, 200)
-                self.assertEqual(moderation.json()["decision"], "review")
+                moderation = self._moderate_png(client, (120, 80, 40))
+                self.assertEqual(moderation["decision"], "review")
 
                 login = client.post("/review/login", json={"token": "review-secret"})
                 self.assertEqual(login.status_code, 200)
                 csrf = login.json()["csrf_token"]
+                pending_item = client.get("/review/items?status=all").json()["items"][0]
+                self._route_item_to_human_required(client, pending_item["item_id"])
                 for route in (
                     "overview", "agents", "policies", "quality", "history", "health", "account", "guide"
                 ):
@@ -177,13 +236,15 @@ class AvatarReviewApiTest(unittest.TestCase):
                 self.assertEqual(listing.json()["count"], 1)
                 item = listing.json()["items"][0]
                 self.assertEqual(item["status"], "pending")
-                self.assertEqual(item["version"], 2)
+                self.assertEqual(item["stage"], "human_required")
+                self.assertGreaterEqual(item["version"], 4)
                 self.assertTrue(item["media_ref"].startswith("media://review/"))
 
                 queue_page = client.get("/review")
                 self.assertEqual(queue_page.status_code, 200)
                 self.assertIn("审核队列", queue_page.text)
                 self.assertIn('class="queue-list"', queue_page.text)
+                self.assertIn('data-view="list"', queue_page.text)
                 self.assertIn("page-tabs", queue_page.text)
                 self.assertIn('class="side-nav"', queue_page.text)
                 self.assertNotIn("Create Avatar", queue_page.text)
@@ -212,22 +273,22 @@ class AvatarReviewApiTest(unittest.TestCase):
 
                 missing_csrf = client.post(
                     f"/review/items/{item['item_id']}/approve",
-                    json={"version": 2},
+                    json={"version": item["version"]},
                 )
                 self.assertEqual(missing_csrf.status_code, 403)
 
                 approved = client.post(
                     f"/review/items/{item['item_id']}/approve",
-                    json={"version": 2, "note": "manual safe"},
+                    json={"version": item["version"], "note": "manual safe"},
                     headers={"X-CSRF-Token": csrf, "X-Request-ID": "review-action-1"},
                 )
                 self.assertEqual(approved.status_code, 200)
                 self.assertEqual(approved.json()["status"], "approved")
-                self.assertEqual(approved.json()["version"], 3)
+                self.assertEqual(approved.json()["version"], item["version"] + 1)
 
                 stale = client.post(
                     f"/review/items/{item['item_id']}/approve",
-                    json={"version": 1},
+                    json={"version": item["version"]},
                     headers={"X-CSRF-Token": csrf},
                 )
                 self.assertEqual(stale.status_code, 409)
@@ -290,15 +351,9 @@ class AvatarReviewApiTest(unittest.TestCase):
             )
             app = create_app(settings=settings, service=MediaModerationService(BlockClassifier()))
             with TestClient(app) as client:
-                image = io.BytesIO()
-                Image.new("RGB", (8, 8), (80, 80, 80)).save(image, format="PNG")
-                client.post(
-                    "/v1/moderate/image",
-                    content=image.getvalue(),
-                    headers={"Content-Type": "image/png"},
-                )
+                self._moderate_png(client, (80, 80, 80))
                 client.post("/review/login", json={"token": "review-secret"})
-                item = client.get("/review/items").json()["items"][0]
+                item = client.get("/review/items?status=all").json()["items"][0]
                 first = client.post(
                     f"/v1/review/items/{item['item_id']}/attempts",
                     json={
@@ -346,6 +401,12 @@ class AvatarReviewApiTest(unittest.TestCase):
                 ),
                 "media://avatar.png",
             )
+            item = review_store.apply_route(
+                item.item_id,
+                stage="human_required",
+                final_decision=None,
+                reason_code="manual_review_queue",
+            )
             review_store.close()
             settings = ApiSettings(
                 database_path=database,
@@ -366,6 +427,176 @@ class AvatarReviewApiTest(unittest.TestCase):
 
                 unsafe = client.get("/review/items/not-an-item/media")
                 self.assertEqual(unsafe.status_code, 404)
+
+    def test_focus_html_action_preserves_safe_return_to_and_advances_to_next_item(self) -> None:
+        try:
+            from fastapi.testclient import TestClient
+        except ImportError as exc:  # pragma: no cover
+            self.skipTest(str(exc))
+
+        with tempfile.TemporaryDirectory() as directory:
+            settings = ApiSettings(
+                database_path=str(Path(directory) / "wordyeah.sqlite3"),
+                media_root=Path(directory) / "media",
+                reviewer_token="review-secret",
+                review_session_secret="session-secret",
+                reviewer_id="alice",
+            )
+            app = create_app(settings=settings, service=MediaModerationService(BlockClassifier()))
+            with TestClient(app) as client:
+                self._moderate_png(client, (20, 40, 60))
+                self._moderate_png(client, (60, 40, 20))
+                login = client.post("/review/login", json={"token": "review-secret"})
+                csrf = login.json()["csrf_token"]
+                for item in client.get("/review/items?status=all").json()["items"]:
+                    self._route_item_to_human_required(client, item["item_id"])
+                items = client.get("/review/items").json()["items"]
+                current = items[0]
+                next_item = items[1]
+                return_to = (
+                    f"/review?status=pending&risk=guarded&q=nsfw&view=focus&focus={current['item_id']}"
+                )
+                moved = client.post(
+                    f"/review/items/{current['item_id']}/approve",
+                    content=urlencode(
+                        {
+                            "csrf_token": csrf,
+                            "version": current["version"],
+                            "note": "manual safe",
+                            "return_to": return_to,
+                        }
+                    ),
+                    headers={
+                        "Accept": "text/html",
+                        "Content-Type": "application/x-www-form-urlencoded",
+                    },
+                    follow_redirects=False,
+                )
+                self.assertEqual(moved.status_code, 303)
+                self.assertEqual(
+                    moved.headers["location"],
+                    f"/review?status=pending&risk=guarded&q=nsfw&view=focus&focus={next_item['item_id']}",
+                )
+
+                unsafe = client.post(
+                    f"/review/items/{next_item['item_id']}/hold",
+                    content=urlencode(
+                        {
+                            "csrf_token": csrf,
+                            "version": next_item["version"],
+                            "note": "need manual follow-up",
+                            "return_to": "https://example.com/escape",
+                        }
+                    ),
+                    headers={
+                        "Accept": "text/html",
+                        "Content-Type": "application/x-www-form-urlencoded",
+                    },
+                    follow_redirects=False,
+                )
+                self.assertEqual(unsafe.status_code, 303)
+                self.assertEqual(unsafe.headers["location"], "/review")
+
+    def test_batch_review_rejects_special_cases_and_reports_partial_failures(self) -> None:
+        try:
+            from fastapi.testclient import TestClient
+        except ImportError as exc:  # pragma: no cover
+            self.skipTest(str(exc))
+
+        with tempfile.TemporaryDirectory() as directory:
+            database = str(Path(directory) / "wordyeah.sqlite3")
+            review_store = ReviewStore(database)
+            settings = ApiSettings(
+                database_path=database,
+                media_root=Path(directory) / "media",
+                reviewer_token="review-secret",
+                review_session_secret="session-secret",
+                reviewer_id="alice",
+            )
+            app = create_app(
+                settings=settings,
+                service=MediaModerationService(BlockClassifier()),
+                review_store=review_store,
+            )
+            with TestClient(app) as client:
+                for color in (
+                    (10, 20, 30),
+                    (30, 20, 10),
+                    (40, 50, 60),
+                    (60, 50, 40),
+                    (70, 80, 90),
+                ):
+                    self._moderate_png(client, color)
+                login = client.post("/review/login", json={"token": "review-secret"})
+                csrf = login.json()["csrf_token"]
+                staged_items = client.get("/review/items?status=all").json()["items"]
+                ok_item = self._route_item_to_human_required(client, staged_items[0]["item_id"])
+                appealed_item = self._route_item_to_human_required(client, staged_items[1]["item_id"])
+                minor_item = self._route_item_to_human_required(
+                    client, staged_items[2]["item_id"], category="minor_identity"
+                )
+                missing_evidence_item = self._route_item_to_human_required(
+                    client, staged_items[3]["item_id"], evidence=False
+                )
+                non_human_item = client.get(f"/review/items/{staged_items[4]['item_id']}").json()["item"]
+
+                review_store.connection.execute(
+                    "UPDATE review_items SET appealed = 1 WHERE item_id = ?",
+                    (appealed_item["item_id"],),
+                )
+                review_store.connection.commit()
+
+                selected = [
+                    f"{ok_item['item_id']}:{ok_item['version']}",
+                    f"{appealed_item['item_id']}:{appealed_item['version']}",
+                    f"{minor_item['item_id']}:{minor_item['version']}",
+                    f"{missing_evidence_item['item_id']}:{missing_evidence_item['version']}",
+                    f"{non_human_item['item_id']}:{non_human_item['version']}",
+                ]
+
+                missing_csrf = client.post(
+                    "/review/batch",
+                    content=urlencode({"action": "reject", "selected": selected}, doseq=True),
+                    headers={"Content-Type": "application/x-www-form-urlencoded"},
+                )
+                self.assertEqual(missing_csrf.status_code, 403)
+
+                over_limit = client.post(
+                    "/review/batch",
+                    content=urlencode(
+                        {"csrf_token": csrf, "action": "reject", "selected": [selected[0]] * 51},
+                        doseq=True,
+                    ),
+                    headers={"Content-Type": "application/x-www-form-urlencoded"},
+                )
+                self.assertEqual(over_limit.status_code, 400)
+                self.assertIn("limited to 50 items", over_limit.json()["detail"])
+
+                batch = client.post(
+                    "/review/batch",
+                    content=urlencode(
+                        {"csrf_token": csrf, "action": "reject", "selected": selected},
+                        doseq=True,
+                    ),
+                    headers={"Content-Type": "application/x-www-form-urlencoded"},
+                )
+                self.assertEqual(batch.status_code, 200)
+                self.assertEqual(batch.json()["processed"], [ok_item["item_id"]])
+                failures = {entry["item"]: entry["error"] for entry in batch.json()["failures"]}
+                self.assertEqual(len(failures), 4)
+                self.assertIn("appealed item cannot use ordinary batch review", failures[appealed_item["item_id"]])
+                self.assertIn(
+                    "political or minor-sensitive item cannot use ordinary batch review",
+                    failures[minor_item["item_id"]],
+                )
+                self.assertIn(
+                    "item is missing review evidence for ordinary batch review",
+                    failures[missing_evidence_item["item_id"]],
+                )
+                self.assertIn(
+                    "only pending human_required items can use batch review",
+                    failures[non_human_item["item_id"]],
+                )
 
 
 if __name__ == "__main__":

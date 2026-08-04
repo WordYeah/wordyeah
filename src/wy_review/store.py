@@ -233,7 +233,7 @@ class ReviewStore:
             parameters.append(decision_hint)
         where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
         rows = self.connection.execute(
-            f"SELECT * FROM review_items{where} ORDER BY created_at LIMIT ?",
+            f"SELECT * FROM review_items{where} ORDER BY created_at DESC, item_id DESC LIMIT ?",
             (*parameters, limit),
         ).fetchall()
         return [self._row(row) for row in rows]

@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, urlencode
+from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit
 
 from wy_core.config import load_policy_config
 from wy_core.contracts import ModerationResult
@@ -23,7 +23,7 @@ from wy_review.attempt_store import AttemptConflictError, ReviewAttemptStore
 from wy_review.router import ReviewRouter
 from wy_api.login_ui import render_login_page
 from wy_api.review_pages import ReviewPageContext, render_review_page
-from wy_api.review_ui import WORKBENCH_JS, render_review_workbench
+from wy_api.review_ui import WORKBENCH_JS, _filter_items, render_review_workbench
 
 IMAGE_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif", "image/bmp"}
 APP_VERSION = "0.1.0"
@@ -213,7 +213,7 @@ def create_app(
         response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
         response.headers.setdefault(
             "Content-Security-Policy",
-            "default-src 'self'; img-src 'self' https://cn.cravatar.com; style-src 'unsafe-inline'; "
+            "default-src 'self'; script-src 'self' 'unsafe-inline'; img-src 'self' https://cn.cravatar.com; style-src 'unsafe-inline'; "
             "base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
         )
         if request.url.path.startswith("/review"):
@@ -341,6 +341,109 @@ def create_app(
             return value
         values = parse_qs(body.decode("utf-8"), keep_blank_values=True)
         return {key: entries[-1] for key, entries in values.items()}
+
+    def _consumer_items(limit: int = 1000) -> list[Any]:
+        return review_store.list_items(status=None, consumer_id=settings.consumer_id, limit=limit)
+
+    def _sanitize_review_return_to(raw_return_to: object, *, fallback: str = "/review") -> str:
+        if not isinstance(raw_return_to, str) or not raw_return_to:
+            return fallback
+        parsed = urlsplit(raw_return_to)
+        if parsed.scheme or parsed.netloc or parsed.path != "/review":
+            return fallback
+        query_values = parse_qs(parsed.query, keep_blank_values=True)
+        cleaned: dict[str, str] = {}
+        for key in ("status", "risk", "q", "view", "focus", "batch"):
+            values = query_values.get(key)
+            if not values:
+                continue
+            value = values[-1]
+            if key == "batch":
+                if value == "1":
+                    cleaned[key] = value
+                continue
+            cleaned[key] = value
+        fragment = parsed.fragment if parsed.fragment == "review-queue" else ""
+        return urlunsplit(("", "", "/review", urlencode(cleaned), fragment))
+
+    def _planned_review_return(item_id: str, raw_return_to: object) -> str:
+        target = _sanitize_review_return_to(raw_return_to)
+        parsed = urlsplit(target)
+        values = parse_qs(parsed.query, keep_blank_values=True)
+        view_mode = (values.get("view") or ["list"])[-1]
+        focus_item_id = (values.get("focus") or [None])[-1]
+        if view_mode != "focus" or focus_item_id != item_id:
+            return target
+        filtered_items = _filter_items(
+            _consumer_items(),
+            search_query=(values.get("q") or [""])[-1],
+            status_filter=(values.get("status") or ["pending"])[-1],
+            risk_filter=(values.get("risk") or ["all"])[-1],
+        )
+        focus_ids = [item.item_id for item in filtered_items]
+        try:
+            focus_index = focus_ids.index(item_id)
+        except ValueError:
+            return target
+        next_item_id = focus_ids[focus_index + 1] if focus_index < len(focus_ids) - 1 else None
+        if next_item_id is None:
+            values.pop("focus", None)
+            values["view"] = ["list"]
+        else:
+            values["focus"] = [next_item_id]
+            values["view"] = ["focus"]
+        rebuilt = urlencode(
+            {
+                key: values[key][-1]
+                for key in ("status", "risk", "q", "view", "focus", "batch")
+                if key in values and (key != "batch" or values[key][-1] == "1")
+            }
+        )
+        return urlunsplit(("", "", "/review", rebuilt, parsed.fragment))
+
+    def _attempt_signals(item: Any, attempts: list[Any]) -> set[str]:
+        signals = {reason.lower() for reason in item.reasons}
+        for finding in item.findings:
+            for field in ("category", "label"):
+                value = finding.get(field)
+                if value:
+                    signals.add(str(value).lower())
+        for attempt in attempts:
+            signals.update(str(reason).lower() for reason in attempt.reasons)
+            for finding in attempt.findings:
+                for field in ("category", "label"):
+                    value = finding.get(field)
+                    if value:
+                        signals.add(str(value).lower())
+        return signals
+
+    def _batch_blocker(item: Any, attempts: list[Any]) -> str | None:
+        if item.status != "pending" or item.stage != "human_required":
+            return "only pending human_required items can use batch review"
+        if item.quality_sample:
+            return "quality sample requires individual review"
+        if item.arbitration_required:
+            return "arbitration-required item cannot use ordinary batch review"
+        if item.appealed:
+            return "appealed item cannot use ordinary batch review"
+        signals = _attempt_signals(item, attempts)
+        if any(
+            token in signals
+            for token in {
+                "political",
+                "political_person",
+                "political_symbol",
+                "political_text",
+                "minor",
+                "minor_identity",
+                "underage",
+                "child",
+            }
+        ):
+            return "political or minor-sensitive item cannot use ordinary batch review"
+        if not any(attempt.evidence for attempt in attempts):
+            return "item is missing review evidence for ordinary batch review"
+        return None
 
     def _review_html_page(items: list[Any], csrf_token: str) -> str:
         rows: list[str] = []
@@ -654,7 +757,7 @@ def create_app(
         view_mode = request.query_params.get("view", "list")
         batch_mode = request.query_params.get("batch") == "1"
         batch_result = request.query_params.get("batch_result", "")
-        items = review_store.list_items(status=None, consumer_id=settings.consumer_id, limit=1000)
+        items = _consumer_items()
         events = review_store.list_all_events(settings.consumer_id, limit=1000)
         return HTMLResponse(
             render_review_workbench(
@@ -682,8 +785,13 @@ def create_app(
         return Response(WORKBENCH_JS, media_type="application/javascript")
 
     def _support_page_data(page: str) -> dict[str, object]:
-        items = review_store.list_items(status=None, consumer_id=settings.consumer_id, limit=1000)
-        attempts = attempt_store.list_recent(1000)
+        items = _consumer_items()
+        consumer_item_ids = {item.item_id for item in items}
+        attempts = [
+            attempt
+            for attempt in attempt_store.list_recent(5000)
+            if attempt.item_id in consumer_item_ids
+        ][:1000]
         events = review_store.list_all_events(settings.consumer_id, limit=1000)
         pending = [item for item in items if item.status == "pending"]
         held = [item for item in items if item.status == "held"]
@@ -1014,6 +1122,9 @@ def create_app(
         note = payload.get("note", "")
         if not isinstance(note, str):
             raise HTTPException(status_code=400, detail="note must be a string")
+        return_to = None
+        if "text/html" in request.headers.get("Accept", ""):
+            return_to = _planned_review_return(item_id, payload.get("return_to"))
         try:
             item = review_store.decide(
                 item_id,
@@ -1032,7 +1143,7 @@ def create_app(
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         if "text/html" in request.headers.get("Accept", ""):
-            return RedirectResponse("/review", status_code=303)
+            return RedirectResponse(return_to or "/review", status_code=303)
         return JSONResponse(item.to_dict())
 
     @app.post("/review/items/{item_id}/approve", response_model=None)
@@ -1077,6 +1188,11 @@ def create_app(
             try:
                 item_id, raw_version = entry.rsplit(":", 1)
                 expected_version = int(raw_version)
+                item = review_store.get(item_id, consumer_id=settings.consumer_id)
+                attempts = attempt_store.list_attempts(item_id)
+                blocker = _batch_blocker(item, attempts)
+                if blocker is not None:
+                    raise ValueError(blocker)
                 review_store.decide(
                     item_id,
                     action,  # type: ignore[arg-type]
@@ -1092,9 +1208,10 @@ def create_app(
                 failures.append({"item": entry.split(":", 1)[0], "error": str(exc)})
 
         if "text/html" in request.headers.get("Accept", ""):
-            return_to = (values.get("return_to") or ["/review?batch=1"])[-1]
-            if not return_to.startswith("/review?"):
-                return_to = "/review?batch=1"
+            return_to = _sanitize_review_return_to(
+                (values.get("return_to") or ["/review?batch=1"])[-1],
+                fallback="/review?batch=1",
+            )
             separator = "&" if "?" in return_to else "?"
             summary = f"批量处理完成：成功 {len(processed)} 项，失败 {len(failures)} 项"
             return RedirectResponse(

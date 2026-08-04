@@ -10,7 +10,7 @@ from dataclasses import asdict, dataclass, is_dataclass
 from html import escape
 from typing import Mapping, Sequence
 
-from wy_api.review_ui import CSS as REVIEW_CSS
+from wy_api.review_ui import CSS as REVIEW_CSS, THEME_INIT_JS, _top_icon
 
 
 @dataclass(frozen=True)
@@ -129,20 +129,29 @@ def _icon(path: str) -> str:
 _CSS = REVIEW_CSS + """
 /* Support pages reuse the queue shell but tighten typography, states, and spacing. */
 :root {
-  --font-display: 'seravek', 'Lato', "Source Han Sans SC", "Noto Sans CJK SC", "PingFang SC", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-  --font-body: 'seravek', 'Lato', "Source Han Sans SC", "Noto Sans CJK SC", "PingFang SC", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-  --font-mono: 'wenfeng-ibmps', "JetBrains Mono", "SFMono-Regular", "SFMono", ui-monospace, Menlo, Consolas, monospace;
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --font-body: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --font-mono: "SF Mono", "JetBrains Mono", "Fira Code", ui-monospace, Menlo, Monaco, Consolas, monospace;
   --font: var(--font-body);
   --mono: var(--font-mono);
-  --support-line: #e6e8ee;
-  --support-line-strong: #d8dde7;
-  --support-panel: #ffffff;
-  --support-panel-soft: #fafbfc;
+  --support-line: var(--line);
+  --support-line-strong: var(--line-strong);
+  --support-panel: var(--panel);
+  --support-panel-soft: var(--panel-soft);
+}
+
+:root[data-theme="dark"] {
+  --support-line: var(--line);
+  --support-line-strong: var(--line-strong);
+  --support-panel: var(--panel);
+  --support-panel-soft: var(--panel-soft);
 }
 
 body {
   font-family: var(--font-body);
   letter-spacing: -0.01em;
+  background: var(--page);
+  color: var(--text);
 }
 
 .brand,
@@ -168,16 +177,7 @@ code,
   font-family: var(--font-mono);
 }
 
-.support-nav { display: grid; gap: 18px; }
-.support-nav .nav-section { gap: 5px; }
-.support-nav .nav-label { margin-bottom: 4px; }
-.support-nav .nav-item {
-  min-height: 39px;
-  padding-top: 8px;
-  padding-bottom: 8px;
-  font-weight: 560;
-  letter-spacing: -0.01em;
-}
+.support-nav { display: grid; gap: 20px; }
 
 .service-status {
   position: relative;
@@ -189,12 +189,42 @@ code,
   bottom: 7px;
   width: 7px;
   height: 7px;
-  border: 2px solid #fff;
+  border: 2px solid var(--support-panel);
   border-radius: 50%;
   background: currentColor;
   content: "";
 }
 .service-status[data-tone="danger"] { color: var(--red); }
+
+.topbar-breadcrumbs {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 560;
+  letter-spacing: -0.01em;
+}
+
+.topbar-breadcrumbs a {
+  color: var(--muted);
+  text-decoration: none;
+  transition: color 140ms ease;
+}
+
+.topbar-breadcrumbs a:hover {
+  color: var(--text);
+}
+
+.topbar-breadcrumbs .divider {
+  color: var(--line-strong);
+  font-size: 11px;
+  user-select: none;
+}
+
+.topbar-breadcrumbs span.current-crumb {
+  color: var(--text);
+  font-weight: 700;
+}
 
 .support-hero {
   display: flex;
@@ -254,142 +284,277 @@ code,
   padding: 0 12px;
   border: 1px solid var(--support-line);
   border-radius: 999px;
-  background: #fff;
+  background: var(--support-panel);
   font-size: 11px;
   font-weight: 600;
   white-space: nowrap;
 }
 .status-pill {
   color: var(--text);
-  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.02);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
 }
-.status-pill[data-tone="success"] { border-color: #d8ebdf; background: var(--green-soft); color: #24714e; }
-.status-pill[data-tone="danger"] { border-color: #f0d7dc; background: var(--red-soft); color: #b24b5c; }
+.status-pill[data-tone="success"] { border-color: var(--green); background: var(--green-soft); color: var(--green); }
+.status-pill[data-tone="danger"] { border-color: var(--red); background: var(--red-soft); color: var(--red); }
 .intent-note {
   color: var(--accent);
-  background: #f7f7ff;
-  border-color: #e0e3fb;
+  background: var(--accent-soft);
+  border-color: var(--line);
 }
 .status-pill svg,
 .intent-note svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.6; }
 
-.content-stack { display: grid; gap: 16px; }
+.content-stack { display: grid; gap: 18px; }
 .panel {
   overflow: hidden;
   border: 1px solid var(--support-line);
   border-radius: 18px;
   background: var(--support-panel);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
 }
 .panel-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 18px;
-  padding: 22px 24px 12px;
+  gap: 16px;
+  padding: 22px 26px 12px;
+  border-bottom: 1px solid var(--support-line);
 }
 .panel-head h2 {
   margin: 0;
-  font-size: 17px;
-  font-weight: 620;
-  letter-spacing: -0.03em;
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.025em;
+  color: var(--text);
 }
 .panel-head p {
-  max-width: 620px;
-  margin: 6px 0 0;
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.7;
-}
-.panel-body { padding: 0 24px 24px; }
-
-.notice-stack { display: grid; gap: 8px; margin-bottom: 14px; }
-.notice {
-  padding: 13px 14px;
-  border: 1px solid #eee1c7;
-  border-radius: 12px;
-  background: var(--amber-soft);
-}
-.notice[data-tone="danger"] { border-color: #f0d7dc; background: var(--red-soft); }
-.notice[data-tone="info"] { border-color: #dde2fb; background: #f7f8ff; }
-.notice[data-tone="success"] { border-color: #d8ebdf; background: var(--green-soft); }
-.notice strong {
-  display: block;
-  font-size: 13px;
-  font-weight: 620;
-  letter-spacing: -0.01em;
-}
-.notice p {
+  max-width: 560px;
   margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+.panel-body { padding: 20px 26px 24px; }
+.section-stack {
+  display: grid;
+  gap: 18px;
+}
+.section-block {
+  display: grid;
+  gap: 12px;
+  padding-top: 18px;
+  border-top: 1px solid var(--support-line);
+}
+.section-block:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+.section-block h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+.section-block p.section-copy {
+  margin: 0;
   color: var(--muted);
   font-size: 12px;
   line-height: 1.65;
+}
+.data-state {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  border: 1px dashed var(--support-line-strong);
+  border-radius: 12px;
+  background: var(--support-panel-soft);
+}
+.data-state strong {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+.data-state span {
+  color: var(--quiet);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.notice-stack { display: grid; gap: 8px; margin-bottom: 16px; }
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--amber);
+  border-left-width: 3px;
+  border-radius: 10px;
+  background: var(--amber-soft);
+}
+.notice[data-tone="danger"] { border-color: var(--red); background: var(--red-soft); }
+.notice[data-tone="info"] { border-color: var(--accent); background: var(--accent-soft); }
+.notice[data-tone="success"] { border-color: var(--green); background: var(--green-soft); }
+.notice strong {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.4;
+}
+.notice p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
 }
 .quiet-state,
 .empty {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 14px 15px;
+  padding: 14px 16px;
   border: 1px dashed var(--support-line-strong);
   border-radius: 12px;
   background: var(--support-panel-soft);
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.6;
+  color: var(--quiet);
+  font-size: 12.5px;
+  line-height: 1.55;
 }
 .quiet-state::before,
 .empty::before {
   display: inline-flex;
+  flex: 0 0 20px;
   width: 20px;
   height: 20px;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: #fff;
+  background: var(--support-panel);
   border: 1px solid var(--support-line);
   color: var(--quiet);
-  content: "·";
+  content: "✓";
+  font-size: 10px;
 }
 .quiet-state { margin-bottom: 14px; }
 
 .stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  margin: 2px 0 14px;
-  overflow: hidden;
-  border: 1px solid var(--support-line);
-  border-radius: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(172px, 1fr));
+  gap: 12px;
+  margin: 0 0 18px;
 }
 .stat {
-  min-height: 98px;
-  padding: 16px 17px;
-  background: var(--support-panel-soft);
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: 0;
+  min-height: 96px;
+  padding: 16px 18px 18px;
+  border: 1px solid var(--support-line);
+  border-radius: 14px;
+  background: var(--support-panel);
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.04);
+  transition: transform 120ms ease, box-shadow 120ms ease;
+  overflow: hidden;
 }
-.stat + .stat { border-left: 1px solid var(--support-line); }
+.stat::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent) 0%, transparent 100%);
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.stat:hover::before { opacity: 1; }
+.stat:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.06);
+}
 .stat-label {
   display: block;
-  color: var(--muted);
+  color: var(--quiet);
   font-size: 11px;
   font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  line-height: 1.3;
 }
 .stat-value {
   display: block;
-  margin-top: 6px;
-  font-size: 23px;
-  line-height: 1.1;
+  margin-top: 10px;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1;
   letter-spacing: -0.04em;
   font-variant-numeric: tabular-nums;
+  color: var(--text);
 }
 .stat-detail {
   display: block;
   margin-top: 6px;
-  color: var(--quiet);
-  font-size: 11px;
-  line-height: 1.55;
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.45;
 }
 .stat[data-tone="danger"] .stat-value { color: var(--red); }
 .stat[data-tone="warning"] .stat-value { color: var(--amber); }
 .stat[data-tone="success"] .stat-value { color: var(--green); }
+
+.funnel-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--support-line);
+  border-radius: 16px;
+  background: var(--support-panel-soft);
+  overflow-x: auto;
+}
+
+.funnel-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 170px;
+  padding: 10px 12px;
+  border: 1px solid var(--support-line);
+  border-radius: 12px;
+  background: var(--support-panel);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+}
+
+.funnel-step.is-human {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.step-badge {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 750;
+  flex: 0 0 24px;
+}
+
+.funnel-step.is-human .step-badge {
+  background: var(--accent);
+  color: #fff;
+}
+
+.step-info { display: grid; gap: 2px; }
+.step-info strong { font-size: 12px; font-weight: 700; color: var(--text); }
+.step-info small { color: var(--quiet); font-size: 10px; }
+.funnel-arrow { color: var(--quiet); font-size: 13px; font-weight: 700; }
 
 .record-list { margin: 0; padding: 0; list-style: none; }
 .record {
@@ -422,9 +587,9 @@ code,
   overflow: auto;
   border: 1px solid var(--support-line);
   border-radius: 14px;
-  background: #fff;
+  background: var(--support-panel);
 }
-table { width: 100%; min-width: 860px; border-collapse: collapse; background: #fff; }
+table { width: 100%; min-width: 860px; border-collapse: collapse; background: var(--support-panel); color: var(--text); }
 th,
 td {
   padding: 13px 16px;
@@ -447,7 +612,7 @@ th {
   text-transform: uppercase;
 }
 tbody tr:last-child td { border-bottom: 0; }
-tbody tr:hover { background: #fafbfe; }
+tbody tr:hover { background: var(--support-panel-soft); }
 
 .definition-grid {
   display: grid;
@@ -486,7 +651,7 @@ tbody tr:hover { background: #fafbfe; }
   padding: 0 13px;
   border: 1px solid var(--support-line);
   border-radius: 999px;
-  background: #fff;
+  background: var(--support-panel);
   color: var(--muted);
   font-size: 11px;
   font-weight: 600;
@@ -600,6 +765,54 @@ def _render_metrics(value: object) -> str:
     return f'<div class="stats" aria-label="关键指标">{"".join(cards)}</div>' if cards else ""
 
 
+def _render_data_state(status: str, detail: str) -> str:
+    return (
+        '<div class="data-state">'
+        f"<strong>{escape(status)}</strong>"
+        f"<span>{escape(detail)}</span>"
+        "</div>"
+    )
+
+
+def _section_block(title: str, body: str, description: str = "") -> str:
+    copy = f'<p class="section-copy">{escape(description)}</p>' if description else ""
+    return f'<section class="section-block"><h3>{escape(title)}</h3>{copy}{body}</section>'
+
+
+def _section_stack(*sections: str) -> str:
+    return f'<div class="section-stack">{"".join(section for section in sections if section)}</div>'
+
+
+def _render_metrics_block(value: object, *, empty_detail: str) -> str:
+    return _render_metrics(value) or _render_data_state("未采集", empty_detail)
+
+
+def _render_records_block(value: object, *, empty_status: str, empty_detail: str, empty_message: str) -> str:
+    return (
+        _render_records(value, empty_message)
+        if _sequence(value)
+        else _render_data_state(empty_status, empty_detail)
+    )
+
+
+def _render_table_block(value: object, *, empty_status: str, empty_detail: str, empty_message: str) -> str:
+    table = _mapping(value)
+    columns = _sequence(table.get("columns"))
+    if not columns:
+        return _render_data_state(empty_status, empty_detail)
+    normalized = dict(table)
+    normalized.setdefault("empty_message", empty_message)
+    return _render_table(normalized)
+
+
+def _render_definitions_block(value: object, *, empty_status: str, empty_detail: str) -> str:
+    return (
+        _render_definitions(value)
+        if _mapping(value)
+        else _render_data_state(empty_status, empty_detail)
+    )
+
+
 def _render_records(value: object, empty: str) -> str:
     records: list[str] = []
     for raw in _sequence(value):
@@ -678,136 +891,222 @@ def _coerce_context(context: ReviewPageContext | Mapping[str, object] | None) ->
 
 def _page_body(page: str, data: Mapping[str, object], logout: str) -> str:
     notices = _render_notices(data.get("exceptions") or data.get("attention"))
-    metrics = _render_metrics(data.get("metrics"))
+    metrics = data.get("metrics")
 
     if page == "overview":
-        return "".join(
-            (
-                _panel(
-                    "人工关注摘要",
-                    "只看需要接手的异常、积压与波动；正常吞吐继续交给 AI Agent。",
-                    notices + (metrics if metrics else "") + _link_row(("/review", "打开审核队列"), ("/review/history", "查看审计历史")),
+        return _panel(
+            "人工关注摘要",
+            "只展示传入的异常、概览指标与阶段事实；未采集数据直接标注。",
+            _section_stack(
+                _section_block("需要关注", notices, "这里只保留人工需要接手的异常。"),
+                _section_block(
+                    "关键指标",
+                    _render_metrics_block(metrics, empty_detail="未提供概览指标。"),
+                    "不再补画前端伪图表。",
                 ),
-                _panel(
-                    "流水线动态",
-                    "按阶段查看正在积压或需要跟进的链路。",
-                    _render_records(data.get("pipeline"), "暂无流水线异常"),
+                _section_block(
+                    "流水线阶段",
+                    _render_records_block(
+                        data.get("pipeline"),
+                        empty_status="未采集",
+                        empty_detail="未提供阶段积压或延迟信息。",
+                        empty_message="暂无流水线异常",
+                    ),
+                    "按传入阶段数据展示积压、延迟或 live 状态。",
                 ),
-            )
+                _section_block("入口", _link_row(("/review", "打开审核队列"), ("/review/history", "查看审计历史"))),
+            ),
         )
     if page == "agents":
-        return "".join(
-            (
-                _panel(
-                    "AI Agent 例外",
-                    "人工只在重试、阻塞或二审异常时接手。",
-                    notices + (metrics if metrics else "") + _link_row(("/review", "回到审核队列")),
+        return _panel(
+            "AI 任务",
+            "聚焦异常阶段、attempt 与积压，不再重复展示流程示意图。",
+            _section_stack(
+                _section_block("需要关注", notices, "先看失败、阻塞与人工兜底入口。"),
+                _section_block(
+                    "任务指标",
+                    _render_metrics_block(metrics, empty_detail="未提供 AI 任务指标。"),
                 ),
-                _panel(
-                    "模型与任务",
-                    "重试会生成新的 attempt；这里保留真实阶段与积压。",
-                    _render_table(data.get("agents")),
+                _section_block(
+                    "阶段明细",
+                    _render_table_block(
+                        data.get("agents"),
+                        empty_status="未采集",
+                        empty_detail="未提供 AI 任务分阶段明细。",
+                        empty_message="没有需要人工关注的异常",
+                    ),
+                    "重试会生成新的 attempt；这里只展示真实阶段数据。",
                 ),
-            )
+                _section_block("入口", _link_row(("/review", "回到审核队列"))),
+            ),
         )
     if page == "policies":
-        return "".join(
-            (
-                _panel(
+        return _panel(
+            "策略与路由",
+            "页面只读，只展示后端传入的生效策略、路由条件与版本事实。",
+            _section_stack(
+                _section_block("需要关注", notices, "策略异常或漂移先在这里暴露。"),
+                _section_block(
                     "当前策略",
-                    "先确认后端当前生效的判定上下文。",
-                    notices + _render_definitions(data.get("current_policy")),
+                    _render_definitions_block(
+                        data.get("current_policy"),
+                        empty_status="未采集",
+                        empty_detail="未提供当前生效策略。",
+                    ),
                 ),
-                _panel(
+                _section_block(
                     "路由条件",
-                    "真实深链保留到审核队列和历史页；本页不在前端推导阈值。",
-                    _render_table(data.get("routes")) + _link_row(("/review", "审核队列"), ("/review/history", "历史事件")),
+                    _render_table_block(
+                        data.get("routes"),
+                        empty_status="未采集",
+                        empty_detail="未提供路由条件。",
+                        empty_message="暂无路由规则",
+                    ),
+                    "本页不在前端推导阈值。",
                 ),
-                _panel(
+                _section_block(
                     "版本记录",
-                    "只保留版本事实，帮助人工判断近期是否发生策略漂移。",
-                    _render_records(data.get("versions"), "暂无策略版本记录"),
+                    _render_records_block(
+                        data.get("versions"),
+                        empty_status="未采集",
+                        empty_detail="未提供策略版本记录。",
+                        empty_message="暂无策略版本记录",
+                    ),
                 ),
-            )
+                _section_block("入口", _link_row(("/review", "审核队列"), ("/review/history", "历史事件"))),
+            ),
         )
     if page == "quality":
-        return "".join(
-            (
-                _panel(
-                    "抽检与例外",
-                    "零样本只记为 SKIP；人工重点看分歧、推翻与需仲裁样本。",
-                    notices + (metrics if metrics else "") + _link_row(("/review/history", "查看审计历史")),
+        return _panel(
+            "质量与仲裁",
+            "只展示传入的抽检、分歧与仲裁数据；零样本只记为 SKIP。",
+            _section_stack(
+                _section_block("需要关注", notices, "人工重点看分歧、推翻与需仲裁样本。"),
+                _section_block(
+                    "质量指标",
+                    _render_metrics_block(metrics, empty_detail="未提供质量指标。"),
+                    "不再补充前端伪指标。",
                 ),
-                _panel(
+                _section_block(
                     "抽检与分歧",
+                    _render_table_block(
+                        data.get("cases"),
+                        empty_status="SKIP",
+                        empty_detail="未提供抽检样本或仲裁明细。",
+                        empty_message="SKIP · 未采集抽检样本",
+                    ),
                     "展示当前样本、阶段和是否进入仲裁。",
-                    _render_table(data.get("cases")),
                 ),
-            )
+                _section_block("入口", _link_row(("/review/history", "查看审计历史"))),
+            ),
         )
     if page == "history":
-        return "".join(
-            (
-                _panel(
-                    "事件流",
-                    "人工排查时先看这里，确认模型与人工动作的先后顺序。",
-                    notices + _link_row(("/review", "回到审核队列"), ("/review/health", "系统健康")),
-                ),
-                _panel(
+        return _panel(
+            "审计历史",
+            "按追加式事件查看审核链路，先确认模型与人工动作的先后顺序。",
+            _section_stack(
+                _section_block("需要关注", notices),
+                _section_block(
                     "事件记录",
+                    _render_table_block(
+                        data.get("events"),
+                        empty_status="未采集",
+                        empty_detail="未提供历史事件。",
+                        empty_message="暂无历史事件",
+                    ),
                     "历史事件只追加，不覆盖。",
-                    _render_table(data.get("events")),
                 ),
-            )
+                _section_block("入口", _link_row(("/review", "回到审核队列"), ("/review/health", "系统健康"))),
+            ),
         )
     if page == "health":
-        return "".join(
-            (
-                _panel(
-                    "运行状态",
-                    "先判断服务是否 ready，再看队列或模型组件。",
-                    notices + (metrics if metrics else "") + _link_row(("/review/agents", "AI 任务")),
+        return _panel(
+            "系统健康",
+            "检查流水线是否阻塞、组件是否 ready，以及哪里需要人工介入。",
+            _section_stack(
+                _section_block("需要关注", notices),
+                _section_block(
+                    "健康指标",
+                    _render_metrics_block(metrics, empty_detail="未提供系统健康指标。"),
+                    "只显示后端传入的真实指标或明确未采集状态。",
                 ),
-                _panel(
+                _section_block(
                     "组件状态",
+                    _render_table_block(
+                        data.get("services"),
+                        empty_status="未采集",
+                        empty_detail="未提供组件状态。",
+                        empty_message="暂无组件状态",
+                    ),
                     "这里只呈现真实组件状态，不附带批量控制入口。",
-                    _render_table(data.get("services")),
                 ),
-            )
+                _section_block("入口", _link_row(("/review/agents", "AI 任务"))),
+            ),
         )
     if page == "account":
-        return "".join(
-            (
-                _panel(
+        return _panel(
+            "账户与会话",
+            "确认 reviewer 身份、consumer 范围与退出条件，只展示当前真实 session 信息。",
+            _section_stack(
+                _section_block("需要关注", notices),
+                _section_block(
                     "身份与范围",
-                    "确认 reviewer 身份、consumer 范围与退出条件。",
-                    notices + _render_definitions(data.get("profile")),
+                    _render_definitions_block(
+                        data.get("profile"),
+                        empty_status="未采集",
+                        empty_detail="未提供 reviewer 或 consumer 信息。",
+                    ),
                 ),
-                _panel(
+                _section_block(
                     "活动会话",
-                    "仅展示当前真实 session 信息。",
-                    _render_table(data.get("sessions")) + logout,
+                    _render_table_block(
+                        data.get("sessions"),
+                        empty_status="未采集",
+                        empty_detail="未提供当前 session 信息。",
+                        empty_message="暂无活动会话",
+                    ) + logout,
                 ),
-            )
+            ),
         )
-    return "".join(
-        (
-            _panel(
+    return _panel(
+        "审核说明",
+        "把人工规则压缩成单页参考，不把说明拆成重复卡片。",
+        _section_stack(
+            _section_block("需要关注", notices),
+            _section_block(
                 "审核原则",
-                "先让 AI Agent 自动处理；人工只在例外时介入。",
-                notices + _render_records(data.get("principles"), "暂无审核原则"),
+                _render_records_block(
+                    data.get("principles"),
+                    empty_status="未采集",
+                    empty_detail="未提供审核原则。",
+                    empty_message="暂无审核原则",
+                ),
             ),
-            _panel(
+            _section_block(
                 "风险类别",
-                "保留常用类别与处置方式，避免把说明堆进主审核界面。",
-                _render_table(data.get("categories")),
+                _render_table_block(
+                    data.get("categories"),
+                    empty_status="未采集",
+                    empty_detail="未提供风险类别。",
+                    empty_message="暂无风险类别",
+                ),
             ),
-            _panel(
+            _section_block(
                 "快捷参考",
-                "需要时再看快捷键与结构化原因。",
-                _render_table(data.get("shortcuts")) + _render_records(data.get("reasons"), "暂无原因说明"),
+                _render_table_block(
+                    data.get("shortcuts"),
+                    empty_status="未采集",
+                    empty_detail="未提供快捷键。",
+                    empty_message="暂无快捷键说明",
+                )
+                + _render_records_block(
+                    data.get("reasons"),
+                    empty_status="未采集",
+                    empty_detail="未提供结构化原因说明。",
+                    empty_message="暂无原因说明",
+                ),
             ),
-        )
+        ),
     )
 
 
@@ -836,10 +1135,12 @@ def render_review_page(
     workspace_nav = "".join(nav_items[key] for key in ("overview", "queue", "agents", "history"))
     settings_nav = "".join(nav_items[key] for key in ("policies", "quality", "health", "account", "guide"))
     nav = (
-        '<div class="nav-section"><p class="nav-label">Workspace</p>'
-        f"{workspace_nav}</div>"
-        '<div class="nav-section"><p class="nav-label">Settings</p>'
-        f"{settings_nav}</div>"
+        '<div class="nav-scroll">'
+        '<nav class="nav-section" aria-label="工作区"><p class="nav-label">Workspace</p>'
+        f"{workspace_nav}</nav>"
+        '<nav class="nav-section" aria-label="设置"><p class="nav-label">Settings</p>'
+        f"{settings_nav}</nav>"
+        '</div>'
     )
 
     service_label = "Pipeline ready" if ctx.service_ready else "Pipeline blocked"
@@ -860,27 +1161,24 @@ def render_review_page(
     intent = _PAGE_INTENTS[page]
     service_icon = _icon('<path d="M12 3l1.4 4.1 4.1 1.4-4.1 1.4L12 14l-1.4-4.1-4.1-1.4 4.1-1.4z"></path>')
     help_icon = _icon(_NAV_ICONS["guide"])
-    breadcrumbs = (
-        '<nav class="breadcrumbs" aria-label="面包屑">'
-        '<a href="/review/overview">工作台</a><span class="divider" aria-hidden="true">/</span>'
-        f"<span>{escape(nav_label)}</span></nav>"
-    )
-
     return f'''<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="color-scheme" content="light"><title>{escape(title)} · WordYeah</title><style>{_CSS}</style></head>
+<meta name="color-scheme" content="light dark"><title>{escape(title)} · WordYeah</title>{THEME_INIT_JS}<style>{_CSS}</style></head>
 <body><a class="skip-link" href="#main-content">跳到主要内容</a><div class="app-frame">
 <aside class="side-nav" aria-label="审核导航"><a class="brand" href="/review/overview"><span class="brand-mark">wy</span><span>wordyeah</span></a>
 <nav aria-label="工作台页面"><div class="support-nav">{nav}</div></nav><div class="nav-spacer"></div>
 <div class="consumer-switcher"><span class="consumer-avatar">{escape(ctx.consumer_id[:1].upper() or 'W')}</span><span class="consumer-copy"><strong>{escape(ctx.consumer_id)}</strong><small>Consumer workspace</small></span><span class="chevron" aria-hidden="true">⌄</span></div></aside>
-<div class="app-main"><header class="topbar"><div class="toolbar-title"><span>WordYeah / {escape(nav_label)}</span></div>
-<div class="toolbar-actions"><span class="topbar-icon service-status" data-tone="{service_tone}" role="status" title="{service_label}" aria-label="{service_label}">{service_icon}</span>
+<div class="app-main"><header class="topbar"><div class="toolbar-title"><nav class="topbar-breadcrumbs" aria-label="面包屑"><a href="/review/overview">WordYeah</a><span class="divider" aria-hidden="true">/</span><span class="current-crumb">{escape(nav_label)}</span></nav></div>
+<div class="toolbar-actions">
+<button class="theme-toggle-btn" type="button" data-action="toggle-layout" title="切换全宽/盒装居中" aria-label="切换全宽/盒装居中">{_top_icon('layout')}</button>
+<button class="theme-toggle-btn" type="button" data-action="toggle-theme" title="切换深色/浅色模式" aria-label="切换深色/浅色模式"><span class="theme-icon-sun">{_top_icon('sun')}</span><span class="theme-icon-moon">{_top_icon('moon')}</span></button>
+<span class="topbar-icon service-status" data-tone="{service_tone}" role="status" title="{service_label}" aria-label="{service_label}">{service_icon}</span>
 <a class="topbar-icon" href="/review/guide" title="审核说明" aria-label="审核说明">{help_icon}</a>
 <details class="account-menu"><summary><span class="reviewer-avatar">{escape(ctx.reviewer_id[:1].upper() or 'R')}</span><span>{escape(ctx.reviewer_id)}</span><span aria-hidden="true">⌄</span></summary>
-<div class="account-popover"><p>{escape(ctx.consumer_id)} · 受限审核会话</p><a class="toolbar-link" href="/review/account">账户与会话</a></div></details></div></header>
-<main class="shell" id="main-content"><header class="support-hero"><div class="support-hero-copy">{breadcrumbs}<h1>{escape(title)}</h1><p>{escape(subtitle)}</p></div>
+<div class="account-popover"><p>{escape(ctx.consumer_id)} · 受限审核会话</p>{'<form class="logout" method="post" action="/review/logout"><input type="hidden" name="csrf_token" value="' + escape(ctx.csrf_token) + '"><button type="submit">安全退出</button></form>' if ctx.csrf_token else '<a class="toolbar-link" href="/review/account">账户与会话</a>'}</div></details></div></header>
+<main class="shell" id="main-content"><header class="support-hero"><div class="support-hero-copy"><h1>{escape(title)}</h1><p>{escape(subtitle)}</p></div>
 <div class="hero-meta"><span class="status-pill" data-tone="{service_tone}">{service_icon}{service_label}</span><span class="intent-note">{help_icon}{escape(intent)}</span></div></header>
-<div class="content-stack">{service_notice}{body}</div><footer class="support-footer">当前 consumer：{escape(ctx.consumer_id)} · Reviewer：{escape(ctx.reviewer_id)}</footer></main></div></div></body></html>'''
+<div class="content-stack">{service_notice}{body}</div><footer class="support-footer">当前 consumer：{escape(ctx.consumer_id)} · Reviewer：{escape(ctx.reviewer_id)}</footer></main></div></div><script src="/review/assets/workbench.js"></script></body></html>'''
 
 
 def render_overview_page(data: object = None, *, context: object = None) -> str:

@@ -52,6 +52,13 @@ class ReviewAndAdapterTest(unittest.TestCase):
         with self.assertRaises(KeyError):
             store.get(first.item_id, consumer_id="two")
 
+    def test_list_items_returns_newest_records_first(self) -> None:
+        store = ReviewStore()
+        older = store.enqueue(result("review", "1" * 64), "media://older.png", consumer_id="one")
+        newer = store.enqueue(result("review", "2" * 64), "media://newer.png", consumer_id="one")
+        items = store.list_items(status="pending", consumer_id="one")
+        self.assertEqual([item.item_id for item in items], [newer.item_id, older.item_id])
+
     def test_error_results_enter_held_not_pending(self) -> None:
         store = ReviewStore()
         item = store.enqueue(result("error", "d" * 64), "sha256://d", consumer_id="one")
