@@ -1553,7 +1553,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 
 .media-preview img {
   width: 100%;
-  max-height: clamp(240px, calc(100vh - 620px), 340px);
+  max-height: clamp(280px, calc(100vh - 580px), 380px);
   object-fit: contain;
   background: var(--panel-muted);
   transition: filter 200ms ease;
@@ -2324,17 +2324,18 @@ button, a { -webkit-tap-highlight-color: transparent; }
     position: fixed;
     z-index: 30;
     right: 12px;
-    bottom: max(10px, env(safe-area-inset-bottom));
+    bottom: max(6px, env(safe-area-inset-bottom));
     left: 12px;
     display: block;
-    padding: 7px;
+    padding: 5px;
     border-radius: 14px;
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.14);
   }
   .action-form > label,
   .action-form > input[type="text"],
   .action-form > .action-caption { display: none; }
   .action-buttons { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-  .action-buttons button { min-width: 0; min-height: 36px; padding-inline: 6px; font-size: 12px; }
+  .action-buttons button { min-width: 0; min-height: 34px; padding-inline: 6px; font-size: 12px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
