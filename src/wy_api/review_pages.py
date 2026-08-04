@@ -163,7 +163,6 @@ body {
 .stat-label,
 .deep-link,
 .logout button,
-.breadcrumbs,
 .status-pill,
 .intent-note {
   font-family: var(--font-display);
@@ -238,23 +237,6 @@ code,
   gap: 10px;
   max-width: 760px;
 }
-.breadcrumbs {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--quiet);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-.breadcrumbs a {
-  color: inherit;
-  text-decoration: none;
-}
-.breadcrumbs a:hover,
-.breadcrumbs a:focus-visible { color: var(--text); }
-.breadcrumbs .divider { opacity: 0.55; }
 .support-hero h1 {
   margin: 0;
   font-size: 30px;
@@ -513,59 +495,6 @@ code,
 .stat[data-tone="danger"] .stat-value { color: var(--red); }
 .stat[data-tone="warning"] .stat-value { color: var(--amber); }
 .stat[data-tone="success"] .stat-value { color: var(--green); }
-
-.funnel-container {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 18px;
-  padding: 14px 16px;
-  border: 1px solid var(--support-line);
-  border-radius: 10px;
-  background: var(--support-panel-soft);
-  overflow-x: auto;
-}
-
-.funnel-step {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex: 1;
-  min-width: 170px;
-  padding: 10px 12px;
-  border: 1px solid var(--support-line);
-  border-radius: 8px;
-  background: var(--support-panel);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.02);
-}
-
-.funnel-step.is-human {
-  border-color: var(--support-line);
-  background: var(--accent-soft);
-}
-
-.step-badge {
-  display: grid;
-  width: 24px;
-  height: 24px;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-size: 11px;
-  font-weight: 750;
-  flex: 0 0 24px;
-}
-
-.funnel-step.is-human .step-badge {
-  background: var(--accent);
-  color: #fff;
-}
-
-.step-info { display: grid; gap: 2px; }
-.step-info strong { font-size: 12px; font-weight: 700; color: var(--text); }
-.step-info small { color: var(--quiet); font-size: 10px; }
-.funnel-arrow { color: var(--quiet); font-size: 13px; font-weight: 700; }
 
 .record-list { margin: 0; padding: 0; list-style: none; }
 .record {
