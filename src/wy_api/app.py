@@ -5,6 +5,7 @@ import hmac
 import html
 import json
 import os
+import stat
 import time
 from contextlib import asynccontextmanager
 from dataclasses import asdict, dataclass
@@ -1101,6 +1102,7 @@ def create_app(
         consumer_id: str,
         reviewer_id: str | None = None,
         csrf_token: str | None = None,
+        quality_offset: int = 0,
     ) -> dict[str, object]:
         items = _consumer_items(consumer_id)
         consumer_item_ids = {item.item_id for item in items}
@@ -1240,8 +1242,16 @@ def create_app(
             }
         if page == "quality":
             _quality_vocabulary(consumer_id)
-            samples = quality_store.list_samples(consumer_id=consumer_id)
             report = quality_store.report(consumer_id=consumer_id)
+            page_size = 24
+            total_samples = int(report.get("sample_count", 0))
+            safe_offset = min(max(quality_offset, 0), max(total_samples - 1, 0))
+            safe_offset = safe_offset // page_size * page_size
+            samples = quality_store.list_samples(
+                consumer_id=consumer_id,
+                limit=page_size,
+                offset=safe_offset,
+            )
             sample_rows = []
             for sample in samples:
                 decisions = quality_store.list_decisions(
@@ -1266,6 +1276,15 @@ def create_app(
                         "disagreement": "是" if sample.arbitration_required else "否",
                         "verdict": sample.final_decision or sample.status,
                         "tone": "warning" if sample.arbitration_required else "quiet",
+                        "media_url": f"/review/quality/samples/{sample.sample_id}/media",
+                        "thumbnail_url": (
+                            f"/review/quality/samples/{sample.sample_id}/thumbnail"
+                            if sample.media_ref.startswith(
+                                f"media://corpus/{consumer_id}/"
+                            )
+                            else None
+                        ),
+                        "offset": safe_offset,
                         "action_url": action_url,
                         "csrf_token": csrf_token,
                     }
@@ -1273,14 +1292,14 @@ def create_app(
             return {
                 "exceptions": common_exceptions,
                 "metrics": [
-                    {"label": "抽检样本", "value": len(samples), "detail": f"报告状态 {report['status']}"},
-                    {"label": "待双审", "value": sum(sample.status == "awaiting_reviews" for sample in samples), "detail": "需要两个独立 reviewer"},
-                    {"label": "待仲裁", "value": sum(sample.arbitration_required for sample in samples), "detail": "双审结论不一致"},
+                    {"label": "抽检样本", "value": total_samples, "detail": f"报告状态 {report['status']}"},
+                    {"label": "待双审", "value": report.get("samples_by_status", {}).get("awaiting_reviews", 0), "detail": "需要两个独立 reviewer"},
+                    {"label": "待仲裁", "value": report.get("samples_by_status", {}).get("arbitration_required", 0), "detail": "双审结论不一致"},
                 ],
                 "sampling": {
-                    "coverage": f"{len(samples)} 样本",
-                    "false_positive": "待标注" if samples else "SKIP",
-                    "disagreement": sum(sample.arbitration_required for sample in samples),
+                    "coverage": f"{total_samples} 样本",
+                    "false_positive": "待标注" if total_samples else "SKIP",
+                    "disagreement": report.get("samples_by_status", {}).get("arbitration_required", 0),
                 },
                 "samples": sample_rows,
                 "labels": CONTROLLED_QUALITY_LABELS,
@@ -1288,6 +1307,19 @@ def create_app(
                     "duration": "由接入方策略定义",
                     "deidentified": True,
                     "dataset": consumer_id,
+                },
+                "pagination": {
+                    "offset": safe_offset,
+                    "page_size": page_size,
+                    "total": total_samples,
+                    "previous_url": (
+                        f"/review/quality?offset={max(0, safe_offset - page_size)}"
+                        if safe_offset > 0 else None
+                    ),
+                    "next_url": (
+                        f"/review/quality?offset={safe_offset + page_size}"
+                        if safe_offset + page_size < total_samples else None
+                    ),
                 },
             }
         if page == "history":
@@ -1333,10 +1365,20 @@ def create_app(
                 return RedirectResponse("/review/login?expired=1", status_code=303)
             raise
         workspace = _review_workspace(request)
+        try:
+            quality_offset = int(request.query_params.get("offset", "0"))
+        except ValueError:
+            quality_offset = 0
         return HTMLResponse(
             render_review_page(
                 page,
-                _support_page_data(page, workspace.workspace_id, reviewer, csrf_token),
+                _support_page_data(
+                    page,
+                    workspace.workspace_id,
+                    reviewer,
+                    csrf_token,
+                    quality_offset=quality_offset,
+                ),
                 context=ReviewPageContext(
                     consumer_id=workspace.workspace_id,
                     reviewer_id=reviewer,
@@ -1369,7 +1411,12 @@ def create_app(
         return _render_support_page("quality", request)
 
     @app.get("/review/quality/samples")
-    async def list_quality_samples(request: Request, status: str | None = None) -> dict[str, object]:
+    async def list_quality_samples(
+        request: Request,
+        status: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> dict[str, object]:
         require_reviewer(request)
         workspace = _review_workspace(request)
         _quality_vocabulary(workspace.workspace_id)
@@ -1377,12 +1424,15 @@ def create_app(
             samples = quality_store.list_samples(
                 consumer_id=workspace.workspace_id,
                 status=status,  # type: ignore[arg-type]
+                limit=limit,
+                offset=offset,
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return {
             "report": quality_store.report(consumer_id=workspace.workspace_id),
             "samples": [asdict(sample) for sample in samples],
+            "pagination": {"limit": limit, "offset": offset, "returned": len(samples)},
         }
 
     @app.post("/review/items/{item_id}/quality-label")
@@ -1464,7 +1514,15 @@ def create_app(
                 detail=str(exc),
             ) from exc
         if "text/html" in request.headers.get("Accept", ""):
-            return RedirectResponse("/review/quality", status_code=303)
+            raw_offset = payload.get("offset")
+            try:
+                offset = int(raw_offset) if raw_offset not in (None, "") else 0
+            except (TypeError, ValueError):
+                offset = 0
+            return RedirectResponse(
+                f"/review/quality?offset={offset}" if 0 <= offset <= 10_000_000 else "/review/quality",
+                status_code=303,
+            )
         return JSONResponse(asdict(sample))
 
     @app.post("/review/quality/samples/{sample_id}/arbitrate", response_model=None)
@@ -1492,7 +1550,15 @@ def create_app(
                 detail=str(exc),
             ) from exc
         if "text/html" in request.headers.get("Accept", ""):
-            return RedirectResponse("/review/quality", status_code=303)
+            raw_offset = payload.get("offset")
+            try:
+                offset = int(raw_offset) if raw_offset not in (None, "") else 0
+            except (TypeError, ValueError):
+                offset = 0
+            return RedirectResponse(
+                f"/review/quality?offset={offset}" if 0 <= offset <= 10_000_000 else "/review/quality",
+                status_code=303,
+            )
         return JSONResponse(asdict(sample))
 
     @app.get("/review/history", response_class=HTMLResponse, response_model=None)
@@ -1626,24 +1692,82 @@ def create_app(
             status_code=201,
         )
 
-    def _safe_media_path(media_ref: str) -> Path:
+    def _read_safe_media(media_ref: str) -> bytes:
         if not media_ref.startswith("media://"):
             raise HTTPException(status_code=404, detail="media preview is unavailable")
         relative = media_ref.removeprefix("media://")
         if not relative or relative.startswith("/"):
             raise HTTPException(status_code=404, detail="media preview is unavailable")
         root = settings.media_root.expanduser().resolve()
-        path = (root / relative).resolve()
-        if root != path and root not in path.parents:
+        parts = Path(relative).parts
+        if not parts or any(part in {"", ".", ".."} for part in parts):
             raise HTTPException(status_code=404, detail="media preview is unavailable")
-        if not path.is_file():
-            raise HTTPException(status_code=404, detail="media preview is unavailable")
+        directory_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+        file_flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+        descriptors: list[int] = []
         try:
-            if path.stat().st_size > settings.max_body_bytes:
+            current = os.open(root, directory_flags)
+            descriptors.append(current)
+            for part in parts[:-1]:
+                current = os.open(part, directory_flags, dir_fd=current)
+                descriptors.append(current)
+            descriptor = os.open(parts[-1], file_flags, dir_fd=current)
+            descriptors.append(descriptor)
+            metadata = os.fstat(descriptor)
+            if not stat.S_ISREG(metadata.st_mode):
+                raise HTTPException(status_code=404, detail="media preview is unavailable")
+            if metadata.st_size > settings.max_body_bytes:
                 raise HTTPException(status_code=413, detail="media preview exceeds configured limit")
+            with os.fdopen(os.dup(descriptor), "rb") as handle:
+                payload = handle.read(settings.max_body_bytes + 1)
+            if len(payload) > settings.max_body_bytes:
+                raise HTTPException(status_code=413, detail="media preview exceeds configured limit")
+            return payload
         except OSError as exc:
             raise HTTPException(status_code=404, detail="media preview is unavailable") from exc
-        return path
+        finally:
+            for descriptor in reversed(descriptors):
+                try:
+                    os.close(descriptor)
+                except OSError:
+                    pass
+
+    def _safe_media_response(media_ref: str) -> Response:
+        image_bytes = _read_safe_media(media_ref)
+        try:
+            decode_image(
+                image_bytes,
+                ImageLimits(
+                    max_bytes=settings.max_body_bytes,
+                    max_width=settings.max_image_width,
+                    max_height=settings.max_image_height,
+                    max_pixels=settings.max_image_pixels,
+                    max_frames=settings.max_image_frames,
+                ),
+            )
+            from PIL import Image
+            from io import BytesIO
+
+            with Image.open(BytesIO(image_bytes)) as image:
+                format_name = image.format
+        except (OSError, ValueError) as exc:
+            raise HTTPException(
+                status_code=415, detail="media preview is not a supported safe image"
+            ) from exc
+        mime = {
+            "JPEG": "image/jpeg",
+            "PNG": "image/png",
+            "WEBP": "image/webp",
+            "GIF": "image/gif",
+            "BMP": "image/bmp",
+        }.get(format_name)
+        if mime is None:
+            raise HTTPException(status_code=415, detail="media preview format is not allowed")
+        return Response(
+            content=image_bytes,
+            media_type=mime,
+            headers={"Cache-Control": "private, no-store", "Content-Disposition": "inline"},
+        )
 
     @app.post("/v1/review/items/{item_id}/advanced-vision")
     async def run_advanced_vision(item_id: str, request: Request) -> JSONResponse:
@@ -1672,9 +1796,8 @@ def create_app(
         if not advanced_vision_provider.enabled:
             raise HTTPException(status_code=503, detail="advanced vision provider is disabled")
 
-        path = _safe_media_path(item.media_ref)
         try:
-            image_bytes = path.read_bytes()
+            image_bytes = _read_safe_media(item.media_ref)
             decode_image(
                 image_bytes,
                 ImageLimits(
@@ -1746,46 +1869,47 @@ def create_app(
         )
 
     @app.get("/review/items/{item_id}/media")
-    async def review_media(item_id: str, request: Request) -> FileResponse:
+    async def review_media(item_id: str, request: Request) -> Response:
         require_reviewer(request)
         workspace = _review_workspace(request)
         try:
             item = review_store.get(item_id, consumer_id=workspace.workspace_id)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="review item not found") from exc
-        path = _safe_media_path(item.media_ref)
-        try:
-            image_bytes = path.read_bytes()
-            decode_image(
-                image_bytes,
-                ImageLimits(
-                    max_bytes=settings.max_body_bytes,
-                    max_width=settings.max_image_width,
-                    max_height=settings.max_image_height,
-                    max_pixels=settings.max_image_pixels,
-                    max_frames=settings.max_image_frames,
-                ),
-            )
-            from PIL import Image
+        return _safe_media_response(item.media_ref)
 
-            with Image.open(path) as image:
-                format_name = image.format
-        except (OSError, ValueError) as exc:
-            raise HTTPException(status_code=415, detail="media preview is not a supported safe image") from exc
-        mime = {
-            "JPEG": "image/jpeg",
-            "PNG": "image/png",
-            "WEBP": "image/webp",
-            "GIF": "image/gif",
-            "BMP": "image/bmp",
-        }.get(format_name)
-        if mime is None:
-            raise HTTPException(status_code=415, detail="media preview format is not allowed")
-        return FileResponse(
-            path,
-            media_type=mime,
-            headers={"Cache-Control": "private, no-store", "Content-Disposition": "inline"},
-        )
+    @app.get("/review/quality/samples/{sample_id}/media")
+    async def quality_sample_media(sample_id: str, request: Request) -> Response:
+        require_reviewer(request)
+        workspace = _review_workspace(request)
+        try:
+            sample = quality_store.get_sample(
+                sample_id=sample_id,
+                consumer_id=workspace.workspace_id,
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="quality sample not found") from exc
+        return _safe_media_response(sample.media_ref)
+
+    @app.get("/review/quality/samples/{sample_id}/thumbnail")
+    async def quality_sample_thumbnail(sample_id: str, request: Request) -> Response:
+        require_reviewer(request)
+        workspace = _review_workspace(request)
+        try:
+            sample = quality_store.get_sample(
+                sample_id=sample_id,
+                consumer_id=workspace.workspace_id,
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="quality sample not found") from exc
+        prefix = f"media://corpus/{workspace.workspace_id}/"
+        if not sample.media_ref.startswith(prefix):
+            raise HTTPException(status_code=404, detail="quality thumbnail is unavailable")
+        name = Path(sample.media_ref.removeprefix(prefix)).name
+        digest = name.split(".", 1)[0]
+        if len(digest) != 64 or any(character not in "0123456789abcdef" for character in digest):
+            raise HTTPException(status_code=404, detail="quality thumbnail is unavailable")
+        return _safe_media_response(f"{prefix}thumbs/{digest}.jpg")
 
     async def _review_action(request: Request, item_id: str, action: str) -> JSONResponse | RedirectResponse:
         reviewer, session_csrf = require_reviewer(request)

@@ -428,6 +428,16 @@ class QualityStoreTest(unittest.TestCase):
         self.assertEqual(self.store.report(consumer_id="consumer-a")["status"], "INCOMPLETE")
         self.assertEqual(self.store.report(consumer_id="consumer-b")["status"], "SKIP")
 
+    def test_sample_listing_has_bounded_pagination(self) -> None:
+        for index in range(5):
+            self.create_sample(item_id=f"page-{index}")
+        page = self.store.list_samples(
+            consumer_id="consumer-a", limit=2, offset=2
+        )
+        self.assertEqual([sample.item_id for sample in page], ["page-2", "page-3"])
+        with self.assertRaises(ValueError):
+            self.store.list_samples(consumer_id="consumer-a", limit=201)
+
 
 if __name__ == "__main__":
     unittest.main()

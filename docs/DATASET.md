@@ -102,3 +102,47 @@ python3 scripts/prepare_hf_parquet_candidates.py /private/cache/train.parquet \
 
 `pyarrow` is only needed for this local preparation command and is not a WordYeah
 runtime dependency.
+
+### Private quality inbox import
+
+Candidate manifests can be copied into the reviewer-only `media://corpus/...`
+root and registered as unresolved quality samples. The importer verifies every
+manifest path stays below its sibling `images/` directory, rejects symlinks,
+recomputes SHA-256, decodes each bounded image, writes 0600 media files and keeps
+source suggestions separate from human decisions:
+
+```bash
+python3 scripts/import_corpus_quality_samples.py \
+  --database /private/wordyeah/avatar-review/wordyeah.sqlite3 \
+  --media-root /private/wordyeah/avatar-review/media \
+  --consumer-id corpus-avatar \
+  --manifest human=/private/candidates/human/candidates.jsonl \
+  --manifest anime=/private/candidates/anime/candidates.jsonl \
+  --manifest logo_text=/private/candidates/logo/candidates.jsonl \
+  --manifest boundary=/private/candidates/boundary/candidates.jsonl \
+  --manifest explicit_violation=/private/candidates/explicit/candidates.jsonl
+```
+
+The command is idempotent by content hash. `READY_FOR_HUMAN_REVIEW` means only
+that the private inbox is ready; its report deliberately remains
+`ground_truth=false`. Imported rows do not receive `expected_decision` or a
+final quality decision until independent reviewers submit labels.
+
+The importer also creates bounded 192 px reviewer thumbnails. The paginated
+quality page loads only these small derivatives; opening a sample follows the
+session-protected original endpoint. Both paths are resolved component by
+component without following symlinks.
+
+Freeze the required 10% independent dual-review subset before labeling:
+
+```bash
+python3 scripts/freeze_corpus_dual_review.py \
+  --database /private/wordyeah/avatar-review/wordyeah.sqlite3 \
+  --output /private/wordyeah/avatar-review/dual-review-10pct-v1.jsonl \
+  --consumer-id corpus-avatar --fraction 0.10
+```
+
+The selection is deterministic by seed and content hash, includes a fingerprint
+of all source samples, and refuses to overwrite a different frozen result. Its
+initial state remains `FROZEN_AWAITING_REVIEWS`, `ground_truth=false`, and
+`dual_review_completed=0`.

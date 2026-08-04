@@ -1,15 +1,20 @@
 from __future__ import annotations
 
+import hashlib
+import io
+import json
 import tempfile
 from pathlib import Path
 
 from fastapi.testclient import TestClient
+from PIL import Image
 
 from wy_api.app import ApiSettings, create_app
 from wy_core.contracts import ModerationResult
 from wy_media.falconsai import ImageScores
 from wy_media.service import MediaModerationService
 from wy_review.store import ReviewStore
+from wy_review.corpus_quality_import import import_candidate_manifests
 
 
 class Classifier:
@@ -95,3 +100,77 @@ def test_reviewer_quality_sampling_labels_and_report_are_workspace_scoped() -> N
                 json={"label": "boundary"},
             )
             assert no_csrf.status_code == 403
+
+
+def test_imported_corpus_sample_has_session_protected_controlled_preview() -> None:
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        source = root / "candidates" / "images"
+        source.mkdir(parents=True)
+        output = io.BytesIO()
+        Image.new("RGB", (24, 24), color="purple").save(output, format="PNG")
+        payload = output.getvalue()
+        digest = hashlib.sha256(payload).hexdigest()
+        image = source / f"{digest}.png"
+        image.write_bytes(payload)
+        manifest = source.parent / "candidates.jsonl"
+        manifest.write_text(
+            json.dumps(
+                {
+                    "content_sha256": digest,
+                    "path": str(image),
+                    "review_status": "unreviewed",
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        database = root / "wordyeah.sqlite3"
+        media_root = root / "media"
+        import_candidate_manifests(
+            [("boundary", manifest)],
+            database=database,
+            media_root=media_root,
+            consumer_id="corpus-avatar",
+        )
+        app = create_app(
+            settings=ApiSettings(
+                database_path=str(database),
+                media_root=media_root,
+                consumer_id="corpus-avatar",
+                local_review_no_auth=True,
+            ),
+            service=MediaModerationService(Classifier()),
+        )
+        with TestClient(app) as client:
+            page = client.get("/review/quality")
+            assert page.status_code == 200
+            sample_id = client.get("/review/quality/samples").json()["samples"][0]["sample_id"]
+            preview_url = f"/review/quality/samples/{sample_id}/media"
+            assert preview_url in page.text
+            preview = client.get(preview_url)
+            assert preview.status_code == 200
+            assert preview.headers["content-type"] == "image/png"
+            assert preview.headers["cache-control"] == "private, no-store"
+            assert preview.content == payload
+            controlled_original = media_root / "corpus" / "corpus-avatar" / f"{digest}.png"
+            controlled_original.unlink()
+            controlled_original.symlink_to(root / "outside.png")
+            (root / "outside.png").write_bytes(payload)
+            assert client.get(preview_url).status_code == 404
+            thumbnail = client.get(
+                f"/review/quality/samples/{sample_id}/thumbnail"
+            )
+            assert thumbnail.status_code == 200
+            assert thumbnail.headers["content-type"] == "image/jpeg"
+            assert len(thumbnail.content) < len(payload) or len(thumbnail.content) < 512 * 1024
+
+            csrf = client.post("/review/login").json()["csrf_token"]
+            decision = client.post(
+                f"/review/quality/samples/{sample_id}/decision",
+                data={"decision": "review", "csrf_token": csrf, "offset": "24"},
+                headers={"Accept": "text/html"},
+                follow_redirects=False,
+            )
+            assert decision.status_code == 303
+            assert decision.headers["location"] == "/review/quality?offset=24"

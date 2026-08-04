@@ -58,6 +58,8 @@ CSS = r"""
 .pq-table-wrap{max-width:100%;overflow-x:auto;border-top:1px solid var(--line-strong)}
 .pq-case-table{width:100%;border-collapse:collapse;font-size:12px}.pq-case-table caption{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .pq-case-table th,.pq-case-table td{padding:11px 9px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}.pq-case-table th{color:var(--quiet);font-size:10px;letter-spacing:.08em;text-transform:uppercase}.pq-case-table td:first-child{font-family:var(--mono)}
+.pq-sample-link{display:inline-flex;align-items:center;gap:9px}.pq-sample-link img{width:42px;height:42px;border-radius:9px;object-fit:cover;background:var(--surface-soft);border:1px solid var(--line)}
+.pq-quality-pages{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:13px 2px 0;color:var(--quiet);font-size:12px}.pq-quality-pages a{padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);text-decoration:none}
 .pq-verdict{display:inline-flex;padding:2px 7px;border:1px solid var(--line-strong);border-radius:99px;font-size:10px;font-weight:700}.pq-verdict[data-tone="danger"]{border-color:var(--red);color:var(--red)}.pq-verdict[data-tone="warning"]{border-color:var(--amber);color:var(--amber)}
 .pq-case-action{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}.pq-case-action button{min-height:28px;padding:4px 9px;border:1px solid var(--line-strong);border-radius:6px;background:var(--panel);color:var(--text);font:inherit;font-size:11px;font-weight:700;cursor:pointer}.pq-case-action button[value="block"]{color:var(--red)}.pq-case-action button:hover{border-color:var(--accent)}
 .pq-evidence-rail{grid-area:rail;padding-left:22px;border-left:1px solid var(--line)}
@@ -202,6 +204,7 @@ def render_quality_body(data: object = None) -> str:
             action_html = (
                 f'<form class="pq-case-action" method="post" action="{_e(action_url)}">'
                 f'<input type="hidden" name="csrf_token" value="{_e(csrf_token)}">'
+                f'<input type="hidden" name="offset" value="{_e(item.get("offset") or 0)}">'
                 '<button type="submit" name="decision" value="allow">通过</button>'
                 '<button type="submit" name="decision" value="review">需复核</button>'
                 '<button type="submit" name="decision" value="block">拒绝</button></form>'
@@ -209,7 +212,17 @@ def render_quality_body(data: object = None) -> str:
         else:
             action_html = ""
         item_id = item.get("item_id")
+        media_url = item.get("media_url")
+        thumbnail_url = item.get("thumbnail_url")
         case_html = (
+            f'<a class="pq-sample-link" href="{_e(media_url)}" target="_blank" rel="noreferrer">'
+            + (
+                f'<img src="{_e(thumbnail_url)}" alt="受控质量样本缩略图" loading="lazy">'
+                if thumbnail_url else ""
+            )
+            + f'<span>{_e(case_id)}</span></a>'
+            if media_url
+            else
             f'<a href="/review?status=all&amp;view=focus&amp;focus={_e(item_id)}">{_e(case_id)}</a>'
             if item_id
             else _e(case_id)
@@ -220,6 +233,19 @@ def render_quality_body(data: object = None) -> str:
             f'<td><span class="pq-verdict" data-tone="{_tone(item.get("tone"))}">{_e(verdict)}</span>{action_html}</td></tr>'
         )
     rows_html = "".join(rows) or '<tr><td colspan="5"><div class="pq-empty" role="status">SKIP · 未提供抽检样本。</div></td></tr>'
+    pagination = _map(source.get("pagination"))
+    total = int(pagination.get("total") or len(cases))
+    offset = int(pagination.get("offset") or 0)
+    page_size = int(pagination.get("page_size") or max(len(cases), 1))
+    previous_url = pagination.get("previous_url")
+    next_url = pagination.get("next_url")
+    pages_html = (
+        '<nav class="pq-quality-pages" aria-label="质量样本分页">'
+        + (f'<a href="{_e(previous_url)}">上一页</a>' if previous_url else "")
+        + f'<span>{offset + 1 if total else 0}–{min(offset + page_size, total)} / {total}</span>'
+        + (f'<a href="{_e(next_url)}">下一页</a>' if next_url else "")
+        + "</nav>"
+    )
 
     retention = _map(source.get("retention"))
     retention_pairs = (
@@ -241,7 +267,7 @@ def render_quality_body(data: object = None) -> str:
         '<section class="pq-casebook" aria-labelledby="pq-case-title"><h3 id="pq-case-title">样本复核簿</h3><div class="pq-table-wrap">'
         '<table class="pq-case-table"><caption>抽检、误判与模型分歧明细</caption><thead><tr>'
         '<th scope="col">样本</th><th scope="col">模型判断</th><th scope="col">复核</th><th scope="col">分歧</th><th scope="col">处置</th>'
-        f'</tr></thead><tbody>{rows_html}</tbody></table></div></section>'
+        f'</tr></thead><tbody>{rows_html}</tbody></table></div>{pages_html}</section>'
         '<aside class="pq-evidence-rail" aria-label="样本证据规则">'
         f'<section><h3>样本留存</h3><dl class="pq-pair">{pair_html}</dl></section>'
         f'<section><h3>标签</h3><ul class="pq-tag-list">{labels_html}</ul></section>'

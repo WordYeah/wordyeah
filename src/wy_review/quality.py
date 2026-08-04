@@ -495,28 +495,35 @@ class QualityStore:
             raise KeyError(f"quality sample not found: {sample_id}")
         return self._sample_row(row)
 
-    def list_samples(self, *, consumer_id: str, status: SampleStatus | None = None) -> list[QualitySample]:
+    def list_samples(
+        self,
+        *,
+        consumer_id: str,
+        status: SampleStatus | None = None,
+        limit: int | None = None,
+        offset: int = 0,
+    ) -> list[QualitySample]:
         _required(consumer_id, "consumer_id", 128)
         if status is not None and status not in {
             "awaiting_reviews", "arbitration_required", "resolved"
         }:
             raise ValueError("unknown quality sample status")
-        if status is None:
-            rows = self.connection.execute(
-                """
-                SELECT * FROM quality_samples WHERE consumer_id = ?
-                ORDER BY created_at, sample_id
-                """,
-                (consumer_id,),
-            ).fetchall()
-        else:
-            rows = self.connection.execute(
-                """
-                SELECT * FROM quality_samples WHERE consumer_id = ? AND status = ?
-                ORDER BY created_at, sample_id
-                """,
-                (consumer_id, status),
-            ).fetchall()
+        if offset < 0 or limit is not None and (limit < 1 or limit > 200):
+            raise ValueError("quality sample pagination is invalid")
+        where = "consumer_id = ?"
+        parameters: list[object] = [consumer_id]
+        if status is not None:
+            where += " AND status = ?"
+            parameters.append(status)
+        pagination = ""
+        if limit is not None:
+            pagination = " LIMIT ? OFFSET ?"
+            parameters.extend((limit, offset))
+        rows = self.connection.execute(
+            f"""SELECT * FROM quality_samples WHERE {where}
+            ORDER BY created_at, sample_id{pagination}""",
+            parameters,
+        ).fetchall()
         return [self._sample_row(row) for row in rows]
 
     def submit_decision(
