@@ -4,7 +4,7 @@ from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from html import escape
-from typing import Iterable
+from typing import Iterable, Mapping
 from urllib.parse import urlencode
 
 from wy_review.store import ReviewEvent, ReviewItem
@@ -520,6 +520,14 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .consumer-popover-list {
   display: grid;
   gap: 2px;
+}
+.workspace-select-form { margin: 0; }
+.workspace-select-form > button {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
 }
 .consumer-popover-item {
   display: flex;
@@ -2744,6 +2752,7 @@ def render_review_workbench(
     view_mode: str = "list",
     batch_mode: bool = False,
     batch_result: str = "",
+    workspaces: Iterable[Mapping[str, str]] = (),
 ) -> str:
     all_items = list(items)
     view_value = view_mode if view_mode in {"list", "grid", "focus"} else "list"
@@ -2841,6 +2850,20 @@ def render_review_workbench(
         "reviewed": "reviewed",
         "all": "all",
     }.get(status_value, "pending")
+    workspace_rows = list(workspaces) or [
+        {"workspace_id": consumer_id, "name": consumer_id, "adapter": "generic"}
+    ]
+    workspace_menu = "".join(
+        f'''<form class="workspace-select-form" method="post" action="/review/workspaces/{escape(row['workspace_id'])}/select">
+          <input type="hidden" name="csrf_token" value="{escape(csrf_token)}">
+          <button class="consumer-popover-item{' is-active' if row['workspace_id'] == consumer_id else ''}" type="submit">
+            <span class="consumer-avatar">{escape((row.get('name') or row['workspace_id'])[:1].upper())}</span>
+            <span class="item-info"><strong>{escape(row.get('name') or row['workspace_id'])}</strong><small>{escape(row.get('adapter') or 'workspace')}</small></span>
+            {'<span class="check-icon">' + _top_icon('check') + '</span>' if row['workspace_id'] == consumer_id else ''}
+          </button>
+        </form>'''
+        for row in workspace_rows
+    )
     return f"""<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -2907,14 +2930,7 @@ def render_review_workbench(
         <div class="consumer-popover-menu">
           <div class="consumer-popover-header">Reviewer: {escape(reviewer_id)}</div>
           <div class="consumer-popover-list">
-            <div class="consumer-popover-item is-active">
-              <span class="consumer-avatar">{escape(consumer_id[:1].upper() or 'W')}</span>
-              <div class="item-info">
-                <strong>{escape(consumer_id)}</strong>
-                <small>当前工作区</small>
-              </div>
-              <span class="check-icon">{_top_icon("check")}</span>
-            </div>
+            {workspace_menu}
           </div>
           <div class="consumer-popover-actions">
             <a class="popover-action-btn" href="/review/account">管理工作区</a>

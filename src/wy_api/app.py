@@ -26,6 +26,7 @@ from wy_media.vision_provider import AdvancedVisionProvider, VisionProviderError
 from wy_review.store import ReviewConflictError, ReviewStore
 from wy_review.attempt_store import AttemptConflictError, ReviewAttemptStore
 from wy_review.router import ReviewRouter
+from wy_review.workspace import Workspace, WorkspaceStore
 from wy_api.login_ui import render_login_page
 from wy_api.review_pages import ReviewPageContext, render_review_page
 from wy_api.review_ui import WORKBENCH_JS, _filter_items, render_review_workbench
@@ -157,6 +158,7 @@ def create_app(
     job_store: JobStore | None = None,
     result_store: ResultStore | None = None,
     advanced_vision_provider: AdvancedVisionProvider | None = None,
+    workspace_store: WorkspaceStore | None = None,
 ):
     """Create the avatar API without loading a model at import time."""
 
@@ -187,6 +189,17 @@ def create_app(
     review_router = ReviewRouter()
     job_store = job_store or JobStore(settings.database_path)
     result_store = result_store or ResultStore(settings.database_path)
+    workspace_store = workspace_store or WorkspaceStore(settings.database_path)
+    try:
+        workspace_store.get(settings.consumer_id, settings.consumer_id)
+    except KeyError:
+        workspace_store.create(
+            workspace_id=settings.consumer_id,
+            consumer_id=settings.consumer_id,
+            name="Cravatar" if settings.consumer_id == "cravatar" else settings.consumer_id,
+            adapter="cravatar" if settings.consumer_id == "cravatar" else "generic",
+            policy_profile=settings.policy_profile,
+        )
     advanced_vision_provider = advanced_vision_provider or G2AVisionProvider(G2AConfig.from_env())
 
     @asynccontextmanager
@@ -204,6 +217,7 @@ def create_app(
         attempt_store.close()
         job_store.close()
         result_store.close()
+        workspace_store.close()
 
     app = FastAPI(title="WordYeah Avatar Moderation API", version=APP_VERSION, lifespan=lifespan)
     app.state.settings = settings
@@ -213,6 +227,7 @@ def create_app(
     app.state.review_router = review_router
     app.state.job_store = job_store
     app.state.result_store = result_store
+    app.state.workspace_store = workspace_store
     app.state.advanced_vision_provider = advanced_vision_provider
     app.state.ready = False
     app.state.ready_error = None
@@ -340,6 +355,16 @@ def create_app(
         if not supplied or not hmac.compare_digest(supplied, session_csrf):
             raise HTTPException(status_code=403, detail="csrf token required")
 
+    def _review_workspace(request: Request) -> Workspace:
+        workspace_id = request.cookies.get("wordyeah_review_workspace") or settings.consumer_id
+        try:
+            workspace = workspace_store.get(workspace_id, settings.consumer_id)
+        except KeyError:
+            workspace = workspace_store.get(settings.consumer_id, settings.consumer_id)
+        if not workspace.enabled:
+            raise HTTPException(status_code=403, detail="review workspace is disabled")
+        return workspace
+
     async def read_review_payload(request: Request) -> dict[str, Any]:
         body = await request.body()
         if len(body) > 64 * 1024:
@@ -358,8 +383,8 @@ def create_app(
         values = parse_qs(body.decode("utf-8"), keep_blank_values=True)
         return {key: entries[-1] for key, entries in values.items()}
 
-    def _consumer_items(limit: int = 1000) -> list[Any]:
-        return review_store.list_items(status=None, consumer_id=settings.consumer_id, limit=limit)
+    def _consumer_items(consumer_id: str, limit: int = 1000) -> list[Any]:
+        return review_store.list_items(status=None, consumer_id=consumer_id, limit=limit)
 
     def _sanitize_review_return_to(raw_return_to: object, *, fallback: str = "/review") -> str:
         if not isinstance(raw_return_to, str) or not raw_return_to:
@@ -382,7 +407,9 @@ def create_app(
         fragment = parsed.fragment if parsed.fragment == "review-queue" else ""
         return urlunsplit(("", "", "/review", urlencode(cleaned), fragment))
 
-    def _planned_review_return(item_id: str, raw_return_to: object) -> str:
+    def _planned_review_return(
+        item_id: str, raw_return_to: object, consumer_id: str
+    ) -> str:
         target = _sanitize_review_return_to(raw_return_to)
         parsed = urlsplit(target)
         values = parse_qs(parsed.query, keep_blank_values=True)
@@ -391,7 +418,7 @@ def create_app(
         if view_mode != "focus" or focus_item_id != item_id:
             return target
         filtered_items = _filter_items(
-            _consumer_items(),
+            _consumer_items(consumer_id),
             search_query=(values.get("q") or [""])[-1],
             status_filter=(values.get("status") or ["pending"])[-1],
             risk_filter=(values.get("risk") or ["all"])[-1],
@@ -614,9 +641,9 @@ def create_app(
         )
         _route_item(item_id, risk_score=result.top_score)
 
-    def _enqueue_manual_vision_retry(item: Any) -> None:
+    def _enqueue_manual_vision_retry(item: Any, consumer_id: str) -> None:
         attempts = attempt_store.list_attempts(
-            item.item_id, consumer_id=settings.consumer_id
+            item.item_id, consumer_id=consumer_id
         )
         vision_attempts = [
             attempt
@@ -625,7 +652,7 @@ def create_app(
         ]
         stage = vision_attempts[-1].stage if vision_attempts else "vision_review_1"
         attempt_number = attempt_store.next_attempt_number(
-            item.item_id, stage, consumer_id=settings.consumer_id
+            item.item_id, stage, consumer_id=consumer_id
         )
         categories = tuple(
             sorted(
@@ -654,7 +681,7 @@ def create_app(
         enqueue_vision_review(
             job_store,
             payload,
-            settings.consumer_id,
+            consumer_id,
             max_attempts=review_router.config.max_attempts_per_stage,
         )
 
@@ -876,6 +903,56 @@ def create_app(
         response.delete_cookie("wordyeah_review_session", path="/review")
         return response
 
+    @app.get("/review/workspaces")
+    async def list_review_workspaces(request: Request) -> dict[str, object]:
+        require_reviewer(request)
+        active = _review_workspace(request)
+        workspaces = [
+            workspace
+            for workspace in workspace_store.list_for_consumer(settings.consumer_id)
+            if workspace.enabled
+        ]
+        return {
+            "active_workspace_id": active.workspace_id,
+            "workspaces": [
+                {
+                    "workspace_id": workspace.workspace_id,
+                    "name": workspace.name,
+                    "adapter": workspace.adapter,
+                    "policy_profile": workspace.policy_profile,
+                }
+                for workspace in workspaces
+            ],
+        }
+
+    @app.post("/review/workspaces/{workspace_id}/select", response_model=None)
+    async def select_review_workspace(
+        workspace_id: str, request: Request
+    ) -> JSONResponse | RedirectResponse:
+        _, session_csrf = require_reviewer(request)
+        payload = await read_review_payload(request)
+        require_csrf(request, payload.get("csrf_token"), session_csrf)
+        try:
+            workspace = workspace_store.get(workspace_id, settings.consumer_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="review workspace not found") from exc
+        if not workspace.enabled:
+            raise HTTPException(status_code=403, detail="review workspace is disabled")
+        response: JSONResponse | RedirectResponse
+        if "text/html" in request.headers.get("Accept", ""):
+            response = RedirectResponse("/review", status_code=303)
+        else:
+            response = JSONResponse({"active_workspace_id": workspace.workspace_id})
+        response.set_cookie(
+            "wordyeah_review_workspace",
+            workspace.workspace_id,
+            max_age=session_ttl_seconds,
+            httponly=True,
+            samesite="strict",
+            path="/review",
+        )
+        return response
+
     @app.get("/review", response_class=HTMLResponse, response_model=None)
     async def review_page(request: Request) -> HTMLResponse | RedirectResponse:
         try:
@@ -891,26 +968,38 @@ def create_app(
         view_mode = request.query_params.get("view", "list")
         batch_mode = request.query_params.get("batch") == "1"
         batch_result = request.query_params.get("batch_result", "")
-        items = _consumer_items()
-        events = review_store.list_all_events(settings.consumer_id, limit=1000)
+        workspace = _review_workspace(request)
+        items = review_store.list_items(
+            status=None, consumer_id=workspace.workspace_id, limit=1000
+        )
+        events = review_store.list_all_events(workspace.workspace_id, limit=1000)
         return HTMLResponse(
             render_review_workbench(
                 items=items,
                 events=events,
                 csrf_token=csrf_token,
-                consumer_id=settings.consumer_id,
+                consumer_id=workspace.workspace_id,
                 reviewer_id=reviewer,
-                policy_profile=settings.policy_profile,
+                policy_profile=workspace.policy_profile,
                 service_ready=bool(app.state.ready),
                 service_error=app.state.ready_error,
                 focus_item_id=focus_item_id,
-                metrics=review_store.metrics(settings.consumer_id),
+                metrics=review_store.metrics(workspace.workspace_id),
                 search_query=search_query,
                 status_filter=status_filter,
                 risk_filter=risk_filter,
                 view_mode=view_mode,
                 batch_mode=batch_mode,
                 batch_result=batch_result,
+                workspaces=(
+                    {
+                        "workspace_id": candidate.workspace_id,
+                        "name": candidate.name,
+                        "adapter": candidate.adapter,
+                    }
+                    for candidate in workspace_store.list_for_consumer(settings.consumer_id)
+                    if candidate.enabled
+                ),
             )
         )
 
@@ -926,15 +1015,15 @@ def create_app(
             headers={"Cache-Control": "public, max-age=86400, immutable"},
         )
 
-    def _support_page_data(page: str) -> dict[str, object]:
-        items = _consumer_items()
+    def _support_page_data(page: str, consumer_id: str) -> dict[str, object]:
+        items = _consumer_items(consumer_id)
         consumer_item_ids = {item.item_id for item in items}
         attempts = [
             attempt
-            for attempt in attempt_store.list_recent(5000, consumer_id=settings.consumer_id)
+            for attempt in attempt_store.list_recent(5000, consumer_id=consumer_id)
             if attempt.item_id in consumer_item_ids
         ][:1000]
-        events = review_store.list_all_events(settings.consumer_id, limit=1000)
+        events = review_store.list_all_events(consumer_id, limit=1000)
         pending = [item for item in items if item.status == "pending"]
         held = [item for item in items if item.status == "held"]
         human = [item for item in pending if item.stage == "human_required"]
@@ -1096,8 +1185,8 @@ def create_app(
         if page == "account":
             return {
                 "exceptions": common_exceptions,
-                "profile": {"Reviewer": settings.reviewer_id, "Consumer": settings.consumer_id, "角色": "reviewer"},
-                "sessions": {"columns": ("会话", "有效期", "权限范围"), "rows": (("当前浏览器", "1 小时", settings.consumer_id),)},
+                "profile": {"Reviewer": settings.reviewer_id, "Consumer": consumer_id, "角色": "reviewer"},
+                "sessions": {"columns": ("会话", "有效期", "权限范围"), "rows": (("当前浏览器", "1 小时", consumer_id),)},
             }
         return {
             "exceptions": common_exceptions,
@@ -1118,12 +1207,13 @@ def create_app(
             if exc.status_code == 401 and "text/html" in request.headers.get("Accept", ""):
                 return RedirectResponse("/review/login?expired=1", status_code=303)
             raise
+        workspace = _review_workspace(request)
         return HTMLResponse(
             render_review_page(
                 page,
-                _support_page_data(page),
+                _support_page_data(page, workspace.workspace_id),
                 context=ReviewPageContext(
-                    consumer_id=settings.consumer_id,
+                    consumer_id=workspace.workspace_id,
                     reviewer_id=reviewer,
                     csrf_token=csrf_token,
                     service_ready=bool(app.state.ready),
@@ -1173,6 +1263,7 @@ def create_app(
         cursor: str | None = None,
     ) -> dict[str, object]:
         require_reviewer(request)
+        workspace = _review_workspace(request)
         if status == "all":
             status_filter = None
         elif status in {"pending", "approved", "rejected", "held"}:
@@ -1182,7 +1273,7 @@ def create_app(
         try:
             items, next_cursor = review_store.list_items_page(
                 status=status_filter,
-                consumer_id=settings.consumer_id,
+                consumer_id=workspace.workspace_id,
                 limit=limit,
                 decision_hint=decision_hint,
                 cursor=cursor,
@@ -1199,17 +1290,21 @@ def create_app(
     @app.get("/review/items/{item_id}")
     async def get_review_item(item_id: str, request: Request) -> dict[str, object]:
         require_reviewer(request)
+        workspace = _review_workspace(request)
         try:
-            item = review_store.get(item_id, consumer_id=settings.consumer_id)
+            item = review_store.get(item_id, consumer_id=workspace.workspace_id)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="review item not found") from exc
         return {
             "item": item.to_dict(),
-            "events": [event.to_dict() for event in review_store.list_events(item_id, settings.consumer_id)],
+            "events": [
+                event.to_dict()
+                for event in review_store.list_events(item_id, workspace.workspace_id)
+            ],
             "attempts": [
                 attempt.to_dict()
                 for attempt in attempt_store.list_attempts(
-                    item_id, consumer_id=settings.consumer_id
+                    item_id, consumer_id=workspace.workspace_id
                 )
             ],
         }
@@ -1217,11 +1312,14 @@ def create_app(
     @app.get("/review/items/{item_id}/attempts")
     async def get_review_attempts(item_id: str, request: Request) -> dict[str, object]:
         require_reviewer(request)
+        workspace = _review_workspace(request)
         try:
-            review_store.get(item_id, consumer_id=settings.consumer_id)
+            review_store.get(item_id, consumer_id=workspace.workspace_id)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="review item not found") from exc
-        attempts = attempt_store.list_attempts(item_id, consumer_id=settings.consumer_id)
+        attempts = attempt_store.list_attempts(
+            item_id, consumer_id=workspace.workspace_id
+        )
         return {"attempts": [attempt.to_dict() for attempt in attempts], "count": len(attempts)}
 
     @app.post("/v1/review/items/{item_id}/attempts")
@@ -1393,8 +1491,9 @@ def create_app(
     @app.get("/review/items/{item_id}/media")
     async def review_media(item_id: str, request: Request) -> FileResponse:
         require_reviewer(request)
+        workspace = _review_workspace(request)
         try:
-            item = review_store.get(item_id, consumer_id=settings.consumer_id)
+            item = review_store.get(item_id, consumer_id=workspace.workspace_id)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="review item not found") from exc
         path = _safe_media_path(item.media_ref)
@@ -1433,6 +1532,7 @@ def create_app(
 
     async def _review_action(request: Request, item_id: str, action: str) -> JSONResponse | RedirectResponse:
         reviewer, session_csrf = require_reviewer(request)
+        workspace = _review_workspace(request)
         payload = await read_review_payload(request)
         require_csrf(request, payload.get("csrf_token"), session_csrf)
         raw_version = payload.get("version")
@@ -1445,14 +1545,16 @@ def create_app(
             raise HTTPException(status_code=400, detail="note must be a string")
         return_to = None
         if "text/html" in request.headers.get("Accept", ""):
-            return_to = _planned_review_return(item_id, payload.get("return_to"))
+            return_to = _planned_review_return(
+                item_id, payload.get("return_to"), workspace.workspace_id
+            )
         try:
             item = review_store.decide(
                 item_id,
                 action,  # type: ignore[arg-type]
                 reviewer,
                 note,
-                consumer_id=settings.consumer_id,
+                consumer_id=workspace.workspace_id,
                 expected_version=expected_version,
                 request_id=request.headers.get("X-Request-ID"),
                 ip_hash=_ip_hash(request),
@@ -1465,16 +1567,16 @@ def create_app(
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         if action == "retry":
             try:
-                if job_store.count_active(settings.consumer_id) >= settings.max_queue_depth:
+                if job_store.count_active(workspace.workspace_id) >= settings.max_queue_depth:
                     raise RuntimeError("vision review queue is full")
-                _enqueue_manual_vision_retry(item)
+                _enqueue_manual_vision_retry(item, workspace.workspace_id)
             except Exception as exc:
                 item = review_store.apply_route(
                     item_id,
                     stage="model_error",
                     final_decision=None,
                     reason_code="manual_retry_enqueue_failed",
-                    consumer_id=settings.consumer_id,
+                    consumer_id=workspace.workspace_id,
                 )
                 if "text/html" not in request.headers.get("Accept", ""):
                     return JSONResponse(
@@ -1508,6 +1610,7 @@ def create_app(
     @app.post("/review/batch", response_model=None)
     async def batch_review_items(request: Request) -> JSONResponse | RedirectResponse:
         reviewer, session_csrf = require_reviewer(request)
+        workspace = _review_workspace(request)
         body = await request.body()
         if len(body) > 64 * 1024:
             raise HTTPException(status_code=413, detail="review payload too large")
@@ -1531,9 +1634,9 @@ def create_app(
             try:
                 item_id, raw_version = entry.rsplit(":", 1)
                 expected_version = int(raw_version)
-                item = review_store.get(item_id, consumer_id=settings.consumer_id)
+                item = review_store.get(item_id, consumer_id=workspace.workspace_id)
                 attempts = attempt_store.list_attempts(
-                    item_id, consumer_id=settings.consumer_id
+                    item_id, consumer_id=workspace.workspace_id
                 )
                 blocker = _batch_blocker(item, attempts)
                 if blocker is not None:
@@ -1543,7 +1646,7 @@ def create_app(
                     action,  # type: ignore[arg-type]
                     reviewer,
                     "batch review",
-                    consumer_id=settings.consumer_id,
+                    consumer_id=workspace.workspace_id,
                     expected_version=expected_version,
                     request_id=request.headers.get("X-Request-ID"),
                     ip_hash=_ip_hash(request),
