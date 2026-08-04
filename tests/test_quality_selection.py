@@ -55,9 +55,17 @@ def test_freezes_exact_stratified_ten_percent_idempotently(tmp_path: Path) -> No
     assert output.stat().st_mode & 0o777 == 0o600
     store = QualityStore(str(database))
     batches = store.list_review_batches(consumer_id="corpus-avatar")
-    assert [(batch.batch_id, batch.selected_count) for batch in batches] == [
-        ("dual-review-10pct-v2", 3)
-    ]
+    assert {(batch.batch_id, batch.required_reviewers, batch.selected_count) for batch in batches} == {
+        ("dual-review-10pct-v2", 2, 3),
+        ("corpus-primary-v1", 1, 30),
+    }
+    configured = store.list_samples(consumer_id="corpus-avatar")
+    selected_ids = {row["sample_id"] for row in rows}
+    assert sum(sample.required_reviewers == 2 for sample in configured) == 3
+    assert all(
+        sample.required_reviewers == (2 if sample.sample_id in selected_ids else 1)
+        for sample in configured
+    )
     store.close()
 
 

@@ -51,13 +51,15 @@ CSS = r"""
 /* Quality sheet: a sampling worksheet with an evidence rail. */
 .pq-quality-sheet{display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,290px);grid-template-areas:"title rail" "sample rail" "cases rail";gap:20px 30px}
 .pq-quality-title{grid-area:title;padding-bottom:18px;border-bottom:1px solid var(--line-strong)}
+.pq-batch-nav{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}.pq-batch-nav a{display:inline-flex;align-items:center;gap:7px;padding:6px 10px;border:1px solid var(--line);border-radius:999px;background:var(--panel);color:var(--muted);font-size:11px;font-weight:700;text-decoration:none}.pq-batch-nav a[aria-current="page"]{border-color:var(--accent);color:var(--accent)}.pq-batch-nav span{font-family:var(--mono);font-weight:500}
 .pq-sample-band{grid-area:sample;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-block:1px solid var(--line)}
 .pq-sample-stat{padding:14px 16px 14px 0}.pq-sample-stat+.pq-sample-stat{padding-left:16px;border-left:1px solid var(--line)}
 .pq-sample-stat span{display:block;color:var(--muted);font-size:11px}.pq-sample-stat strong{display:block;margin-top:4px;font-family:var(--mono);font-size:20px}.pq-sample-stat small{color:var(--quiet);font-size:11px}
-.pq-casebook{grid-area:cases;min-width:0}.pq-casebook h3,.pq-evidence-rail h3{margin:0 0 12px;font-size:14px}
+.pq-casebook{grid-area:cases;min-width:0}.pq-casebook-head{display:flex;align-items:baseline;justify-content:space-between;gap:14px;margin-bottom:12px}.pq-casebook h3,.pq-evidence-rail h3{margin:0;font-size:14px}.pq-shortcuts{color:var(--quiet);font-size:10px;letter-spacing:.02em}.pq-shortcuts kbd{padding:1px 4px;border:1px solid var(--line);border-radius:4px;background:var(--panel-soft);font:inherit;font-family:var(--mono)}
 .pq-table-wrap{max-width:100%;overflow-x:auto;border-top:1px solid var(--line-strong)}
 .pq-case-table{width:100%;border-collapse:collapse;font-size:12px}.pq-case-table caption{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .pq-case-table th,.pq-case-table td{padding:11px 9px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}.pq-case-table th{color:var(--quiet);font-size:10px;letter-spacing:.08em;text-transform:uppercase}.pq-case-table td:first-child{font-family:var(--mono)}
+.pq-case-table tr.is-kb-focused td{background:color-mix(in srgb,var(--accent) 6%,transparent)}.pq-case-table tr.is-kb-focused td:first-child{box-shadow:inset 2px 0 var(--accent)}
 .pq-sample-link{display:inline-flex;align-items:center;gap:9px}.pq-sample-link img{width:42px;height:42px;border-radius:9px;object-fit:cover;background:var(--surface-soft);border:1px solid var(--line)}
 .pq-quality-pages{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:13px 2px 0;color:var(--quiet);font-size:12px}.pq-quality-pages a{padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);text-decoration:none}
 .pq-verdict{display:inline-flex;padding:2px 7px;border:1px solid var(--line-strong);border-radius:99px;font-size:10px;font-weight:700}.pq-verdict[data-tone="danger"]{border-color:var(--red);color:var(--red)}.pq-verdict[data-tone="warning"]{border-color:var(--amber);color:var(--amber)}
@@ -177,9 +179,9 @@ def _quality_stats(source: Mapping[str, object]) -> str:
     def value(name: str, fallback: str) -> object:
         return sampling[name] if name in sampling else source.get(fallback)
     stats = (
-        ("抽检覆盖", value("coverage", "sample_coverage"), "覆盖的自动决策"),
-        ("误判", value("false_positive", "false_positive"), "经复核确认"),
-        ("模型分歧", value("disagreement", "disagreement"), "多模型结论不一致"),
+        (sampling.get("coverage_label") or "抽检覆盖", value("coverage", "sample_coverage"), sampling.get("coverage_detail") or "覆盖的自动决策"),
+        (sampling.get("progress_label") or "误判", value("false_positive", "false_positive"), sampling.get("progress_detail") or "经复核确认"),
+        (sampling.get("disagreement_label") or "模型分歧", value("disagreement", "disagreement"), sampling.get("disagreement_detail") or "多模型结论不一致"),
     )
     return "".join(
         f'<div class="pq-sample-stat"><span>{_e(label)}</span><strong>{_e(value, "未采集")}</strong><small>{_e(detail)}</small></div>'
@@ -190,6 +192,24 @@ def _quality_stats(source: Mapping[str, object]) -> str:
 def render_quality_body(data: object = None) -> str:
     """Render the sampling casebook, model disagreements, and evidence policy."""
     source = _map(data)
+    batch_links = "".join(
+        f'<a href="{_e(_map(raw).get("url"))}"'
+        + (' aria-current="page"' if _map(raw).get("active") else "")
+        + f'>{"全量主审" if _map(raw).get("required_reviewers") == 1 else "10% 双审"}'
+        + f'<span>{_e(_map(_map(raw).get("progress")).get("resolved"), "0")} / {_e(_map(raw).get("selected_count"), "0")}</span></a>'
+        for raw in _items(source.get("review_batches"))
+    )
+    batch_nav = (
+        f'<nav class="pq-batch-nav" aria-label="质量审核批次">{batch_links}</nav>'
+        if batch_links else ""
+    )
+    has_review_batches = bool(batch_links)
+    quality_heading = "样本标注与仲裁" if has_review_batches else "抽检与分歧证据"
+    quality_intro = (
+        "先完成全量主审，再处理冻结 10% 独立双审；第二位 reviewer 提交前看不到第一位结论。"
+        if has_review_batches
+        else "默认由自动抽检闭环处理；这里只保留误判、模型分歧和可复现样本。"
+    )
     metrics_state = "" if source.get("metrics") or source.get("sampling") else '<p class="pq-empty" role="status">未提供质量指标。</p>'
     cases = _records(source.get("samples") or source.get("cases"))
     rows: list[str] = []
@@ -204,13 +224,13 @@ def render_quality_body(data: object = None) -> str:
         csrf_token = item.get("csrf_token")
         if action_url and csrf_token:
             action_html = (
-                f'<form class="pq-case-action" method="post" action="{_e(action_url)}">'
+                f'<form class="pq-case-action" data-quality-action method="post" action="{_e(action_url)}">'
                 f'<input type="hidden" name="csrf_token" value="{_e(csrf_token)}">'
                 f'<input type="hidden" name="offset" value="{_e(item.get("offset") or 0)}">'
                 f'<input type="hidden" name="batch" value="{_e(item.get("batch_id"))}">'
-                '<button type="submit" name="decision" value="allow">通过</button>'
-                '<button type="submit" name="decision" value="review">需复核</button>'
-                '<button type="submit" name="decision" value="block">拒绝</button></form>'
+                '<button type="submit" name="decision" value="allow" aria-keyshortcuts="A">通过</button>'
+                '<button type="submit" name="decision" value="review" aria-keyshortcuts="R">需复核</button>'
+                '<button type="submit" name="decision" value="block" aria-keyshortcuts="B">拒绝</button></form>'
             )
         else:
             action_html = ""
@@ -231,7 +251,7 @@ def render_quality_body(data: object = None) -> str:
             else _e(case_id)
         )
         rows.append(
-            '<tr>'
+            '<tr data-quality-row>'
             f'<td>{case_html}</td><td>{_e(ai)}</td><td>{_e(check)}</td><td>{_e(disagreement)}</td>'
             f'<td><span class="pq-verdict" data-tone="{_tone(item.get("tone"))}">{_e(verdict)}</span>{action_html}</td></tr>'
         )
@@ -263,11 +283,12 @@ def render_quality_body(data: object = None) -> str:
 
     return (
         '<article class="pq-quality-sheet" aria-labelledby="pq-quality-title">'
-        '<header class="pq-quality-title"><p class="pq-eyebrow">Quality casebook</p><h2 id="pq-quality-title">抽检与分歧证据</h2>'
-        '<p>默认由自动抽检闭环处理；这里只保留误判、模型分歧和可复现样本。</p></header>'
+        f'<header class="pq-quality-title"><p class="pq-eyebrow">Quality casebook</p><h2 id="pq-quality-title">{quality_heading}</h2>'
+        f'<p>{quality_intro}</p>{batch_nav}</header>'
         f'{metrics_state}'
         f'<section class="pq-sample-band" aria-label="抽检概况">{_quality_stats(source)}</section>'
-        '<section class="pq-casebook" aria-labelledby="pq-case-title"><h3 id="pq-case-title">样本复核簿</h3><div class="pq-table-wrap">'
+        '<section class="pq-casebook" aria-labelledby="pq-case-title"><div class="pq-casebook-head"><h3 id="pq-case-title">样本复核簿</h3>'
+        '<span class="pq-shortcuts"><kbd>J</kbd>/<kbd>K</kbd> 选择 · <kbd>A</kbd> 通过 · <kbd>R</kbd> 复核 · <kbd>B</kbd> 拒绝</span></div><div class="pq-table-wrap">'
         '<table class="pq-case-table"><caption>抽检、误判与模型分歧明细</caption><thead><tr>'
         '<th scope="col">样本</th><th scope="col">模型判断</th><th scope="col">复核</th><th scope="col">分歧</th><th scope="col">处置</th>'
         f'</tr></thead><tbody>{rows_html}</tbody></table></div>{pages_html}</section>'

@@ -102,6 +102,7 @@ class QualitySample:
     vocabulary_version: str
     stratum: str | None
     retention_status: str
+    required_reviewers: int
     status: SampleStatus
     arbitration_required: bool
     final_decision: QualityDecisionValue | None
@@ -183,6 +184,8 @@ class QualityStore:
                 vocabulary_version TEXT NOT NULL,
                 stratum TEXT,
                 retention_status TEXT NOT NULL,
+                required_reviewers INTEGER NOT NULL DEFAULT 2
+                    CHECK(required_reviewers IN (1, 2)),
                 status TEXT NOT NULL CHECK(status IN
                     ('awaiting_reviews','arbitration_required','resolved')),
                 arbitration_required INTEGER NOT NULL DEFAULT 0
@@ -241,7 +244,7 @@ class QualityStore:
                 source_sha256 TEXT NOT NULL,
                 fraction REAL NOT NULL CHECK(fraction > 0 AND fraction <= 1),
                 seed TEXT NOT NULL,
-                required_reviewers INTEGER NOT NULL DEFAULT 2 CHECK(required_reviewers >= 2),
+                required_reviewers INTEGER NOT NULL DEFAULT 2 CHECK(required_reviewers IN (1, 2)),
                 status TEXT NOT NULL DEFAULT 'frozen' CHECK(status = 'frozen'),
                 created_at TEXT NOT NULL,
                 PRIMARY KEY (consumer_id, batch_id)
@@ -266,6 +269,7 @@ class QualityStore:
         )
         self.connection.commit()
         self._migrate_review_decision_schema()
+        self._migrate_required_reviewers_schema()
 
     def close(self) -> None:
         self.connection.close()
@@ -419,6 +423,7 @@ class QualityStore:
         media_ref: str | None = None,
         stratum: str | None = None,
         retention_status: str = "active",
+        required_reviewers: int = 2,
         policy_version: str | None = None,
         model_versions: Mapping[str, str] | None = None,
         request_id: str | None = None,
@@ -428,6 +433,8 @@ class QualityStore:
         _required(item_id, "item_id")
         _required(actor_id, "actor_id", 128)
         _required(retention_status, "retention_status", 128)
+        if required_reviewers not in {1, 2}:
+            raise ValueError("required_reviewers must be one or two")
         self._ensure_item_scope(consumer_id, item_id)
         self._require_label(consumer_id, vocabulary_version, reason)
 
@@ -474,6 +481,7 @@ class QualityStore:
             vocabulary_version=vocabulary_version,
             stratum=stratum,
             retention_status=retention_status,
+            required_reviewers=required_reviewers,
             status="awaiting_reviews",
             arbitration_required=False,
             final_decision=None,
@@ -490,16 +498,17 @@ class QualityStore:
                 """
                 INSERT INTO quality_samples
                   (sample_id, consumer_id, item_id, content_sha256, media_ref,
-                   reason, vocabulary_version, stratum, retention_status, status,
+                   reason, vocabulary_version, stratum, retention_status,
+                   required_reviewers, status,
                    arbitration_required, final_decision, policy_version,
                    model_versions_json, request_id, created_at, resolved_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     sample.sample_id, sample.consumer_id, sample.item_id,
                     sample.content_sha256, sample.media_ref, sample.reason,
                     sample.vocabulary_version, sample.stratum, sample.retention_status,
-                    sample.status, 0, None, sample.policy_version,
+                    sample.required_reviewers, sample.status, 0, None, sample.policy_version,
                     _json(sample.model_versions), sample.request_id, sample.created_at, None,
                 ),
             )
@@ -605,7 +614,7 @@ class QualityStore:
                     raise QualityConflictError("reviewer decision is append-only")
                 self.connection.commit()
                 return sample
-            if sample.status != "awaiting_reviews" or len(existing_rows) >= 2:
+            if sample.status != "awaiting_reviews" or len(existing_rows) >= sample.required_reviewers:
                 raise QualityConflictError("quality sample no longer accepts reviewer decisions")
 
             cursor.execute(
@@ -622,7 +631,15 @@ class QualityStore:
                     request_id or sample.request_id, note, _now(),
                 ),
             )
-            if len(existing_rows) == 1:
+            if sample.required_reviewers == 1:
+                cursor.execute(
+                    """UPDATE quality_samples
+                    SET status = 'resolved', arbitration_required = 0,
+                        final_decision = ?, resolved_at = ?
+                    WHERE sample_id = ? AND consumer_id = ?""",
+                    (decision, _now(), sample_id, consumer_id),
+                )
+            elif len(existing_rows) == 1:
                 first_decision = existing_rows[0]["decision"]
                 if first_decision == decision:
                     status, required, final, resolved_at = "resolved", 0, decision, _now()
@@ -782,8 +799,8 @@ class QualityStore:
         _required(seed, "seed", 256)
         if not 0 < fraction <= 1:
             raise ValueError("fraction must be greater than zero and at most one")
-        if required_reviewers < 2:
-            raise ValueError("required_reviewers must be at least two")
+        if required_reviewers not in {1, 2}:
+            raise ValueError("required_reviewers must be one or two")
         normalized = tuple(items)
         if not normalized or len({sample_id for sample_id, _ in normalized}) != len(normalized):
             raise ValueError("review batch items must be non-empty and unique")
@@ -852,6 +869,63 @@ class QualityStore:
             self.connection.rollback()
             raise
 
+    def configure_review_requirements(
+        self,
+        *,
+        consumer_id: str,
+        primary_sample_ids: Sequence[str],
+        dual_review_sample_ids: Sequence[str],
+    ) -> None:
+        """Atomically configure one review for the corpus and two for its audit subset."""
+
+        _required(consumer_id, "consumer_id", 128)
+        primary = tuple(primary_sample_ids)
+        dual = tuple(dual_review_sample_ids)
+        primary_set = set(primary)
+        dual_set = set(dual)
+        if not primary or len(primary_set) != len(primary) or len(dual_set) != len(dual):
+            raise ValueError("review requirement sample ids must be non-empty and unique")
+        if not dual_set or not dual_set.issubset(primary_set):
+            raise ValueError("dual review samples must be a non-empty primary subset")
+        cursor = self.connection.cursor()
+        try:
+            cursor.execute("BEGIN IMMEDIATE")
+            placeholders = ",".join("?" for _ in primary)
+            rows = cursor.execute(
+                f"""SELECT sample_id, required_reviewers FROM quality_samples
+                WHERE consumer_id = ? AND sample_id IN ({placeholders})""",
+                (consumer_id, *primary),
+            ).fetchall()
+            if {row["sample_id"] for row in rows} != primary_set:
+                raise KeyError("review requirements contain a missing or cross-consumer sample")
+            desired = {sample_id: 2 if sample_id in dual_set else 1 for sample_id in primary}
+            mismatched = [
+                row["sample_id"] for row in rows
+                if int(row["required_reviewers"]) != desired[row["sample_id"]]
+            ]
+            if mismatched:
+                decision_count = cursor.execute(
+                    f"""SELECT COUNT(*) AS count FROM quality_decisions
+                    WHERE consumer_id = ? AND sample_id IN ({placeholders})""",
+                    (consumer_id, *primary),
+                ).fetchone()["count"]
+                if int(decision_count):
+                    raise QualityConflictError(
+                        "review requirements cannot change after labeling starts"
+                    )
+                cursor.executemany(
+                    """UPDATE quality_samples SET required_reviewers = ?
+                    WHERE consumer_id = ? AND sample_id = ?""",
+                    (
+                        (desired[sample_id], consumer_id, sample_id)
+                        for sample_id in primary
+                    ),
+                )
+            self.connection.commit()
+        except Exception:
+            self.connection.rollback()
+            raise
+
     def list_review_batches(self, *, consumer_id: str) -> list[QualityReviewBatch]:
         _required(consumer_id, "consumer_id", 128)
         rows = self.connection.execute(
@@ -905,9 +979,20 @@ class QualityStore:
         untouched = sum(int(row["review_count"]) == 0 for row in rows)
         one_review = sum(int(row["review_count"]) == 1 for row in rows)
         arbitration = sum(row["status"] == "arbitration_required" for row in rows)
-        resolved = sum(row["status"] == "resolved" for row in rows)
+        # The primary batch measures whether every corpus sample has received
+        # its first label. Samples that also belong to the dual-review subset
+        # remain awaiting their independent second label, but their primary
+        # pass is already complete.
+        resolved = (
+            sum(int(row["review_count"]) >= 1 for row in rows)
+            if batch.required_reviewers == 1
+            else sum(row["status"] == "resolved" for row in rows)
+        )
         if resolved == batch.selected_count:
-            status = "DUAL_REVIEW_COMPLETE"
+            status = (
+                "PRIMARY_REVIEW_COMPLETE"
+                if batch.required_reviewers == 1 else "DUAL_REVIEW_COMPLETE"
+            )
         elif untouched == batch.selected_count:
             status = "FROZEN_AWAITING_REVIEWS"
         else:
@@ -1065,6 +1150,87 @@ class QualityStore:
         finally:
             self.connection.execute("PRAGMA foreign_keys = ON")
 
+    def _migrate_required_reviewers_schema(self) -> None:
+        """Add per-sample review counts and widen frozen batches to one or two reviewers."""
+
+        columns = {
+            row["name"] for row in self.connection.execute(
+                "PRAGMA table_info(quality_samples)"
+            ).fetchall()
+        }
+        if "required_reviewers" not in columns:
+            self.connection.execute(
+                """ALTER TABLE quality_samples ADD COLUMN required_reviewers INTEGER
+                NOT NULL DEFAULT 2 CHECK(required_reviewers IN (1, 2))"""
+            )
+            self.connection.commit()
+        definition_row = self.connection.execute(
+            "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'quality_review_batches'"
+        ).fetchone()
+        definition = (definition_row["sql"] or "").replace(" ", "") if definition_row else ""
+        if "CHECK(required_reviewersIN(1,2))" in definition:
+            return
+        self.connection.execute("PRAGMA foreign_keys = OFF")
+        try:
+            cursor = self.connection.cursor()
+            cursor.execute("BEGIN IMMEDIATE")
+            cursor.execute("DROP INDEX IF EXISTS idx_quality_batch_items_sample")
+            cursor.execute(
+                "ALTER TABLE quality_review_batch_items RENAME TO quality_review_batch_items_legacy"
+            )
+            cursor.execute(
+                "ALTER TABLE quality_review_batches RENAME TO quality_review_batches_legacy"
+            )
+            cursor.execute(
+                """CREATE TABLE quality_review_batches (
+                    batch_id TEXT NOT NULL, consumer_id TEXT NOT NULL,
+                    source_sha256 TEXT NOT NULL,
+                    fraction REAL NOT NULL CHECK(fraction > 0 AND fraction <= 1),
+                    seed TEXT NOT NULL,
+                    required_reviewers INTEGER NOT NULL DEFAULT 2
+                        CHECK(required_reviewers IN (1, 2)),
+                    status TEXT NOT NULL DEFAULT 'frozen' CHECK(status = 'frozen'),
+                    created_at TEXT NOT NULL,
+                    PRIMARY KEY (consumer_id, batch_id)
+                )"""
+            )
+            cursor.execute(
+                """CREATE TABLE quality_review_batch_items (
+                    consumer_id TEXT NOT NULL, batch_id TEXT NOT NULL,
+                    sample_id TEXT NOT NULL, stratum TEXT NOT NULL,
+                    ordinal INTEGER NOT NULL CHECK(ordinal >= 1),
+                    PRIMARY KEY (consumer_id, batch_id, sample_id),
+                    UNIQUE (consumer_id, batch_id, ordinal),
+                    FOREIGN KEY (consumer_id, batch_id)
+                        REFERENCES quality_review_batches(consumer_id, batch_id),
+                    FOREIGN KEY (sample_id) REFERENCES quality_samples(sample_id)
+                )"""
+            )
+            cursor.execute(
+                """INSERT INTO quality_review_batches
+                SELECT * FROM quality_review_batches_legacy"""
+            )
+            cursor.execute(
+                """INSERT INTO quality_review_batch_items
+                SELECT * FROM quality_review_batch_items_legacy"""
+            )
+            cursor.execute("DROP TABLE quality_review_batch_items_legacy")
+            cursor.execute("DROP TABLE quality_review_batches_legacy")
+            cursor.execute(
+                """CREATE INDEX idx_quality_batch_items_sample
+                ON quality_review_batch_items(consumer_id, sample_id)"""
+            )
+            violations = cursor.execute("PRAGMA foreign_key_check").fetchall()
+            if violations:
+                raise RuntimeError("quality review requirement migration failed foreign key check")
+            self.connection.commit()
+        except Exception:
+            if self.connection.in_transaction:
+                self.connection.rollback()
+            raise
+        finally:
+            self.connection.execute("PRAGMA foreign_keys = ON")
+
     def _ensure_item_scope(self, consumer_id: str, item_id: str) -> None:
         """Reject a cross-consumer reference when the review item exists."""
 
@@ -1103,7 +1269,8 @@ class QualityStore:
             sample_id=row["sample_id"], consumer_id=row["consumer_id"], item_id=row["item_id"],
             content_sha256=row["content_sha256"], media_ref=row["media_ref"], reason=row["reason"],
             vocabulary_version=row["vocabulary_version"], stratum=row["stratum"],
-            retention_status=row["retention_status"], status=row["status"],
+            retention_status=row["retention_status"],
+            required_reviewers=int(row["required_reviewers"]), status=row["status"],
             arbitration_required=bool(row["arbitration_required"]),
             final_decision=row["final_decision"], policy_version=row["policy_version"],
             model_versions=json.loads(row["model_versions_json"]), request_id=row["request_id"],

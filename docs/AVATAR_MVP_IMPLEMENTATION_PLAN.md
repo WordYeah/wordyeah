@@ -169,7 +169,7 @@ Cravatar 增量 shadow 输入
 
 ## 9. 2026-08-05 验证记录
 
-- 全量测试：210 passed，12 subtests passed；仅有 Starlette/httpx 弃用警告。
+- 全量测试：211 passed，12 subtests passed；仅有 Starlette/httpx 弃用警告。
 - 质量双审：人工标签结论已扩展为 `allow/review/block`，两名独立 reviewer 可把边界样本收敛为 `review`；旧 `allow/block` 文件库迁移在提交前执行外键校验，失败会完整回滚。
 - 浏览器：真实 reviewer session 下验证 1440×900 三种队列视图、显式批量模式与最多 50 项提示、快速标记四种动作且零弹窗；1280×800 验证紧凑列表；390×844 验证质量页与工作区菜单且无横向溢出。证据保存在本地忽略文件 `artifacts/browser-acceptance-mvp.json`。
 - 持久队列负载：50 jobs/s 连续 900 秒，完成 45,000 项、零 active 残留、49.9998 jobs/s、cycle p95 1.02ms；时长与速率门槛均 `PASS`。结果保存在本地忽略文件 `artifacts/review-queue-load-15m.json`。
@@ -178,6 +178,6 @@ Cravatar 增量 shadow 输入
 - 聚合验收：`queue_load_15m`、`fault_drills`、`browser_acceptance` 和 `production_write_boundary` 为 PASS；`representative_corpus`、`cravatar_shadow` 与 `advanced_vision_canary` 为 INCOMPLETE，聚合退出码为 3。证据保存在本地忽略文件 `artifacts/avatar-mvp-acceptance.json`。
 - corpus 候选准备：通过受控 Hugging Face viewer/archive/Parquet 采集器在仓库外私有目录准备真人 300、动漫 300、logo/文字 100、边界 200、明确违规 200 条候选；共 1,100 条、哈希唯一、文件与 manifest 均为 0600。候选全部保持 `unreviewed`，没有 `expected_decision`，不能作为准确率或双审通过证据。
 - corpus 质量收件箱：上述 1,100 条已按五分层复制到仓库外 reviewer session 保护的私有媒体目录并幂等登记为质量样本；重复导入复用 1,100 条、未新增副本。质量页每页最多 24 条并提供受控缩略图与三态直接操作。所有最终决定仍为空，不能作为 ground truth 或双审通过证据。
-- 10% 双审选择：已按固定 seed 和全部源样本指纹冻结 110 条，五分层配额为 30/30/10/20/20；输出拒绝覆盖不同结果。冻结批次及其顺序已不可变登记到质量数据库，质量页默认只显示该批次、按 24 条分页并保留批次上下文。当前 `dual_review_completed=0`，因此只算任务集合已冻结，不算真实双审或评测集完成。
-- corpus：1,100 条候选尚未形成正式双审标签，必须保持 `INCOMPLETE/SKIP`。
+- 主审与 10% 双审：全部 1,100 条已登记为不可变全量主审批次，其中固定 seed 选出的 110 条另登记为独立双审子集，五分层配额为 30/30/10/20/20。其余 990 条经一名 reviewer 后收敛，110 条必须由两名独立 reviewer 一致或完成仲裁后收敛；批次和样本顺序拒绝漂移。质量页默认先显示全量主审，也可切换 10% 双审，并在分页提交中保留批次上下文。
+- corpus：全量主审完成数和 10% 双审完成数都仍为 0，必须保持 `INCOMPLETE/SKIP`，不能把只冻结任务集合写成 ground truth。
 - 生产边界：没有 WordPress、头像、Cavalcade、腾讯云或生产数据库写入。

@@ -197,6 +197,17 @@ def test_quality_page_defaults_to_frozen_batch_and_preserves_batch_navigation() 
             source_sha256="a" * 64, fraction=0.5, seed="ui-seed",
             items=((samples[1].sample_id, "boundary"),),
         )
+        store.create_review_batch(
+            consumer_id="corpus-avatar", batch_id="primary-ui",
+            source_sha256="a" * 64, fraction=1.0, seed="ui-seed",
+            items=tuple((sample.sample_id, "boundary") for sample in samples),
+            required_reviewers=1,
+        )
+        store.configure_review_requirements(
+            consumer_id="corpus-avatar",
+            primary_sample_ids=tuple(sample.sample_id for sample in samples),
+            dual_review_sample_ids=(samples[1].sample_id,),
+        )
         store.close()
         app = create_app(
             settings=ApiSettings(
@@ -209,9 +220,22 @@ def test_quality_page_defaults_to_frozen_batch_and_preserves_batch_navigation() 
             page = client.get("/review/quality")
             assert page.status_code == 200
             assert samples[1].sample_id[:12] in page.text
-            assert samples[0].sample_id[:12] not in page.text
-            assert "1 / 2 样本" in page.text
-            assert 'name="batch" value="frozen-ui"' in page.text
+            assert samples[0].sample_id[:12] in page.text
+            assert "2 / 2 样本" in page.text
+            assert 'name="batch" value="primary-ui"' in page.text
+            assert "全量主审" in page.text
+            assert "10% 双审" in page.text
+            assert "样本标注与仲裁" in page.text
+            assert "第二位 reviewer 提交前看不到第一位结论" in page.text
+            assert "完成进度" in page.text
+            assert "data-quality-row" in page.text
+            assert "data-quality-action" in page.text
+            assert 'aria-keyshortcuts="A"' in page.text
+            assert "J</kbd>/<kbd>K" in page.text
+            dual_page = client.get("/review/quality?batch=frozen-ui")
+            assert samples[1].sample_id[:12] in dual_page.text
+            assert samples[0].sample_id[:12] not in dual_page.text
+            assert client.get("/review/quality?batch=unknown").status_code == 404
             listing = client.get("/review/quality/samples?batch=frozen-ui")
             assert [row["sample_id"] for row in listing.json()["samples"]] == [
                 samples[1].sample_id
@@ -226,3 +250,23 @@ def test_quality_page_defaults_to_frozen_batch_and_preserves_batch_navigation() 
                 headers={"Accept": "text/html"}, follow_redirects=False,
             )
             assert decision.headers["location"] == "/review/quality?offset=0&batch=frozen-ui"
+            primary_decision = client.post(
+                f"/review/quality/samples/{samples[0].sample_id}/decision",
+                data={
+                    "decision": "allow", "csrf_token": csrf,
+                    "offset": "0", "batch": "primary-ui",
+                },
+                headers={"Accept": "text/html"}, follow_redirects=False,
+            )
+            assert primary_decision.status_code == 303
+            reports_store = QualityStore(str(database))
+            try:
+                primary_report = reports_store.review_batch_report(
+                    consumer_id="corpus-avatar", batch_id="primary-ui"
+                )
+            finally:
+                reports_store.close()
+            assert primary_report["status"] == "PRIMARY_REVIEW_COMPLETE"
+            assert primary_report["ground_truth"] is False
+            switched = client.get("/review/quality")
+            assert 'href="/review/quality?batch=frozen-ui" aria-current="page"' in switched.text

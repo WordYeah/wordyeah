@@ -22,6 +22,7 @@ def freeze_dual_review_selection(
     fraction: float = 0.10,
     seed: str = "avatar-mvp-dual-review-v1",
     batch_id: str = "dual-review-10pct-v2",
+    primary_batch_id: str = "corpus-primary-v1",
 ) -> dict[str, object]:
     if not 0 < fraction <= 1:
         raise QualitySelectionError("fraction must be greater than zero and at most one")
@@ -29,6 +30,10 @@ def freeze_dual_review_selection(
         raise QualitySelectionError("seed must be between 1 and 256 characters")
     if not batch_id.strip() or len(batch_id) > 128:
         raise QualitySelectionError("batch_id must be between 1 and 128 characters")
+    if not primary_batch_id.strip() or len(primary_batch_id) > 128:
+        raise QualitySelectionError("primary_batch_id must be between 1 and 128 characters")
+    if primary_batch_id == batch_id:
+        raise QualitySelectionError("primary and dual review batch ids must differ")
     store = QualityStore(str(database.expanduser()))
     samples = store.list_samples(consumer_id=consumer_id)
     if not samples:
@@ -101,6 +106,19 @@ def freeze_dual_review_selection(
             temporary.unlink(missing_ok=True)
     path.chmod(0o600)
     try:
+        primary_items = tuple(
+            (sample.sample_id, sample.stratum or "")
+            for sample in sorted(samples, key=lambda item: item.sample_id)
+        )
+        store.create_review_batch(
+            consumer_id=consumer_id,
+            batch_id=primary_batch_id,
+            source_sha256=source_fingerprint,
+            fraction=1.0,
+            seed=seed,
+            items=primary_items,
+            required_reviewers=1,
+        )
         store.create_review_batch(
             consumer_id=consumer_id,
             batch_id=batch_id,
@@ -110,6 +128,11 @@ def freeze_dual_review_selection(
             items=tuple((str(row["sample_id"]), str(row["stratum"])) for row in selected),
             required_reviewers=2,
         )
+        store.configure_review_requirements(
+            consumer_id=consumer_id,
+            primary_sample_ids=tuple(sample_id for sample_id, _ in primary_items),
+            dual_review_sample_ids=tuple(str(row["sample_id"]) for row in selected),
+        )
     finally:
         store.close()
     return {
@@ -117,6 +140,7 @@ def freeze_dual_review_selection(
         "status": "FROZEN_AWAITING_REVIEWS",
         "consumer_id": consumer_id,
         "batch_id": batch_id,
+        "primary_batch_id": primary_batch_id,
         "source_sample_count": len(samples),
         "selected_count": len(selected),
         "fraction": fraction,

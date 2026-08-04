@@ -2639,7 +2639,7 @@ WORKBENCH_JS = r"""
 
     if (event.key === 'Escape') {
       window.closeLightbox();
-      const kbItems = document.querySelectorAll('.review-row-link, .queue-card');
+      const kbItems = document.querySelectorAll('.review-row-link, .queue-card, [data-quality-row]');
       kbItems.forEach(el => el.classList.remove('is-kb-focused'));
       kbIndex = -1;
       return;
@@ -2680,7 +2680,7 @@ WORKBENCH_JS = r"""
         nextBtn.click();
         return;
       }
-      const items = [...document.querySelectorAll('.review-row-link, .queue-card')];
+      const items = [...document.querySelectorAll('.review-row-link, .queue-card, [data-quality-row]')];
       if (items.length) {
         event.preventDefault();
         kbIndex = Math.min(kbIndex + 1, items.length - 1);
@@ -2695,7 +2695,7 @@ WORKBENCH_JS = r"""
         prevBtn.click();
         return;
       }
-      const items = [...document.querySelectorAll('.review-row-link, .queue-card')];
+      const items = [...document.querySelectorAll('.review-row-link, .queue-card, [data-quality-row]')];
       if (items.length) {
         event.preventDefault();
         kbIndex = Math.max(kbIndex - 1, 0);
@@ -2705,12 +2705,26 @@ WORKBENCH_JS = r"""
     }
 
     if (event.key === 'Enter' && kbIndex >= 0) {
-      const items = [...document.querySelectorAll('.review-row-link, .queue-card')];
+      const items = [...document.querySelectorAll('.review-row-link, .queue-card, [data-quality-row]')];
       if (items[kbIndex]) {
         event.preventDefault();
         const link = items[kbIndex].tagName === 'A' ? items[kbIndex] : items[kbIndex].querySelector('a');
         if (link) link.click();
       }
+      return;
+    }
+
+    const qualityRows = [...document.querySelectorAll('[data-quality-row]')];
+    const qualityDecision = {a: 'allow', r: 'review', b: 'block'}[key];
+    if (qualityRows.length && qualityDecision) {
+      event.preventDefault();
+      if (kbIndex < 0 || !qualityRows[kbIndex]) {
+        kbIndex = 0;
+        updateKbFocus(qualityRows, kbIndex);
+      }
+      const qualityForm = qualityRows[kbIndex]?.querySelector('[data-quality-action]');
+      const qualityButton = qualityForm?.querySelector(`[name="decision"][value="${qualityDecision}"]`);
+      if (qualityForm && qualityButton) qualityForm.requestSubmit(qualityButton);
       return;
     }
 

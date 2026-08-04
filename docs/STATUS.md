@@ -24,7 +24,7 @@
 - [CX] 已实现：服务端 cursor 分页、工作区切换、consumer 约束、最多 50 项的批量 API 与特殊风险服务端禁批
 - [CX] 已实现：Cravatar 增量 cursor、幂等、暂停/恢复、失败重放、水位和持续 watch CLI；仅允许 loopback WordYeah endpoint；已提供默认禁用的 systemd hardening 模板，未安装或启用
 - [CX] 已实现：有界只读 Cavalcade PHP 导出器与本地受控采集器；导出器只执行 `SELECT`，采集器严格限制 Cravatar 源、校验图片并原子发布 manifest，不改变任务或头像状态
-- [CX] 已验证：210 个 pytest、12 个 subtest、compileall、PHP syntax 和 diff check 通过；真实 reviewer session 验证 1440×900 三种队列视图、显式批量模式、快速标记四种动作且零弹窗，1280×800 紧凑列表，以及 390×844 质量页与工作区菜单无横向溢出；质量页三态按钮直接提交且不弹窗
+- [CX] 已验证：211 个 pytest、12 个 subtest、compileall、PHP syntax 和 diff check 通过；真实 reviewer session 验证 1440×900 三种队列视图、显式批量模式、快速标记四种动作且零弹窗，1280×800 紧凑列表，以及 390×844 质量页与工作区菜单无横向溢出；质量页三态按钮直接提交且不弹窗
 - [CX] 已验证：持久队列以 50 jobs/s 连续运行 900 秒，完成 45,000 项、零 active 残留、49.9998 jobs/s、cycle p95 1.02ms，15 分钟时长和速率门槛均 PASS
 - [CX] 已验证：可复现故障演练覆盖数据库重启、过期 lease 回收、死信、provider 关闭、429、无效响应和 Cravatar shadow 非写入；错误路径均不产生 allow
 - [CX] 已实现：头像 MVP 聚合验收脚本统一核对代表性 corpus、15 分钟队列负载、故障演练、浏览器路径、至少 1,100 条 shadow、真实高级视觉响应和 `enforce=false`；缺失或 SKIP 保持 INCOMPLETE
@@ -34,7 +34,7 @@
 - [CX] 已实现：候选集到私有质量收件箱的幂等导入；逐项限制 manifest、路径、symlink、大小、解码和 SHA-256，媒体复制到 reviewer session 保护的 `media://corpus/...`，质量页按 24 条分页显示受控缩略图和三态直接操作
 - [CX] 已验证：仓库外 `corpus-avatar` 私有收件箱已导入 1,100 条、五分层计数为 300/300/100/200/200、哈希唯一、最终决定为 0；重复导入 `copied_count=0/reused_count=1100`，数据库与媒体文件均为 0600，目录为 0700；这不是 ground truth 或双审完成证据
 - [CX] 已冻结：权威 `dual-review-10pct-v2.jsonl` 选择共 110 条，五分层配额为 30/30/10/20/20，源样本指纹为 `4d28b4a5eecbe061c79ca9302200865f6c45dab69a4181d177a40de5bf633843`；状态仍为 `FROZEN_AWAITING_REVIEWS`，实际双审完成数为 0；先前 v1 产物保留但不作为验收输入
-- [CX] 已登记：`dual-review-10pct-v2` 已作为不可变有序批次写入私有质量数据库；重复登记必须精确匹配元数据与样本顺序，质量页默认聚焦 110 条冻结样本并显示 `110 / 1100` 覆盖，不会把其余 990 条混入正式双审
+- [CX] 已登记：`corpus-primary-v1` 全量主审批次包含 1,100 条，`dual-review-10pct-v2` 独立双审子集包含 110 条；990 条要求一名 reviewer，110 条要求两名独立 reviewer，不一致再仲裁。两个批次均按源指纹和顺序不可变登记，质量页默认全量主审并可切换 10% 双审
 - [CX] 已修复：质量预览使用逐级 `O_NOFOLLOW` 固定读取对象并返回已校验字节，质量页只加载预生成的 192px 私有缩略图；分页决策提交保留原页码
 - [CX] 已完成 UI 细节复查：审核队列与八个支持页已统一导航、顶栏、间距、线条和组件样式；详情首屏可见图片与人工动作，历史表格长值已压缩显示，移动端导航收为单行横向滚动；结构化视觉复核 92/100
 - [CX] 未完成：代表性头像 corpus、10% 真实双人复核、大规模 Cravatar shadow 和目标主机调度部署验收

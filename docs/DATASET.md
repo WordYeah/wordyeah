@@ -140,7 +140,8 @@ python3 scripts/freeze_corpus_dual_review.py \
   --database /private/wordyeah/avatar-review/wordyeah.sqlite3 \
   --output /private/wordyeah/avatar-review/dual-review-10pct-v2.jsonl \
   --consumer-id corpus-avatar --fraction 0.10 \
-  --batch-id dual-review-10pct-v2
+  --batch-id dual-review-10pct-v2 \
+  --primary-batch-id corpus-primary-v1
 ```
 
 The selection is deterministic by seed and content hash, includes a fingerprint
@@ -148,8 +149,14 @@ of all source samples, and refuses to overwrite a different frozen result. Its
 initial state remains `FROZEN_AWAITING_REVIEWS`, `ground_truth=false`, and
 `dual_review_completed=0`.
 
-The same command registers the exact ordered selection as an immutable review
-batch in the private quality database. Reusing a `consumer_id + batch_id`
-requires an exact metadata and item-order match. When a frozen batch exists,
-the quality page defaults to that batch instead of mixing in the remaining
-source samples.
+The same command registers two immutable ordered batches in the private quality
+database: `corpus-primary-v1` contains all source samples for one primary human
+label, while `dual-review-10pct-v2` contains the frozen 10% subset that requires
+a second independent reviewer. Reusing a `consumer_id + batch_id` requires an
+exact metadata and item-order match. The quality page defaults to unfinished
+primary labeling and exposes an explicit switch to the dual-review subset. A
+dual-subset sample counts toward primary progress after its first label even
+though it remains open for the independent second label. Primary completion is
+not ground truth; only a fully resolved dual-review batch reports
+`ground_truth=true`. The second reviewer cannot see the first decision before
+submitting their own.

@@ -87,6 +87,9 @@ def test_three_reviewer_sessions_complete_independent_dual_review_and_arbitratio
             assert first.json()["status"] == "awaiting_reviews"
 
             csrf_b = _login(client, "reviewer-b", credentials["reviewer-b"])
+            independent_page = client.get("/review/quality")
+            assert "reviewer-a:allow" not in independent_page.text
+            assert "待双人复核" in independent_page.text
             second = client.post(
                 f"/review/quality/samples/{sample_id}/decision",
                 json={"decision": "block", "csrf_token": csrf_b},
@@ -99,6 +102,8 @@ def test_three_reviewer_sessions_complete_independent_dual_review_and_arbitratio
             csrf_c = _login(client, "arbitrator", credentials["arbitrator"])
             assert "arbitrator" in client.get("/review/account").text
             arbitration_page = client.get("/review/quality")
+            assert "reviewer-a:allow" in arbitration_page.text
+            assert "reviewer-b:block" in arbitration_page.text
             assert f'/review/quality/samples/{sample_id}/arbitrate' in arbitration_page.text
             final = client.post(
                 f"/review/quality/samples/{sample_id}/arbitrate",

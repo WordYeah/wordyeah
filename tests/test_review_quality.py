@@ -195,6 +195,47 @@ class QualityStoreTest(unittest.TestCase):
         self.assertEqual((progress["untouched"], progress["one_review"]), (1, 1))
         self.assertEqual(progress["status"], "IN_PROGRESS")
 
+    def test_primary_review_resolves_once_while_frozen_subset_requires_two(self) -> None:
+        primary_only = self.create_sample(item_id="primary-only")
+        dual = self.create_sample(item_id="dual-review")
+        self.store.create_review_batch(
+            consumer_id="consumer-a", batch_id="primary",
+            source_sha256="f" * 64, fraction=1.0, seed="fixed-seed",
+            items=(
+                (primary_only.sample_id, "human"),
+                (dual.sample_id, "boundary"),
+            ), required_reviewers=1,
+        )
+        self.store.configure_review_requirements(
+            consumer_id="consumer-a",
+            primary_sample_ids=(primary_only.sample_id, dual.sample_id),
+            dual_review_sample_ids=(dual.sample_id,),
+        )
+        primary_result = self.store.submit_decision(
+            sample_id=primary_only.sample_id, consumer_id="consumer-a",
+            reviewer_id="reviewer-1", decision="allow",
+        )
+        self.assertEqual(primary_result.status, "resolved")
+        self.assertEqual(primary_result.required_reviewers, 1)
+        first_dual = self.store.submit_decision(
+            sample_id=dual.sample_id, consumer_id="consumer-a",
+            reviewer_id="reviewer-1", decision="review",
+        )
+        self.assertEqual(first_dual.status, "awaiting_reviews")
+        self.assertEqual(first_dual.required_reviewers, 2)
+        primary_report = self.store.review_batch_report(
+            consumer_id="consumer-a", batch_id="primary"
+        )
+        self.assertEqual(primary_report["resolved"], 2)
+        self.assertEqual(primary_report["status"], "PRIMARY_REVIEW_COMPLETE")
+        self.assertFalse(primary_report["ground_truth"])
+        with self.assertRaises(QualityConflictError):
+            self.store.configure_review_requirements(
+                consumer_id="consumer-a",
+                primary_sample_ids=(primary_only.sample_id, dual.sample_id),
+                dual_review_sample_ids=(primary_only.sample_id,),
+            )
+
     def test_matching_review_decisions_preserve_boundary_ground_truth(self) -> None:
         sample = self.create_sample(item_id="boundary-item")
         self.store.submit_decision(
@@ -287,7 +328,16 @@ class QualityStoreTest(unittest.TestCase):
                     request_id TEXT, note TEXT, created_at TEXT NOT NULL,
                     FOREIGN KEY (sample_id) REFERENCES quality_samples(sample_id)
                 );
-                INSERT INTO quality_samples SELECT * FROM quality_samples_current;
+                INSERT INTO quality_samples
+                  (sample_id, consumer_id, item_id, content_sha256, media_ref,
+                   reason, vocabulary_version, stratum, retention_status, status,
+                   arbitration_required, final_decision, policy_version,
+                   model_versions_json, request_id, created_at, resolved_at)
+                SELECT sample_id, consumer_id, item_id, content_sha256, media_ref,
+                   reason, vocabulary_version, stratum, retention_status, status,
+                   arbitration_required, final_decision, policy_version,
+                   model_versions_json, request_id, created_at, resolved_at
+                FROM quality_samples_current;
                 INSERT INTO quality_decisions SELECT * FROM quality_decisions_current;
                 INSERT INTO quality_arbitrations SELECT * FROM quality_arbitrations_current;
                 DROP TABLE quality_arbitrations_current;

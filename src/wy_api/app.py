@@ -1245,16 +1245,37 @@ def create_app(
             _quality_vocabulary(consumer_id)
             report = quality_store.report(consumer_id=consumer_id)
             batches = quality_store.list_review_batches(consumer_id=consumer_id)
-            selected_batch = next(
-                (batch for batch in batches if batch.batch_id == quality_batch_id),
-                batches[0] if batches and not quality_batch_id else None,
-            )
-            if quality_batch_id and selected_batch is None:
-                raise HTTPException(status_code=404, detail="quality review batch not found")
-            batch_report = (
-                quality_store.review_batch_report(
-                    consumer_id=consumer_id, batch_id=selected_batch.batch_id
+            batch_reports = {
+                batch.batch_id: quality_store.review_batch_report(
+                    consumer_id=consumer_id, batch_id=batch.batch_id
                 )
+                for batch in batches
+            }
+            if quality_batch_id:
+                selected_batch = next(
+                    (batch for batch in batches if batch.batch_id == quality_batch_id),
+                    None,
+                )
+                if selected_batch is None:
+                    raise HTTPException(status_code=404, detail="quality review batch not found")
+            else:
+                selected_batch = next(
+                    (
+                        batch for batch in batches
+                        if batch.required_reviewers == 1
+                        and not str(batch_reports[batch.batch_id]["status"]).endswith("_COMPLETE")
+                    ),
+                    next(
+                        (
+                            batch for batch in batches
+                            if batch.required_reviewers == 2
+                            and not str(batch_reports[batch.batch_id]["status"]).endswith("_COMPLETE")
+                        ),
+                        batches[0] if batches else None,
+                    ),
+                )
+            batch_report = (
+                batch_reports[selected_batch.batch_id]
                 if selected_batch else None
             )
             page_size = 24
@@ -1282,6 +1303,21 @@ def create_app(
                     consumer_id=consumer_id,
                 )
                 reviewer_ids = {decision.reviewer_id for decision in decisions}
+                hide_prior_decisions = (
+                    sample.required_reviewers == 2
+                    and sample.status == "awaiting_reviews"
+                    and reviewer_id not in reviewer_ids
+                )
+                review_text = (
+                    "待双人复核"
+                    if hide_prior_decisions
+                    else " / ".join(
+                        f"{decision.reviewer_id}:{decision.decision}"
+                        for decision in decisions
+                    ) or (
+                        "待主审" if sample.required_reviewers == 1 else "待双人复核"
+                    )
+                )
                 action_url = None
                 if sample.status == "awaiting_reviews" and reviewer_id not in reviewer_ids:
                     action_url = f"/review/quality/samples/{sample.sample_id}/decision"
@@ -1292,10 +1328,7 @@ def create_app(
                         "id": sample.sample_id[:12],
                         "item_id": sample.item_id,
                         "model": sample.reason,
-                        "review": " / ".join(
-                            f"{decision.reviewer_id}:{decision.decision}"
-                            for decision in decisions
-                        ) or "待双人复核",
+                        "review": review_text,
                         "disagreement": "是" if sample.arbitration_required else "否",
                         "verdict": sample.final_decision or sample.status,
                         "tone": "warning" if sample.arbitration_required else "quiet",
@@ -1321,12 +1354,30 @@ def create_app(
                     {"label": "待仲裁", "value": batch_report.get("arbitration_required", 0) if batch_report else report.get("samples_by_status", {}).get("arbitration_required", 0), "detail": "双审结论不一致"},
                 ],
                 "sampling": {
+                    "coverage_label": "批次覆盖",
                     "coverage": f"{total_samples} / {source_samples} 样本" if selected_batch else f"{total_samples} 样本",
-                    "false_positive": "待标注" if total_samples else "SKIP",
+                    "coverage_detail": "当前批次 / 全量语料",
+                    "progress_label": "完成进度",
+                    "false_positive": (
+                        f"{batch_report.get('resolved', 0)} / {total_samples}"
+                        if batch_report else "待标注" if total_samples else "SKIP"
+                    ),
+                    "progress_detail": "主审按首个标签计，双审按最终收敛计",
+                    "disagreement_label": "待仲裁",
                     "disagreement": batch_report.get("arbitration_required", 0) if batch_report else report.get("samples_by_status", {}).get("arbitration_required", 0),
+                    "disagreement_detail": "独立双审结论不一致",
                 },
                 "review_batch": asdict(selected_batch) if selected_batch else None,
                 "review_batch_report": batch_report,
+                "review_batches": [
+                    {
+                        **asdict(batch),
+                        "url": "/review/quality?" + urlencode({"batch": batch.batch_id}),
+                        "progress": batch_reports[batch.batch_id],
+                        "active": bool(selected_batch and batch.batch_id == selected_batch.batch_id),
+                    }
+                    for batch in batches
+                ],
                 "samples": sample_rows,
                 "labels": CONTROLLED_QUALITY_LABELS,
                 "retention": {
@@ -1334,6 +1385,10 @@ def create_app(
                     "deidentified": True,
                     "dataset": consumer_id,
                 },
+                "human_intervention": (
+                    "这批人工操作用于建立校准真值：全量样本先完成一次主审，冻结 10% 再由第二位 reviewer 独立复核；分歧才进入仲裁。"
+                    if selected_batch else None
+                ),
                 "pagination": {
                     "offset": safe_offset,
                     "page_size": page_size,
