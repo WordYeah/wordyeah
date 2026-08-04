@@ -336,7 +336,7 @@ class AvatarReviewApiTest(unittest.TestCase):
                 self.assertIn("Model finding summary", page.text)
                 self.assertIn("Agent action log", page.text)
                 self.assertIn("留置人工复核", page.text)
-                self.assertIn("加入全网黑名单", page.text)
+                self.assertIn('aria-label="加入 Cravatar 全网黑名单"', page.text)
                 self.assertIn('name="csrf_token"', page.text)
                 self.assertIn('action="/review/logout"', page.text)
 

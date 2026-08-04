@@ -3586,17 +3586,25 @@ def _manual_actions(item: ReviewItem, csrf_token: str) -> str:
     return "".join(
         [
             _action_button(item, "approve", "approve", "通过"),
-            _action_button(item, "reject", "reject", "替换默认头像"),
-            _action_button(item, "blacklist", "blacklist", "加入全网黑名单"),
-            _action_button(item, "hold", "hold", "留置人工复核"),
+            _action_button(item, "reject", "reject", "替换默认"),
+            _action_button(item, "blacklist", "blacklist", "黑名单"),
+            _action_button(item, "hold", "hold", "留置"),
         ]
     )
 
 
 def _action_button(item: ReviewItem, action: str, data_action: str, label: str) -> str:
+    accessible_label = {
+        "approve": "通过并保留原头像",
+        "reject": "拒绝并替换为默认头像",
+        "blacklist": "加入 Cravatar 全网黑名单",
+        "hold": "留置人工复核",
+        "retry": "重新检查",
+    }.get(action, label)
     return (
         f'<button type="submit" formaction="/review/items/{escape(item.item_id)}/{action}" '
-        f'data-action="{escape(data_action)}">{escape(label)}</button>'
+        f'data-action="{escape(data_action)}" aria-label="{escape(accessible_label)}" '
+        f'title="{escape(accessible_label)}">{escape(label)}</button>'
     )
 
 
