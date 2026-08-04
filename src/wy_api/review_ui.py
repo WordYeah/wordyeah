@@ -16,20 +16,20 @@ RISK_ORDER: tuple[str, ...] = ("low", "guarded", "elevated", "critical")
 CSS = """
 :root {
   color-scheme: light;
-  --page: #f1f3f7;
-  --page-wash: #f8fafc;
+  --page: #f3f4f7;
+  --page-wash: #f8f9fc;
   --app: #ffffff;
-  --sidebar: #f8fafe;
+  --sidebar: #f8f9fc;
   --panel: #ffffff;
-  --panel-soft: #f8fafc;
-  --panel-muted: #f1f5f9;
-  --line: #e2e8f0;
-  --line-strong: #cbd5e1;
-  --text: #0f172a;
-  --muted: #475569;
-  --quiet: #94a3b8;
-  --accent: #5c61f6;
-  --accent-soft: rgba(92, 97, 246, 0.08);
+  --panel-soft: #f8f9fc;
+  --panel-muted: #f1f2f7;
+  --line: #e7e9f0;
+  --line-strong: #cfd3df;
+  --text: #20222d;
+  --muted: #6f7483;
+  --quiet: #9ba1b0;
+  --accent: #5f63df;
+  --accent-soft: rgba(95, 99, 223, 0.09);
   --green: #16a34a;
   --green-soft: rgba(22, 163, 74, 0.08);
   --amber: #d97706;
@@ -39,10 +39,10 @@ CSS = """
   --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.05);
   --shadow-md: 0 4px 16px rgba(15, 23, 42, 0.07);
   --shadow-app: 0 24px 64px rgba(15, 23, 42, 0.08);
-  --radius-app: 20px;
-  --radius-panel: 12px;
-  --radius-card: 10px;
-  --radius-control: 8px;
+  --radius-app: 24px;
+  --radius-panel: 14px;
+  --radius-card: 12px;
+  --radius-control: 10px;
   --space-3xs: 2px;
   --space-2xs: 4px;
   --space-xs: 8px;
@@ -658,7 +658,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .support-hero h1 {
   margin: 0;
   color: var(--text);
-  font-size: 22px;
+  font-size: 28px;
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1.2;
@@ -877,7 +877,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .page-tabs {
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 26px;
   margin-top: 16px;
   padding-bottom: 2px;
   border-bottom: 1px solid var(--line);
@@ -888,7 +888,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-height: 36px;
+  min-height: 40px;
   color: var(--muted);
   text-decoration: none;
   font-size: 13px;
@@ -898,7 +898,16 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .page-tabs a:hover,
 .page-tabs a.is-active { color: var(--text); }
 
-.page-tabs a.is-active { background: var(--panel-muted); border-radius: 8px; }
+.page-tabs a.is-active::after {
+  position: absolute;
+  right: 0;
+  bottom: -3px;
+  left: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+  content: "";
+}
 
 .page-tabs span {
   min-width: 22px;
@@ -999,10 +1008,11 @@ button, a { -webkit-tap-highlight-color: transparent; }
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-top: 16px;
+  min-height: 28px;
+  margin: 12px 0 4px;
 }
 
-.queue-tool-meta { display: flex; align-items: center; gap: 10px; }
+.queue-tool-note { color: var(--quiet); font-size: 11px; }
 
 .view-switch {
   display: inline-flex;
@@ -1016,7 +1026,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 
 .view-switch a {
   display: inline-flex;
-  min-height: 30px;
+  min-height: 34px;
   align-items: center;
   gap: 6px;
   padding: 0 10px;
@@ -1035,7 +1045,10 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 
 .batch-toggle {
-  min-height: 34px;
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
   padding: 0 12px;
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -1180,14 +1193,11 @@ button, a { -webkit-tap-highlight-color: transparent; }
 
 .queue-list[data-view="grid"] {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
   padding: 8px 0;
   border-bottom: 0;
   background: transparent;
-}
-@media (max-width: 1500px) {
-  .queue-list[data-view="grid"] { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 @media (max-width: 1150px) {
   .queue-list[data-view="grid"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -1200,7 +1210,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   margin-bottom: 0;
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 16px;
+  border-radius: var(--radius-card);
   background: var(--panel);
 }
 
@@ -1213,7 +1223,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   min-height: 0;
   padding: 14px;
 }
-.queue-list[data-view="grid"] .row-preview { grid-column: 1 / -1; width: 100%; height: 132px; border-radius: 12px; }
+.queue-list[data-view="grid"] .row-preview { grid-column: 1 / -1; width: 100%; height: auto; aspect-ratio: 4 / 3; border-radius: var(--radius-control); }
 .queue-list[data-view="grid"] .row-identity,
 .queue-list[data-view="grid"] .row-ai { grid-column: 1 / -1; }
 .queue-list[data-view="grid"] .row-ai > span { display: none; }
@@ -1262,8 +1272,34 @@ button, a { -webkit-tap-highlight-color: transparent; }
 
 .media-fallback span {
   padding: 6px 10px;
-  border-radius: 999px;
-  background: var(--panel);
+  border-radius: 7px;
+  background: transparent;
+}
+
+.avatar-state {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--panel-muted);
+}
+.avatar-state img { width: 100%; height: 100%; object-fit: cover; }
+.avatar-state.is-blocked img { filter: grayscale(1); opacity: 0.38; }
+.avatar-state.is-blocked::after {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  background: var(--red);
+  color: #ffffff;
+  content: "×";
+  font-size: 20px;
+  line-height: 1;
+  transform: translate(-50%, -50%);
 }
 
 .row-risk-dot {
@@ -1529,7 +1565,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   align-items: center;
   padding: 0 11px;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: 7px;
   background: var(--panel-soft);
   color: var(--muted);
   font-size: 11px;
@@ -1628,10 +1664,23 @@ button, a { -webkit-tap-highlight-color: transparent; }
 
 .control-dock {
   display: grid;
-  grid-template-columns: minmax(320px, 1fr) auto auto;
-  align-items: center;
   gap: 16px;
-  margin-bottom: 16px;
+  margin-bottom: 0;
+}
+.control-dock > .page-tabs { margin: 0; }
+
+.control-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.control-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
 }
 
 .control-dock .filter-bar {
@@ -1658,8 +1707,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
   pointer-events: none;
 }
 .search-box input {
-  min-height: 36px;
-  width: 200px;
+  min-height: 40px;
+  width: 224px;
   padding: 0 28px 0 30px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -1671,7 +1720,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 .search-box input:focus {
   border-color: var(--line-strong);
-  width: 240px;
+  width: 248px;
 }
 .search-kbd {
   position: absolute;
@@ -1687,7 +1736,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 
 .select-pill {
-  min-height: 36px;
+  min-height: 40px;
   padding: 0 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -1764,7 +1813,10 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 
 .media-preview.bg-grid .preview-wrapper {
-  background: #ffffff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath fill='%23eef1f5' d='M0 0h8v8H0zM8 8h8v8H8z'/%3E%3C/svg%3E") 0 0 / 16px 16px;
+  background-color: #ffffff;
+  background-image: repeating-conic-gradient(#eef1f5 0 25%, #ffffff 0 50%);
+  background-position: 50%;
+  background-size: 16px 16px;
 }
 .media-preview.bg-white .preview-wrapper { background: #ffffff; }
 .media-preview.bg-black .preview-wrapper { background: #090a0f; }
@@ -1824,6 +1876,23 @@ button, a { -webkit-tap-highlight-color: transparent; }
   padding: 28px;
   background-color: var(--panel-muted);
 }
+.lightbox-stage.is-blocked::after {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  display: grid;
+  width: 52px;
+  height: 52px;
+  place-items: center;
+  border: 3px solid #ffffff;
+  border-radius: 50%;
+  background: var(--red);
+  color: #ffffff;
+  content: "×";
+  font-size: 34px;
+  line-height: 1;
+  transform: translate(-50%, -50%);
+}
+.lightbox-stage.is-blocked img { filter: grayscale(1); opacity: 0.42; }
 .lightbox-stage img {
   display: block;
   max-width: 100%;
@@ -1837,6 +1906,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .keyboard-help-popover { position: relative; display: inline-block; }
 .keyboard-help-btn {
   display: inline-flex;
+  min-height: 40px;
   align-items: center;
   gap: 6px;
   padding: 4px 10px;
@@ -1869,7 +1939,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .keyboard-popover-content {
   position: absolute;
   z-index: 50;
-  bottom: calc(100% + 8px);
+  top: calc(100% + 8px);
+  bottom: auto;
   right: 0;
   width: 230px;
   padding: 14px 16px;
@@ -2091,6 +2162,25 @@ button, a { -webkit-tap-highlight-color: transparent; }
   color: var(--muted);
 }
 
+.evidence-block.detail-findings {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.detail-findings .finding-list {
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.detail-findings .finding-item {
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+}
+.detail-findings .finding-item:last-child { border-bottom: 0; }
+
 .completed-state {
   display: flex;
   align-items: center;
@@ -2166,147 +2256,6 @@ button, a { -webkit-tap-highlight-color: transparent; }
   background: var(--panel);
 }
 
-.detail-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 24px;
-  padding: 28px 30px 22px;
-  border-bottom: 1px solid var(--line);
-}
-
-.detail-kicker {
-  margin: 0 0 6px;
-  color: var(--accent);
-  font-size: 11px;
-  font-weight: 720;
-}
-
-.detail-header h2 {
-  margin: 0;
-  font-size: 24px;
-  font-weight: 700;
-  letter-spacing: -0.045em;
-}
-
-.detail-header p:not(.detail-kicker) {
-  margin: 8px 0 0;
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.detail-close {
-  display: grid;
-  width: 34px;
-  height: 34px;
-  place-items: center;
-  border-radius: 10px;
-  color: var(--quiet);
-}
-
-.detail-close:hover,
-.detail-close:focus-visible {
-  background: var(--panel-soft);
-  color: var(--text);
-}
-
-.detail-layout {
-  display: grid;
-  grid-template-columns: 320px minmax(0, 1fr);
-  gap: 0;
-}
-
-.detail-sidebar {
-  display: grid;
-  align-content: start;
-  gap: 18px;
-  padding: 28px;
-  border-right: 1px solid var(--line);
-  background: var(--panel-soft);
-}
-
-.sidebar-section {
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--line);
-}
-.sidebar-section:last-child {
-  padding-bottom: 0;
-  border-bottom: 0;
-}
-
-.sidebar-section h3,
-.detail-stage h3 {
-  margin: 0 0 12px;
-  font-size: 14px;
-  font-weight: 740;
-  letter-spacing: -0.02em;
-}
-
-.sidebar-note {
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.detail-facts {
-  display: grid;
-  gap: 12px;
-}
-
-.detail-facts.summary-facts {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px 12px;
-}
-
-.detail-fact {
-  display: grid;
-  gap: 4px;
-}
-
-.detail-fact .label {
-  color: var(--quiet);
-  font-size: 11px;
-  font-weight: 650;
-}
-
-.detail-fact .value {
-  overflow: hidden;
-  color: var(--text);
-  font-size: 13px;
-  text-overflow: ellipsis;
-  word-break: break-word;
-}
-
-.detail-stage {
-  display: grid;
-  gap: 22px;
-  padding: 28px 30px 32px;
-}
-
-.preview-panel {
-  display: grid;
-  gap: 14px;
-}
-
-.detail-section-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.detail-chip {
-  display: inline-flex;
-  min-height: 30px;
-  align-items: center;
-  padding: 0 11px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--panel-soft);
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 700;
-}
-
 @media (max-width: 980px) {
   .app-frame { grid-template-columns: 1fr; }
   .side-nav {
@@ -2332,8 +2281,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .nav-item { flex: 0 0 auto; }
   .nav-count { display: none; }
   .shell { padding-inline: 24px; }
-  .control-dock { grid-template-columns: 1fr auto; align-items: center; }
-  .control-dock .page-tabs { grid-column: 1 / -1; }
+  .control-row { align-items: flex-start; flex-direction: column; }
+  .control-actions { width: 100%; justify-content: space-between; }
 }
 
 @media (max-width: 760px) {
@@ -2373,15 +2322,18 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .search-control { flex-basis: 100%; }
   .filter-control, .filter-submit { flex: 1; min-width: 0; }
   .page-tabs { gap: 16px; overflow-x: auto; }
-  .control-dock { grid-template-columns: minmax(0, 1fr); gap: 12px; }
-  .control-dock > .page-tabs,
-  .control-dock > .filter-bar,
-  .control-dock > .view-switch { grid-column: 1; width: 100%; }
-  .control-dock > .filter-bar { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+  .control-dock {
+    gap: 12px;
+  }
+  .control-row { gap: 10px; }
+  .control-dock .filter-bar { display: grid; grid-template-columns: minmax(0, 1fr) auto; width: 100%; }
   .control-dock .search-box,
   .control-dock .search-box input { width: 100%; min-width: 0; }
-  .control-dock > .view-switch { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .control-dock > .view-switch a { justify-content: center; }
+  .control-actions { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 6px; }
+  .control-actions > .view-switch { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .control-actions > .view-switch a { justify-content: center; padding-inline: 7px; }
+  .keyboard-help-btn span { display: none; }
+  .queue-tool-note { display: none; }
   .queue-list-head { display: none; }
   .queue-list { overflow: visible; }
   .review-row-link {
@@ -2589,7 +2541,7 @@ WORKBENCH_JS = r"""
   };
 
   // Controlled media lightbox
-  window.openLightbox = (src) => {
+  window.openLightbox = (src, blocked = false) => {
     let modal = document.querySelector('.lightbox-modal');
     if (!modal) {
       modal = document.createElement('div');
@@ -2613,6 +2565,8 @@ WORKBENCH_JS = r"""
       });
     }
     const img = modal.querySelector('#lightbox-img');
+    const stage = modal.querySelector('.lightbox-stage');
+    if (stage) stage.classList.toggle('is-blocked', Boolean(blocked));
     if (img && src) {
       img.onload = () => window.resetLightboxScale();
       img.src = src;
@@ -2668,7 +2622,7 @@ WORKBENCH_JS = r"""
       const focusedEl = document.querySelector('.is-kb-focused .row-preview img, .is-kb-focused .card-preview img');
       if (focusedEl) currentPreview = focusedEl;
       if (currentPreview && currentPreview.src) {
-        window.openLightbox(currentPreview.src);
+        window.openLightbox(currentPreview.src, Boolean(currentPreview.closest('.avatar-state.is-blocked')));
       }
       return;
     }
@@ -2999,33 +2953,30 @@ def render_review_workbench(
               <a class="{'is-active' if active_tab == 'all' else ''}" href="{escape(_review_href(status='all', risk=risk_filter, query=search_query, view=view_value, batch=batch_mode))}#review-queue">全部 <span>{total_count}</span></a>
             </nav>
 
-            <form class="filter-bar" method="get" action="/review">
-              <input type="hidden" name="status" value="{escape(status_value)}">
-              <input type="hidden" name="view" value="{escape(view_value if view_value != 'focus' else 'list')}">
-              {'<input type="hidden" name="batch" value="1">' if batch_mode else ''}
-              <div class="search-box">
-                {_top_icon("search")}
-                <input name="q" type="search" value="{escape(search_query)}" placeholder="搜索 ID / 内容...">
-                <kbd class="search-kbd">/</kbd>
-              </div>
-              <select class="select-pill" name="risk" onchange="this.form.submit()">
-                {_filter_option("all", "全部风险", risk_value)}
-                {_filter_option("low", "低风险", risk_value)}
-                {_filter_option("guarded", "需确认", risk_value)}
-                {_filter_option("elevated", "高风险", risk_value)}
-                {_filter_option("critical", "严重风险", risk_value)}
-              </select>
-            </form>
-            <nav class="view-switch" aria-label="队列视图">
-              <a class="{'is-active' if view_value == 'grid' else ''}" href="{escape(_review_href(status=status_filter, risk=risk_filter, query=search_query, view='grid', batch=batch_mode))}" title="视觉网格">{_top_icon('grid')}<span>网格</span></a>
-              <a class="{'is-active' if view_value == 'list' else ''}" href="{escape(_review_href(status=status_filter, risk=risk_filter, query=search_query, view='list', batch=batch_mode))}" title="紧凑列表">{_top_icon('list')}<span>列表</span></a>
-              <a class="{'is-active' if view_value == 'focus' else ''}" href="{escape(_review_href(status=status_filter, risk=risk_filter, query=search_query, view='focus'))}" title="沉浸标记">{_top_icon('zap')}<span>沉浸</span></a>
-            </nav>
-          </div>
-
-          <div class="queue-tools">
-            <div class="queue-tool-meta">
-              <span class="filtered-count">当前显示 {len(filtered_items)} 项</span>
+            <div class="control-row">
+              <form class="filter-bar" method="get" action="/review">
+                <input type="hidden" name="status" value="{escape(status_value)}">
+                <input type="hidden" name="view" value="{escape(view_value if view_value != 'focus' else 'list')}">
+                {'<input type="hidden" name="batch" value="1">' if batch_mode else ''}
+                <div class="search-box">
+                  {_top_icon("search")}
+                  <input name="q" type="search" value="{escape(search_query)}" placeholder="搜索 ID / 内容...">
+                  <kbd class="search-kbd">/</kbd>
+                </div>
+                <select class="select-pill" name="risk" onchange="this.form.submit()">
+                  {_filter_option("all", "全部风险", risk_value)}
+                  {_filter_option("low", "低风险", risk_value)}
+                  {_filter_option("guarded", "需确认", risk_value)}
+                  {_filter_option("elevated", "高风险", risk_value)}
+                  {_filter_option("critical", "严重风险", risk_value)}
+                </select>
+              </form>
+              <div class="control-actions">
+                <nav class="view-switch" aria-label="队列视图">
+                  <a class="{'is-active' if view_value == 'grid' else ''}" href="{escape(_review_href(status=status_filter, risk=risk_filter, query=search_query, view='grid', batch=batch_mode))}" title="视觉网格">{_top_icon('grid')}<span>网格</span></a>
+                  <a class="{'is-active' if view_value == 'list' else ''}" href="{escape(_review_href(status=status_filter, risk=risk_filter, query=search_query, view='list', batch=batch_mode))}" title="紧凑列表">{_top_icon('list')}<span>列表</span></a>
+                  <a class="{'is-active' if view_value == 'focus' else ''}" href="{escape(_review_href(status=status_filter, risk=risk_filter, query=search_query, view='focus'))}" title="沉浸标记">{_top_icon('zap')}<span>沉浸</span></a>
+                </nav>
               <details class="keyboard-help-popover">
                 <summary class="keyboard-help-btn" title="查看键盘快捷键说明">{_top_icon('keyboard')}<span>快捷键说明</span></summary>
                 <div class="keyboard-popover-content">
@@ -3043,7 +2994,13 @@ def render_review_workbench(
                 </div>
               </details>
               <a class="batch-toggle{' is-active' if batch_mode else ''}" href="{escape(_review_href(status=status_filter, risk=risk_filter, query=search_query, view=view_value if view_value != 'focus' else 'list', batch=not batch_mode))}">{'退出批量模式' if batch_mode else '批量模式'}</a>
+              </div>
             </div>
+          </div>
+
+          <div class="queue-tools">
+            <span class="filtered-count">当前显示 {len(filtered_items)} 项</span>
+            <span class="queue-tool-note">按风险筛选后进入单项审核，或开启批量模式集中处理。</span>
           </div>
 
           {f'<div class="batch-result">{escape(batch_result)}</div>' if batch_result else ''}
@@ -3403,6 +3360,8 @@ def _detail_panel(
 
 
 def _media_thumbnail(item: ReviewItem) -> str:
+    if item.status == "rejected":
+        return _avatar_state("blocked", size=160)
     cravatar_url = _cravatar_preview_url(item, size=160)
     if cravatar_url is not None:
         return (
@@ -3414,7 +3373,7 @@ def _media_thumbnail(item: ReviewItem) -> str:
             f'<img src="/review/items/{escape(item.item_id)}/media" '
             f'alt="受控图片预览 {escape(item.item_id)}" loading="lazy" decoding="async">'
         )
-    return '<div class="media-fallback"><span>暂无受控预览</span></div>'
+    return _avatar_state("default", size=160)
 
 
 def _media_preview(item: ReviewItem) -> str:
@@ -3431,23 +3390,35 @@ def _media_preview(item: ReviewItem) -> str:
       <button type="button" data-preview-background title="纯黑背景" aria-pressed="false" onclick="setPreviewBackground(this, 'black')">纯黑</button>
     </div>
     """
+    blocked = item.status == "rejected"
     cravatar_url = _cravatar_preview_url(item, size=512)
     if item.media_type != "image" and cravatar_url is None:
         return (
             '<div class="media-preview"><div class="media-fallback">'
             "<span>暂无受控本地预览</span></div></div>"
         )
-    img_src = escape(cravatar_url) if cravatar_url is not None else f"/review/items/{escape(item.item_id)}/media"
-    note_text = "预览按 Cravatar 官方 API 生成 <code>cn.cravatar.com/avatar/&lt;md5&gt;</code> 地址，仅允许尺寸与 404 默认图参数。" if cravatar_url is not None else "预览通过 reviewer session 和 allowlisted <code>media://</code> 引用提供；浏览器不会收到原始存储路径。"
+    img_src = (
+        escape(_default_avatar_url(size=512))
+        if blocked
+        else escape(cravatar_url)
+        if cravatar_url is not None
+        else f"/review/items/{escape(item.item_id)}/media"
+    )
+    note_text = "已屏蔽头像使用 Cravatar 官方默认头像表示，不再展示原始头像。" if blocked else "预览按 Cravatar 官方 API 生成 <code>cn.cravatar.com/avatar/&lt;hash&gt;</code> 地址，仅允许尺寸与 404 默认图参数。" if cravatar_url is not None else "预览通过 reviewer session 和 allowlisted <code>media://</code> 引用提供；浏览器不会收到原始存储路径。"
+    preview_image = (
+        f'<div class="avatar-state is-blocked"><img src="{img_src}" alt="已屏蔽头像" loading="eager" decoding="async" id="preview-img-target"></div>'
+        if blocked
+        else f'<img src="{img_src}" alt="受控头像预览" loading="eager" decoding="async" id="preview-img-target">'
+    )
 
     return f"""
     <div class="media-preview{blur_class} bg-grid">
       <div class="preview-header-tools">
         {bg_switch}
-        <button type="button" class="lightbox-trigger" onclick="openLightbox('{img_src}')">{_top_icon("zoom")}<span>放大预览</span><kbd>Space</kbd></button>
+        <button type="button" class="lightbox-trigger" onclick="openLightbox('{img_src}', {str(blocked).lower()})">{_top_icon("zoom")}<span>放大预览</span><kbd>Space</kbd></button>
       </div>
       <div class="preview-wrapper">
-        <img src="{img_src}" alt="受控头像预览" loading="eager" decoding="async" id="preview-img-target">
+        {preview_image}
         {toggle_button}
       </div>
       <p class="sr-only">{note_text}</p>
@@ -3455,11 +3426,23 @@ def _media_preview(item: ReviewItem) -> str:
     """
 
 
+def _avatar_state(state: str, *, size: int) -> str:
+    source = _default_avatar_url(size=size)
+    state_class = " is-blocked" if state == "blocked" else ""
+    label = "已屏蔽头像" if state == "blocked" else "默认头像"
+    return f'<div class="avatar-state{state_class}"><img src="{source}" alt="{label}" loading="lazy" decoding="async"></div>'
+
+
+def _default_avatar_url(*, size: int) -> str:
+    bounded_size = min(max(size, 16), 1024)
+    return f"https://cn.cravatar.com/avatar/{'0' * 32}?s={bounded_size}&d=mp&f=y"
+
+
 def _cravatar_preview_url(item: ReviewItem, *, size: int) -> str | None:
     if item.media_type != "image" or not item.media_ref.startswith("cravatar://"):
         return None
     avatar_hash = item.media_ref.removeprefix("cravatar://").strip().lower()
-    if len(avatar_hash) != 32 or any(character not in "0123456789abcdef" for character in avatar_hash):
+    if len(avatar_hash) not in {32, 64} or any(character not in "0123456789abcdef" for character in avatar_hash):
         return None
     bounded_size = min(max(size, 16), 1024)
     return f"https://cn.cravatar.com/avatar/{avatar_hash}?s={bounded_size}&d=404"

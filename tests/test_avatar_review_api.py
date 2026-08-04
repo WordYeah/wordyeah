@@ -7,6 +7,7 @@ from urllib.parse import urlencode
 from PIL import Image
 
 from wy_api.app import ApiSettings, create_app
+from wy_api.review_ui import _avatar_state, _default_avatar_url
 from wy_core.contracts import ModerationResult
 from wy_media.falconsai import ImageScores
 from wy_media.service import MediaModerationService
@@ -31,6 +32,17 @@ class HighRiskClassifier(BlockClassifier):
 
 
 class AvatarReviewApiTest(unittest.TestCase):
+    def test_avatar_state_uses_cravatar_default_and_blocked_semantics(self) -> None:
+        default_url = _default_avatar_url(size=160)
+        self.assertEqual(
+            default_url,
+            "https://cn.cravatar.com/avatar/00000000000000000000000000000000?s=160&d=mp&f=y",
+        )
+        self.assertIn('alt="默认头像"', _avatar_state("default", size=160))
+        blocked = _avatar_state("blocked", size=512)
+        self.assertIn('class="avatar-state is-blocked"', blocked)
+        self.assertIn('alt="已屏蔽头像"', blocked)
+
     def _moderate_png(self, client, color: tuple[int, int, int]) -> dict[str, object]:
         image = io.BytesIO()
         Image.new("RGB", (8, 8), color).save(image, format="PNG")
@@ -133,6 +145,52 @@ class AvatarReviewApiTest(unittest.TestCase):
                     page.text,
                 )
                 self.assertIn("img-src 'self' https://cn.cravatar.com", page.headers["Content-Security-Policy"])
+
+    def test_cravatar_sha256_refs_render_as_allowlisted_api_previews(self) -> None:
+        try:
+            from fastapi.testclient import TestClient
+        except ImportError as exc:  # pragma: no cover - optional api extra
+            self.skipTest(str(exc))
+
+        with tempfile.TemporaryDirectory() as directory:
+            database = str(Path(directory) / "wordyeah.sqlite3")
+            store = ReviewStore(database)
+            avatar_hash = "0d8a67708287f0fed005312e85d66d6d8e965adec4b0e6055db632b5f2af2ca6"
+            item = store.enqueue(
+                ModerationResult(
+                    request_id="cravatar-sha256-preview",
+                    content_sha256="e" * 64,
+                    media_type="image",
+                    decision="review",
+                    reasons=("manual_review",),
+                    model_versions={"policy": "avatar-default"},
+                ),
+                f"cravatar://{avatar_hash}",
+            )
+            store.apply_route(
+                item.item_id,
+                stage="human_required",
+                final_decision=None,
+                reason_code="manual_review_queue",
+            )
+            settings = ApiSettings(
+                database_path=database,
+                media_root=Path(directory) / "media",
+                reviewer_token="review-secret",
+                review_session_secret="session-secret",
+            )
+            app = create_app(
+                settings=settings,
+                service=MediaModerationService(BlockClassifier()),
+                review_store=store,
+            )
+            with TestClient(app) as client:
+                client.post("/review/login", json={"token": "review-secret"})
+                page = client.get("/review")
+                self.assertIn(
+                    f"https://cn.cravatar.com/avatar/{avatar_hash}?s=160&amp;d=404",
+                    page.text,
+                )
 
     def test_queue_views_and_bounded_batch_review(self) -> None:
         try:
