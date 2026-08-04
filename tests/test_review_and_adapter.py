@@ -101,6 +101,35 @@ class ReviewAndAdapterTest(unittest.TestCase):
         items = store.list_items(status="pending", consumer_id="one")
         self.assertEqual([item.item_id for item in items], [newer.item_id, older.item_id])
 
+    def test_cursor_page_is_stable_consumer_scoped_and_human_only(self) -> None:
+        store = ReviewStore()
+        created = [
+            store.enqueue(result("review", f"{index:x}" * 64), f"media://{index}.png", consumer_id="one")
+            for index in range(1, 4)
+        ]
+        store.enqueue(result("review", "f" * 64), "media://other.png", consumer_id="two")
+        for item in created[:2]:
+            store.apply_route(
+                item.item_id,
+                stage="human_required",
+                final_decision=None,
+                reason_code="fixture",
+                consumer_id="one",
+            )
+        first, cursor = store.list_items_page(
+            consumer_id="one", limit=1, human_only=True
+        )
+        second, final_cursor = store.list_items_page(
+            consumer_id="one", limit=1, human_only=True, cursor=cursor
+        )
+        self.assertEqual(len(first), 1)
+        self.assertEqual(len(second), 1)
+        self.assertNotEqual(first[0].item_id, second[0].item_id)
+        self.assertIsNotNone(cursor)
+        self.assertIsNone(final_cursor)
+        with self.assertRaises(ValueError):
+            store.list_items_page(consumer_id="one", cursor="not-a-cursor")
+
     def test_error_results_enter_held_not_pending(self) -> None:
         store = ReviewStore()
         item = store.enqueue(result("error", "d" * 64), "sha256://d", consumer_id="one")

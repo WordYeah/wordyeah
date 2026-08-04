@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import base64
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -251,6 +252,75 @@ class ReviewStore:
 
     def list_pending(self, limit: int = 100, consumer_id: str | None = None) -> list[ReviewItem]:
         return self.list_items(status="pending", consumer_id=consumer_id, limit=limit)
+
+    def list_items_page(
+        self,
+        *,
+        status: ReviewStatus | None = "pending",
+        consumer_id: str,
+        limit: int = 100,
+        decision_hint: str | None = None,
+        cursor: str | None = None,
+        human_only: bool = False,
+    ) -> tuple[list[ReviewItem], str | None]:
+        """Return a stable newest-first page using an opaque creation cursor."""
+
+        if not consumer_id or len(consumer_id) > 128:
+            raise ValueError("consumer_id must be between 1 and 128 characters")
+        if limit < 1 or limit > 200:
+            raise ValueError("limit must be between 1 and 200")
+        if status is not None and status not in {"pending", "approved", "rejected", "held"}:
+            raise ValueError("unknown review status")
+        clauses = ["consumer_id = ?"]
+        parameters: list[object] = [consumer_id]
+        if status is not None:
+            clauses.append("status = ?")
+            parameters.append(status)
+        if decision_hint is not None:
+            clauses.append("decision_hint = ?")
+            parameters.append(decision_hint)
+        if human_only:
+            clauses.append(
+                "(stage = 'human_required' OR quality_sample = 1 OR arbitration_required = 1)"
+            )
+        if cursor:
+            created_at, item_id = self._decode_cursor(cursor)
+            clauses.append("(created_at < ? OR (created_at = ? AND item_id < ?))")
+            parameters.extend((created_at, created_at, item_id))
+        rows = self.connection.execute(
+            f"""
+            SELECT * FROM review_items WHERE {' AND '.join(clauses)}
+            ORDER BY created_at DESC, item_id DESC LIMIT ?
+            """,
+            (*parameters, limit + 1),
+        ).fetchall()
+        has_more = len(rows) > limit
+        rows = rows[:limit]
+        items = [self._row(row) for row in rows]
+        next_cursor = None
+        if has_more and rows:
+            next_cursor = self._encode_cursor(rows[-1]["created_at"], rows[-1]["item_id"])
+        return items, next_cursor
+
+    @staticmethod
+    def _encode_cursor(created_at: str, item_id: str) -> str:
+        payload = json.dumps([created_at, item_id], separators=(",", ":")).encode("utf-8")
+        return base64.urlsafe_b64encode(payload).decode("ascii").rstrip("=")
+
+    @staticmethod
+    def _decode_cursor(cursor: str) -> tuple[str, str]:
+        try:
+            padding = "=" * (-len(cursor) % 4)
+            value = json.loads(base64.urlsafe_b64decode(cursor + padding).decode("utf-8"))
+        except Exception as exc:
+            raise ValueError("invalid review cursor") from exc
+        if (
+            not isinstance(value, list)
+            or len(value) != 2
+            or not all(isinstance(item, str) and item for item in value)
+        ):
+            raise ValueError("invalid review cursor")
+        return value[0], value[1]
 
     def metrics(self, consumer_id: str | None = None) -> dict[str, float | int]:
         parameters: tuple[object, ...] = () if consumer_id is None else (consumer_id,)

@@ -112,6 +112,7 @@ class ReviewAttemptStore:
         self,
         *,
         item_id: str,
+        consumer_id: str | None = None,
         stage: ReviewStage,
         attempt_number: int,
         actor_type: AttemptActor = "agent",
@@ -133,6 +134,7 @@ class ReviewAttemptStore:
         attempt_id: str | None = None,
         created_at: str | None = None,
     ) -> ReviewAttempt:
+        self._ensure_item_scope(item_id, consumer_id)
         self._validate(
             item_id=item_id,
             stage=stage,
@@ -235,17 +237,29 @@ class ReviewAttemptStore:
     def append(self, attempt: ReviewAttempt) -> ReviewAttempt:
         return self.append_attempt(**attempt.to_dict())
 
-    def get(self, attempt_id: str) -> ReviewAttempt:
-        row = self.connection.execute(
-            "SELECT * FROM review_attempts WHERE attempt_id = ?", (attempt_id,)
-        ).fetchone()
+    def get(self, attempt_id: str, consumer_id: str | None = None) -> ReviewAttempt:
+        if consumer_id is None:
+            row = self.connection.execute(
+                "SELECT * FROM review_attempts WHERE attempt_id = ?", (attempt_id,)
+            ).fetchone()
+        else:
+            row = self.connection.execute(
+                """
+                SELECT review_attempts.* FROM review_attempts
+                JOIN review_items ON review_items.item_id = review_attempts.item_id
+                WHERE review_attempts.attempt_id = ? AND review_items.consumer_id = ?
+                """,
+                (attempt_id, consumer_id),
+            ).fetchone()
         if row is None:
             raise KeyError(f"review attempt not found: {attempt_id}")
         return self._row(row)
 
     def get_for_stage(
-        self, item_id: str, stage: ReviewStage, attempt_number: int
+        self, item_id: str, stage: ReviewStage, attempt_number: int,
+        consumer_id: str | None = None,
     ) -> ReviewAttempt:
+        self._ensure_item_scope(item_id, consumer_id)
         row = self.connection.execute(
             """
             SELECT * FROM review_attempts
@@ -258,8 +272,10 @@ class ReviewAttemptStore:
         return self._row(row)
 
     def list_attempts(
-        self, item_id: str, stage: ReviewStage | None = None
+        self, item_id: str, stage: ReviewStage | None = None,
+        consumer_id: str | None = None,
     ) -> list[ReviewAttempt]:
+        self._ensure_item_scope(item_id, consumer_id)
         if stage is not None and stage not in _STAGES:
             raise ValueError("unknown review stage")
         if stage is None:
@@ -280,16 +296,30 @@ class ReviewAttemptStore:
             ).fetchall()
         return [self._row(row) for row in rows]
 
-    def list_recent(self, limit: int = 200) -> list[ReviewAttempt]:
+    def list_recent(self, limit: int = 200, consumer_id: str | None = None) -> list[ReviewAttempt]:
         if limit < 1 or limit > 5000:
             raise ValueError("limit must be between 1 and 5000")
-        rows = self.connection.execute(
-            "SELECT * FROM review_attempts ORDER BY created_at DESC, attempt_id DESC LIMIT ?",
-            (limit,),
-        ).fetchall()
+        if consumer_id is None:
+            rows = self.connection.execute(
+                "SELECT * FROM review_attempts ORDER BY created_at DESC, attempt_id DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        else:
+            rows = self.connection.execute(
+                """
+                SELECT review_attempts.* FROM review_attempts
+                JOIN review_items ON review_items.item_id = review_attempts.item_id
+                WHERE review_items.consumer_id = ?
+                ORDER BY review_attempts.created_at DESC, review_attempts.attempt_id DESC LIMIT ?
+                """,
+                (consumer_id, limit),
+            ).fetchall()
         return [self._row(row) for row in rows]
 
-    def next_attempt_number(self, item_id: str, stage: ReviewStage) -> int:
+    def next_attempt_number(
+        self, item_id: str, stage: ReviewStage, consumer_id: str | None = None
+    ) -> int:
+        self._ensure_item_scope(item_id, consumer_id)
         if stage not in _STAGES:
             raise ValueError("unknown review stage")
         row = self.connection.execute(
@@ -297,6 +327,16 @@ class ReviewAttemptStore:
             (item_id, stage),
         ).fetchone()
         return int(row[0]) + 1
+
+    def _ensure_item_scope(self, item_id: str, consumer_id: str | None) -> None:
+        if consumer_id is None:
+            return
+        row = self.connection.execute(
+            "SELECT 1 FROM review_items WHERE item_id = ? AND consumer_id = ?",
+            (item_id, consumer_id),
+        ).fetchone()
+        if row is None:
+            raise KeyError(f"review item not found: {item_id}")
 
     @staticmethod
     def _validate(

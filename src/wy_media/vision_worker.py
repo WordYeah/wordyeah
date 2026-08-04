@@ -110,24 +110,25 @@ class VisionReviewWorker:
                 context=payload.context,
             )
         )
-        self._assert_independent_second_review(payload, conclusion)
+        self._assert_independent_second_review(payload, conclusion, job.consumer_id)
         attempt = self.attempt_store.append_attempt(
             item_id=payload.item_id,
+            consumer_id=job.consumer_id,
             actor_type="agent",
-            parent_attempt_id=self._parent_attempt_id(payload),
+            parent_attempt_id=self._parent_attempt_id(payload, job.consumer_id),
             started_at=started_at,
             completed_at=_stamp(),
             elapsed_ms=(time.perf_counter() - started) * 1000,
             **conclusion.to_attempt_payload(stage=payload.stage, attempt_number=attempt_number),
         )
-        route = self._apply_route(payload)
+        route = self._apply_route(payload, job.consumer_id)
         completed = self.job_store.complete(
             job.job_id,
             self.worker_id,
             {"attempt": attempt.to_dict(), "route": route.__dict__},
         )
         if route.next_stage in VISION_JOB_KINDS:
-            self._enqueue_route(payload, route, attempt)
+            self._enqueue_route(payload, route, attempt, job.consumer_id)
         return completed
 
     def _record_provider_failure(
@@ -151,6 +152,7 @@ class VisionReviewWorker:
         attempt_number = payload.attempt_number + job.attempts - 1
         self.attempt_store.append_attempt(
             item_id=payload.item_id,
+            consumer_id=job.consumer_id,
             stage=payload.stage,
             attempt_number=attempt_number,
             actor_type="agent",
@@ -164,7 +166,7 @@ class VisionReviewWorker:
             confidence=None,
             reasons=(error.kind.value,),
             status="failed",
-            parent_attempt_id=self._parent_attempt_id(payload),
+            parent_attempt_id=self._parent_attempt_id(payload, job.consumer_id),
             completed_at=_stamp(),
             error=str(error),
         )
@@ -177,12 +179,12 @@ class VisionReviewWorker:
                 consumer_id=job.consumer_id,
             )
         else:
-            self._apply_route(payload)
+            self._apply_route(payload, job.consumer_id)
         return failed
 
-    def _apply_route(self, payload: VisionReviewJobPayload) -> RouteResult:
-        item = self.review_store.get(payload.item_id)
-        attempts = self.attempt_store.list_attempts(payload.item_id)
+    def _apply_route(self, payload: VisionReviewJobPayload, consumer_id: str) -> RouteResult:
+        item = self.review_store.get(payload.item_id, consumer_id=consumer_id)
+        attempts = self.attempt_store.list_attempts(payload.item_id, consumer_id=consumer_id)
         categories = sorted(
             {
                 str(finding.get("category"))
@@ -206,6 +208,7 @@ class VisionReviewWorker:
         previous: VisionReviewJobPayload,
         route: RouteResult,
         parent: ReviewAttempt,
+        consumer_id: str,
     ) -> Job:
         assert route.next_stage in VISION_JOB_KINDS
         slot = self.stage_provider_slots.get(route.next_stage)
@@ -228,7 +231,7 @@ class VisionReviewWorker:
         return enqueue_vision_review(
             self.job_store,
             payload,
-            self.review_store.get(previous.item_id).consumer_id,
+            consumer_id,
             max_attempts=self.router.config.max_attempts_per_stage,
         )
 
@@ -236,12 +239,15 @@ class VisionReviewWorker:
         self,
         payload: VisionReviewJobPayload,
         conclusion: VisionReviewConclusion,
+        consumer_id: str,
     ) -> None:
         if payload.stage != "vision_review_2":
             return
         first_attempts = [
             attempt
-            for attempt in self.attempt_store.list_attempts(payload.item_id, "vision_review_1")
+            for attempt in self.attempt_store.list_attempts(
+                payload.item_id, "vision_review_1", consumer_id=consumer_id
+            )
             if attempt.status == "succeeded"
         ]
         if not first_attempts:
@@ -260,8 +266,12 @@ class VisionReviewWorker:
                 retryable=False,
             )
 
-    def _parent_attempt_id(self, payload: VisionReviewJobPayload) -> str | None:
-        attempts = self.attempt_store.list_attempts(payload.item_id, payload.stage)
+    def _parent_attempt_id(
+        self, payload: VisionReviewJobPayload, consumer_id: str
+    ) -> str | None:
+        attempts = self.attempt_store.list_attempts(
+            payload.item_id, payload.stage, consumer_id=consumer_id
+        )
         return attempts[-1].attempt_id if attempts else payload.parent_attempt_id
 
     def _validate_job(self, job: Job, payload: VisionReviewJobPayload) -> None:

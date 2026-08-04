@@ -58,6 +58,32 @@ def _attempt(
 
 
 class ReviewAttemptStoreTests(unittest.TestCase):
+    def test_attempt_reads_and_writes_are_consumer_scoped(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            database = str(Path(directory) / "review.sqlite3")
+            _insert_item(database)
+            store = ReviewAttemptStore(database)
+            store.append_attempt(
+                item_id="item-1",
+                consumer_id="default",
+                stage="fast_scan",
+                attempt_number=1,
+                decision="review",
+                confidence=0.5,
+            )
+            with self.assertRaises(KeyError):
+                store.list_attempts("item-1", consumer_id="other")
+            with self.assertRaises(KeyError):
+                store.append_attempt(
+                    item_id="item-1",
+                    consumer_id="other",
+                    stage="vision_review_1",
+                    attempt_number=1,
+                )
+            self.assertEqual(len(store.list_recent(consumer_id="default")), 1)
+            self.assertEqual(store.list_recent(consumer_id="other"), [])
+            store.close()
+
     def test_append_is_idempotent_for_item_stage_and_attempt_number(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             database = str(Path(directory) / "review.sqlite3")

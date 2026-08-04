@@ -17,6 +17,7 @@ from wy_core.config import load_policy_config
 from wy_core.contracts import ModerationResult
 from wy_core.result_store import ResultStore
 from wy_jobs.store import JobStore
+from wy_jobs.vision import VISION_JOB_KINDS, VisionReviewJobPayload, enqueue_vision_review
 from wy_media.falconsai import FalconsaiClassifier
 from wy_media.g2a import G2AConfig, G2AVisionProvider
 from wy_media.image_safety import ImageLimits, decode_image
@@ -522,7 +523,8 @@ def create_app(
         {body}</body></html>"""
 
     def _route_item(item_id: str, *, risk_score: float | None = None) -> object:
-        attempts = attempt_store.list_attempts(item_id)
+        item = review_store.get(item_id, consumer_id=settings.consumer_id)
+        attempts = attempt_store.list_attempts(item_id, consumer_id=settings.consumer_id)
         categories = sorted(
             {
                 str(finding.get("category"))
@@ -539,13 +541,62 @@ def create_app(
             reason_code=route.reason,
             consumer_id=settings.consumer_id,
         )
+        if route.next_stage in VISION_JOB_KINDS:
+            if job_store.count_active(settings.consumer_id) >= settings.max_queue_depth:
+                review_store.apply_route(
+                    item_id,
+                    stage="model_error",
+                    final_decision=None,
+                    reason_code="vision_queue_full",
+                    consumer_id=settings.consumer_id,
+                )
+                return route
+            stage = route.next_stage
+            attempt_number = attempt_store.next_attempt_number(
+                item_id, stage, consumer_id=settings.consumer_id
+            )
+            parent_attempt_id = attempts[-1].attempt_id if attempts else None
+            payload = VisionReviewJobPayload(
+                item_id=item.item_id,
+                media_ref=item.media_ref,
+                media_type=_media_type_for_ref(item.media_ref),
+                stage=stage,
+                attempt_number=attempt_number,
+                request_id=f"{item.item_id}:{stage}:{attempt_number}",
+                policy_version=item.policy_version,
+                content_sha256=item.content_sha256,
+                categories=tuple(categories),
+                context=f"consumer={item.consumer_id}; policy={item.policy_version}",
+                parent_attempt_id=parent_attempt_id,
+                provider_slot="primary" if stage == "vision_review_1" else "secondary",
+            )
+            enqueue_vision_review(
+                job_store,
+                payload,
+                settings.consumer_id,
+                max_attempts=review_router.config.max_attempts_per_stage,
+            )
         return route
 
+    def _media_type_for_ref(media_ref: str) -> str:
+        suffix = Path(media_ref.removeprefix("media://")).suffix.lower()
+        return {
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".png": "image/png",
+            ".webp": "image/webp",
+            ".gif": "image/gif",
+            ".bmp": "image/bmp",
+        }.get(suffix, "image/jpeg")
+
     def _record_fast_scan(item_id: str, result: ModerationResult) -> None:
-        if attempt_store.list_attempts(item_id, "fast_scan"):
+        if attempt_store.list_attempts(
+            item_id, "fast_scan", consumer_id=settings.consumer_id
+        ):
             return
         attempt_store.append_attempt(
             item_id=item_id,
+            consumer_id=settings.consumer_id,
             stage="fast_scan",
             attempt_number=1,
             actor_type="agent",
@@ -562,6 +613,50 @@ def create_app(
             error=result.error,
         )
         _route_item(item_id, risk_score=result.top_score)
+
+    def _enqueue_manual_vision_retry(item: Any) -> None:
+        attempts = attempt_store.list_attempts(
+            item.item_id, consumer_id=settings.consumer_id
+        )
+        vision_attempts = [
+            attempt
+            for attempt in attempts
+            if attempt.stage in {"vision_review_1", "vision_review_2"}
+        ]
+        stage = vision_attempts[-1].stage if vision_attempts else "vision_review_1"
+        attempt_number = attempt_store.next_attempt_number(
+            item.item_id, stage, consumer_id=settings.consumer_id
+        )
+        categories = tuple(
+            sorted(
+                {
+                    str(finding.get("category"))
+                    for attempt in attempts
+                    for finding in attempt.findings
+                    if finding.get("category")
+                }
+            )
+        )
+        payload = VisionReviewJobPayload(
+            item_id=item.item_id,
+            media_ref=item.media_ref,
+            media_type=_media_type_for_ref(item.media_ref),
+            stage=stage,
+            attempt_number=attempt_number,
+            request_id=f"{item.item_id}:{stage}:{attempt_number}:manual-retry",
+            policy_version=item.policy_version,
+            content_sha256=item.content_sha256,
+            categories=categories,
+            context=f"consumer={item.consumer_id}; policy={item.policy_version}; manual_retry=true",
+            parent_attempt_id=vision_attempts[-1].attempt_id if vision_attempts else None,
+            provider_slot="primary" if stage == "vision_review_1" else "secondary",
+        )
+        enqueue_vision_review(
+            job_store,
+            payload,
+            settings.consumer_id,
+            max_attempts=review_router.config.max_attempts_per_stage,
+        )
 
     @app.get("/health/live")
     async def health_live() -> dict[str, object]:
@@ -594,7 +689,7 @@ def create_app(
 
     @app.get("/version")
     async def version() -> dict[str, object]:
-        return {"version": APP_VERSION, "schema_version": 3, "policy_profile": settings.policy_profile}
+        return {"version": APP_VERSION, "schema_version": 5, "policy_profile": settings.policy_profile}
 
     @app.get("/metrics", response_class=PlainTextResponse)
     async def metrics() -> str:
@@ -836,7 +931,7 @@ def create_app(
         consumer_item_ids = {item.item_id for item in items}
         attempts = [
             attempt
-            for attempt in attempt_store.list_recent(5000)
+            for attempt in attempt_store.list_recent(5000, consumer_id=settings.consumer_id)
             if attempt.item_id in consumer_item_ids
         ][:1000]
         events = review_store.list_all_events(settings.consumer_id, limit=1000)
@@ -1075,6 +1170,7 @@ def create_app(
         status: str = "pending",
         limit: int = 100,
         decision_hint: str | None = None,
+        cursor: str | None = None,
     ) -> dict[str, object]:
         require_reviewer(request)
         if status == "all":
@@ -1084,15 +1180,21 @@ def create_app(
         else:
             raise HTTPException(status_code=400, detail="invalid review status")
         try:
-            items = review_store.list_items(
+            items, next_cursor = review_store.list_items_page(
                 status=status_filter,
                 consumer_id=settings.consumer_id,
                 limit=limit,
                 decision_hint=decision_hint,
+                cursor=cursor,
+                human_only=status_filter == "pending",
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
-        return {"items": [item.to_dict() for item in items], "count": len(items)}
+        return {
+            "items": [item.to_dict() for item in items],
+            "count": len(items),
+            "next_cursor": next_cursor,
+        }
 
     @app.get("/review/items/{item_id}")
     async def get_review_item(item_id: str, request: Request) -> dict[str, object]:
@@ -1104,7 +1206,12 @@ def create_app(
         return {
             "item": item.to_dict(),
             "events": [event.to_dict() for event in review_store.list_events(item_id, settings.consumer_id)],
-            "attempts": [attempt.to_dict() for attempt in attempt_store.list_attempts(item_id)],
+            "attempts": [
+                attempt.to_dict()
+                for attempt in attempt_store.list_attempts(
+                    item_id, consumer_id=settings.consumer_id
+                )
+            ],
         }
 
     @app.get("/review/items/{item_id}/attempts")
@@ -1114,7 +1221,7 @@ def create_app(
             review_store.get(item_id, consumer_id=settings.consumer_id)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="review item not found") from exc
-        attempts = attempt_store.list_attempts(item_id)
+        attempts = attempt_store.list_attempts(item_id, consumer_id=settings.consumer_id)
         return {"attempts": [attempt.to_dict() for attempt in attempts], "count": len(attempts)}
 
     @app.post("/v1/review/items/{item_id}/attempts")
@@ -1136,6 +1243,7 @@ def create_app(
         try:
             attempt = attempt_store.append_attempt(
                 item_id=item.item_id,
+                consumer_id=settings.consumer_id,
                 stage=payload.get("stage"),
                 attempt_number=payload.get("attempt_number"),
                 actor_type="agent",
@@ -1191,7 +1299,7 @@ def create_app(
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="review item not found") from exc
 
-        attempts = attempt_store.list_attempts(item_id)
+        attempts = attempt_store.list_attempts(item_id, consumer_id=settings.consumer_id)
         categories = tuple(
             sorted(
                 {
@@ -1225,7 +1333,9 @@ def create_app(
         except (OSError, ValueError) as exc:
             raise HTTPException(status_code=415, detail="media is not a supported safe image") from exc
 
-        attempt_number = attempt_store.next_attempt_number(item_id, stage)
+        attempt_number = attempt_store.next_attempt_number(
+            item_id, stage, consumer_id=settings.consumer_id
+        )
         request_id = request.headers.get("X-Request-ID") or item.request_id or f"{item_id}:{stage}:{attempt_number}"
         started = time.perf_counter()
         try:
@@ -1243,6 +1353,7 @@ def create_app(
             elapsed_ms = (time.perf_counter() - started) * 1000
             attempt = attempt_store.append_attempt(
                 item_id=item_id,
+                consumer_id=settings.consumer_id,
                 stage=stage,
                 attempt_number=attempt_number,
                 actor_type="agent",
@@ -1268,6 +1379,7 @@ def create_app(
         payload = conclusion.to_attempt_payload(stage=stage, attempt_number=attempt_number)
         attempt = attempt_store.append_attempt(
             item_id=item_id,
+            consumer_id=settings.consumer_id,
             actor_type="agent",
             elapsed_ms=elapsed_ms,
             **payload,
@@ -1351,6 +1463,24 @@ def create_app(
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if action == "retry":
+            try:
+                if job_store.count_active(settings.consumer_id) >= settings.max_queue_depth:
+                    raise RuntimeError("vision review queue is full")
+                _enqueue_manual_vision_retry(item)
+            except Exception as exc:
+                item = review_store.apply_route(
+                    item_id,
+                    stage="model_error",
+                    final_decision=None,
+                    reason_code="manual_retry_enqueue_failed",
+                    consumer_id=settings.consumer_id,
+                )
+                if "text/html" not in request.headers.get("Accept", ""):
+                    return JSONResponse(
+                        {"item": item.to_dict(), "error": f"{type(exc).__name__}: {exc}"},
+                        status_code=503,
+                    )
         if "text/html" in request.headers.get("Accept", ""):
             return RedirectResponse(return_to or "/review", status_code=303)
         return JSONResponse(item.to_dict())
@@ -1402,7 +1532,9 @@ def create_app(
                 item_id, raw_version = entry.rsplit(":", 1)
                 expected_version = int(raw_version)
                 item = review_store.get(item_id, consumer_id=settings.consumer_id)
-                attempts = attempt_store.list_attempts(item_id)
+                attempts = attempt_store.list_attempts(
+                    item_id, consumer_id=settings.consumer_id
+                )
                 blocker = _batch_blocker(item, attempts)
                 if blocker is not None:
                     raise ValueError(blocker)

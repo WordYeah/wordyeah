@@ -32,6 +32,73 @@ class HighRiskClassifier(BlockClassifier):
 
 
 class AvatarReviewApiTest(unittest.TestCase):
+    def test_fast_scan_automatically_enqueues_vision_and_hides_ai_work_from_humans(self) -> None:
+        from fastapi.testclient import TestClient
+
+        with tempfile.TemporaryDirectory() as directory:
+            settings = ApiSettings(
+                database_path=str(Path(directory) / "wordyeah.sqlite3"),
+                media_root=Path(directory) / "media",
+                local_review_no_auth=True,
+            )
+            app = create_app(settings=settings, service=MediaModerationService(BlockClassifier()))
+            with TestClient(app) as client:
+                self._moderate_png(client, (20, 30, 40))
+                queued = app.state.job_store.connection.execute(
+                    "SELECT kind, consumer_id, status FROM jobs"
+                ).fetchall()
+                self.assertEqual([row["kind"] for row in queued], ["vision_review_1"])
+                self.assertEqual(queued[0]["consumer_id"], "default")
+                self.assertEqual(queued[0]["status"], "queued")
+                self.assertEqual(client.get("/review/items").json()["items"], [])
+                all_items = client.get("/review/items?status=all").json()["items"]
+                self.assertEqual(all_items[0]["stage"], "vision_review_1")
+
+    def test_manual_retry_creates_a_new_vision_job(self) -> None:
+        from fastapi.testclient import TestClient
+
+        with tempfile.TemporaryDirectory() as directory:
+            settings = ApiSettings(
+                database_path=str(Path(directory) / "wordyeah.sqlite3"),
+                media_root=Path(directory) / "media",
+                local_review_no_auth=True,
+            )
+            app = create_app(settings=settings, service=MediaModerationService(BlockClassifier()))
+            with TestClient(app) as client:
+                self._moderate_png(client, (20, 30, 40))
+                item = client.get("/review/items?status=all").json()["items"][0]
+                for number in range(1, 4):
+                    app.state.attempt_store.append_attempt(
+                        item_id=item["item_id"],
+                        consumer_id="default",
+                        stage="vision_review_1",
+                        attempt_number=number,
+                        decision="error",
+                        status="failed",
+                        error="fixture timeout",
+                    )
+                held = app.state.review_store.apply_route(
+                    item["item_id"],
+                    stage="model_error",
+                    final_decision=None,
+                    reason_code="fixture_exhausted",
+                    consumer_id="default",
+                )
+                csrf = client.post("/review/login").json()["csrf_token"]
+                response = client.post(
+                    f"/review/items/{item['item_id']}/retry",
+                    json={"version": held.version},
+                    headers={"X-CSRF-Token": csrf},
+                )
+                self.assertEqual(response.status_code, 200)
+                jobs = app.state.job_store.connection.execute(
+                    "SELECT payload_json FROM jobs ORDER BY created_at"
+                ).fetchall()
+                self.assertEqual(len(jobs), 2)
+                import json
+
+                self.assertEqual(json.loads(jobs[-1]["payload_json"])["attempt_number"], 4)
+
     def test_avatar_state_uses_cravatar_default_and_blocked_semantics(self) -> None:
         default_url = _default_avatar_url(size=160)
         self.assertEqual(
