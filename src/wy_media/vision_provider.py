@@ -30,11 +30,13 @@ class VisionProviderError(RuntimeError):
         *,
         retryable: bool,
         status_code: int | None = None,
+        retry_after_seconds: float | None = None,
     ) -> None:
         super().__init__(message)
         self.kind = kind
         self.retryable = retryable
         self.status_code = status_code
+        self.retry_after_seconds = retry_after_seconds
 
     def to_dict(self) -> dict[str, object]:
         result: dict[str, object] = {
@@ -44,6 +46,8 @@ class VisionProviderError(RuntimeError):
         }
         if self.status_code is not None:
             result["status_code"] = self.status_code
+        if self.retry_after_seconds is not None:
+            result["retry_after_seconds"] = self.retry_after_seconds
         return result
 
 

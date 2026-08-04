@@ -10,6 +10,23 @@ from .store import Job, JobStore
 JobHandler = Callable[[Job], dict[str, Any]]
 
 
+class JobExecutionError(RuntimeError):
+    """A handler failure with queue-visible retry policy."""
+
+    def __init__(
+        self,
+        kind: str,
+        message: str,
+        *,
+        retryable: bool,
+        retry_after_seconds: float | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.kind = kind
+        self.retryable = retryable
+        self.retry_after_seconds = retry_after_seconds
+
+
 @dataclass
 class JobWorker:
     store: JobStore
@@ -25,6 +42,15 @@ class JobWorker:
             return None
         try:
             result = handler(job)
+        except JobExecutionError as exc:
+            return self.store.fail(
+                job.job_id,
+                self.worker_id,
+                str(exc),
+                error_kind=exc.kind,
+                retryable=exc.retryable,
+                retry_after_seconds=exc.retry_after_seconds,
+            )
         except Exception as exc:
             return self.store.fail(job.job_id, self.worker_id, f"{type(exc).__name__}: {exc}")
         return self.store.complete(job.job_id, self.worker_id, result)

@@ -141,9 +141,13 @@ class G2AVisionProvider:
             raise VisionProviderError(
                 VisionErrorKind.NETWORK, "G2A network request failed", retryable=True
             ) from exc
+        except Exception as exc:
+            raise VisionProviderError(
+                VisionErrorKind.UPSTREAM, "G2A transport failed", retryable=True
+            ) from exc
 
         if not 200 <= response.status < 300:
-            raise _status_error(response.status)
+            raise _status_error(response.status, response.headers)
         return self._parse_response(response.body, request.request_id)
 
     def _build_payload(self, request: VisionReviewRequest) -> dict[str, object]:
@@ -303,22 +307,44 @@ def _optional_score(value: object) -> float | None:
     return float(value)
 
 
-def _status_error(status: int) -> VisionProviderError:
+def _status_error(status: int, headers: Mapping[str, str] | None = None) -> VisionProviderError:
+    retry_after = _retry_after_seconds(headers)
     if status in {401, 403}:
         return VisionProviderError(
             VisionErrorKind.AUTHENTICATION, "G2A authentication failed", retryable=False, status_code=status
         )
     if status == 429:
         return VisionProviderError(
-            VisionErrorKind.RATE_LIMIT, "G2A rate limit reached", retryable=True, status_code=status
+            VisionErrorKind.RATE_LIMIT,
+            "G2A rate limit reached",
+            retryable=True,
+            status_code=status,
+            retry_after_seconds=retry_after,
         )
     if 400 <= status < 500:
         return VisionProviderError(
             VisionErrorKind.BAD_REQUEST, "G2A rejected the request", retryable=False, status_code=status
         )
     return VisionProviderError(
-        VisionErrorKind.UPSTREAM, "G2A upstream service failed", retryable=True, status_code=status
+        VisionErrorKind.UPSTREAM,
+        "G2A upstream service failed",
+        retryable=True,
+        status_code=status,
+        retry_after_seconds=retry_after,
     )
+
+
+def _retry_after_seconds(headers: Mapping[str, str] | None) -> float | None:
+    if not headers:
+        return None
+    value = next((item for key, item in headers.items() if key.lower() == "retry-after"), None)
+    if value is None:
+        return None
+    try:
+        seconds = float(value)
+    except (TypeError, ValueError):
+        return None
+    return seconds if 0 <= seconds <= 86400 else None
 
 
 def _parse_bool(value: str) -> bool:
