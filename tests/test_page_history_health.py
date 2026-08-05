@@ -59,6 +59,11 @@ class PageHistoryHealthTest(unittest.TestCase):
         self.assertIn("audit-filter-menu--actor", page)
         self.assertIn("audit-filter-menu--action", page)
         self.assertIn("audit-filter-menu--stage", page)
+        self.assertIn(
+            ".audit-filter-menu--actor > .menu-select__menu",
+            PAGE_HISTORY_HEALTH_CSS,
+        )
+        self.assertIn("width: max-content", PAGE_HISTORY_HEALTH_CSS)
         self.assertEqual(page.count('class="menu-select__menu"'), 3)
         self.assertEqual(page.count('<path d="M6 9l6 6l6 -6"/>'), 3)
         self.assertIn(

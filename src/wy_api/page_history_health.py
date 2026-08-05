@@ -33,6 +33,11 @@ CSS = """
 .audit-filter-menu { width: 100%; }
 .audit-filter-menu > summary { height: 36px; min-height: 36px; }
 .audit-filter-menu > .menu-select__menu { width: 100%; min-width: 100%; }
+.audit-filter-menu--actor > .menu-select__menu {
+  width: max-content;
+  min-width: 100%;
+  max-width: min(280px, calc(100vw - 32px));
+}
 .audit-filter-search .icon {
   position: absolute;
   left: 11px;

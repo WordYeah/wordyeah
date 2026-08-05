@@ -264,7 +264,7 @@ def main() -> int:
                     "/review/account",
                     "/review/guide",
                 )
-                for width in (1440, 1180, 1024, 900, 760, 640, 390):
+                for width in (1440, 1280, 1180, 1024, 900, 760, 640, 390):
                     page.set_viewport_size({"width": width, "height": 900})
                     for path in dropdown_paths:
                         response = page.goto(base + path, wait_until="domcontentloaded")
@@ -404,6 +404,9 @@ def main() -> int:
                                     widthDelta: triggerBox && menuBox
                                       ? Math.abs(menuBox.width - triggerBox.width)
                                       : null,
+                                    menuNotNarrower: triggerBox && menuBox
+                                      ? menuBox.width + .5 >= triggerBox.width
+                                      : false,
                                     verticalGap,
                                     menuVisibleAtAnchor: Boolean(
                                       centerHit && menu && menu.contains(centerHit)
@@ -444,6 +447,7 @@ def main() -> int:
                         )
                 def follows_geometry_contract(row: dict[str, object]) -> bool:
                     kind = row["kind"]
+                    class_name = str(row["className"])
                     expected_gap = {
                         "select": 6.0,
                         "desktop-workspace": 10.0,
@@ -482,7 +486,16 @@ def main() -> int:
                             for option in row["optionAlignment"]
                         )
                         and anchored
-                        and (same_width if kind in {"select", "desktop-workspace"} else True)
+                        and (
+                            same_width
+                            if kind == "desktop-workspace"
+                            else row["menuNotNarrower"]
+                            if kind == "select"
+                            and "audit-filter-menu--actor" in class_name
+                            else same_width
+                            if kind == "select"
+                            else True
+                        )
                         and row["verticalGap"] is not None
                         and abs(row["verticalGap"] - expected_gap) <= 0.6
                     )
