@@ -467,12 +467,20 @@ def main() -> int:
                     for row in desktop_popovers
                 )
                 responsive_account_popovers: list[dict[str, object]] = []
+                account_paths = (
+                    "/review?status=all&view=list&per_page=20",
+                    "/review/overview",
+                    "/review/agents",
+                    "/review/history",
+                    "/review/policies",
+                    "/review/quality",
+                    "/review/health",
+                    "/review/account",
+                    "/review/guide",
+                )
                 for width in (1440, 1024, 760, 390):
                     page.set_viewport_size({"width": width, "height": 900})
-                    for path in (
-                        "/review?status=all&view=list&per_page=20",
-                        "/review/history",
-                    ):
+                    for path in account_paths:
                         page.goto(base + path, wait_until="networkidle")
                         trigger = page.locator(".account-menu > summary")
                         trigger.click()
@@ -521,7 +529,8 @@ def main() -> int:
                         and desktop_popovers_aligned
                         and len(desktop_popovers) == 2
                         and responsive_accounts_aligned
-                        and len(responsive_account_popovers) == 8
+                        and len(responsive_account_popovers)
+                        == len(account_paths) * 4
                     ),
                     "controls": measurements,
                     "layouts": layouts,
