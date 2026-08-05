@@ -70,7 +70,7 @@ API 接线位于 `POST /v1/review/items/{item_id}/advanced-vision`。接口只�
 
 ## Mock 与验证边界
 
-`G2AVisionProvider` 支持注入 transport；单元测试不访问网络，也不需要真实 API key。当前验证覆盖默认关闭、请求构造、超时、HTTP 错误分类、直接/兼容 envelope 响应解析、结构化 attempt 转换和失败不放行。
+`G2AVisionProvider` 支持注入 transport；单元测试不访问网络，也不需要真实 API key。当前验证覆盖默认关闭、请求构造、超时、HTTP 错误分类、直接/兼容 envelope 响应解析、仅包含一个完整 JSON fenced block 的响应、结构化 attempt 转换和失败不放行；带外围说明文字或破损 fence 的内容仍按无效响应处理。
 
 2026-08-05 受控 canary 结果：
 

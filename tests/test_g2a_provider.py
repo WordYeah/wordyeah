@@ -127,6 +127,31 @@ class G2AProviderTests(unittest.TestCase):
         provider = G2AVisionProvider(enabled_config(), transport=lambda _r, _t: HttpResponse(200, body))
         self.assertEqual(provider.review(request()).decision, "allow")
 
+    def test_complete_markdown_json_fence_is_supported(self) -> None:
+        content = """```json
+{"decision":"allow","confidence":0.9,"reasons":[],"findings":[],"evidence":[]}
+```"""
+        body = json.dumps({"choices": [{"message": {"content": content}}]}).encode()
+        provider = G2AVisionProvider(
+            enabled_config(), transport=lambda _r, _t: HttpResponse(200, body)
+        )
+
+        self.assertEqual(provider.review(request()).decision, "allow")
+
+    def test_markdown_json_with_surrounding_prose_remains_fail_closed(self) -> None:
+        content = """Result follows:
+```json
+{"decision":"allow","confidence":0.9,"reasons":[],"findings":[],"evidence":[]}
+```"""
+        body = json.dumps({"choices": [{"message": {"content": content}}]}).encode()
+        provider = G2AVisionProvider(
+            enabled_config(), transport=lambda _r, _t: HttpResponse(200, body)
+        )
+
+        with self.assertRaises(VisionProviderError) as raised:
+            provider.review(request())
+        self.assertEqual(raised.exception.kind, VisionErrorKind.INVALID_RESPONSE)
+
     def test_string_region_label_is_normalized(self) -> None:
         body = json.dumps(
             {

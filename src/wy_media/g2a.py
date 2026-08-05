@@ -277,15 +277,31 @@ def _extract_structured(envelope: object) -> object:
         if isinstance(message, dict):
             content = message.get("content")
             if isinstance(content, str):
-                return json.loads(content)
+                return _parse_model_json(content)
             if isinstance(content, list):
                 texts = [item.get("text") for item in content if isinstance(item, dict) and isinstance(item.get("text"), str)]
                 if texts:
-                    return json.loads("".join(texts))
+                    return _parse_model_json("".join(texts))
     output_text = envelope.get("output_text")
     if isinstance(output_text, str):
-        return json.loads(output_text)
+        return _parse_model_json(output_text)
     raise ValueError("response does not contain structured model output")
+
+
+def _parse_model_json(value: str) -> object:
+    """Accept raw JSON or one complete JSON fence, never surrounding prose."""
+
+    payload = value.strip()
+    if payload.startswith("```"):
+        lines = payload.splitlines()
+        if (
+            len(lines) < 3
+            or lines[0].strip().lower() not in {"```", "```json"}
+            or lines[-1].strip() != "```"
+        ):
+            raise ValueError("model JSON fence is malformed or contains surrounding text")
+        payload = "\n".join(lines[1:-1]).strip()
+    return json.loads(payload)
 
 
 def _parse_findings(value: object) -> tuple[VisionFinding, ...]:
