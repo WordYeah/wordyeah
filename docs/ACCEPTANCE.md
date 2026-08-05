@@ -98,7 +98,8 @@ python scripts/run_isolated_browser_acceptance.py \
 `arbitrator` 和独立 session secret；报告和截图均以私有权限原子写入，不输出凭据。
 只有已经明确属于一次性测试的数据实例，才直接运行底层 `audit_browser_acceptance.py`。
 聚合验收要求浏览器报告同时证明 `isolated_fixture=true`、源库只读、审核决定未变化、
-生产头像未写入，以及全部页面下拉框和 1,100 条质量分页路径通过。
+生产头像未写入，以及全部页面下拉框、质量页 AI 建议盲审与键盘提交契约、1,100 条质量
+分页路径通过。
 
 所有门槛统一由一个只读聚合器核对：
 

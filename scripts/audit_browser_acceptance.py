@@ -756,6 +756,57 @@ def main() -> int:
 
             checks.append(_check("all_dropdowns_share_alignment_contract", dropdown_alignment))
 
+            def quality_blind_keyboard() -> dict[str, object]:
+                page.set_viewport_size({"width": 1440, "height": 900})
+                response = page.goto(base + "/review/quality", wait_until="networkidle")
+                rows = page.locator("[data-quality-row]")
+                forms = page.locator("[data-quality-action]")
+                proposals = page.locator("[data-quality-ai-proposal]")
+                blinded = proposals.evaluate_all(
+                    "cells => cells.every(cell => "
+                    "cell.dataset.blinded === 'true' "
+                    "&& cell.textContent.trim() === '盲审封存 · 提交独立结论后显示')"
+                )
+                forms.evaluate_all(
+                    "forms => forms.forEach(form => form.addEventListener('submit', event => {"
+                    "event.preventDefault(); "
+                    "form.dataset.capturedDecision = event.submitter?.value || '';"
+                    "}))"
+                )
+                page.keyboard.press("j")
+                focused = page.locator("[data-quality-row].is-kb-focused")
+                page.keyboard.press("a")
+                captured = (
+                    focused.locator("[data-quality-action]").get_attribute(
+                        "data-captured-decision"
+                    )
+                    if focused.count() == 1
+                    else None
+                )
+                return {
+                    "passed": bool(
+                        response
+                        and response.status == 200
+                        and rows.count() > 0
+                        and forms.count() > 0
+                        and proposals.count() == rows.count()
+                        and blinded
+                        and focused.count() == 1
+                        and captured == "allow"
+                    ),
+                    "http": response.status if response else None,
+                    "rows": rows.count(),
+                    "forms": forms.count(),
+                    "blinded_proposals": proposals.count() if blinded else 0,
+                    "focused_rows": focused.count(),
+                    "captured_decision": captured,
+                    "mutating_requests": 0,
+                }
+
+            checks.append(
+                _check("quality_blind_keyboard_contract", quality_blind_keyboard)
+            )
+
             def mobile_quality() -> dict[str, object]:
                 page.set_viewport_size({"width": 390, "height": 844})
                 response = page.goto(base + "/review/quality", wait_until="networkidle")
@@ -804,15 +855,9 @@ def main() -> int:
                 thumbnails = page.locator('.pq-sample-link img[loading="lazy"]').count()
                 original_links = page.locator('.pq-sample-link[target="_blank"]').count()
                 proposals = page.locator("[data-quality-ai-proposal]").all_inner_texts()
-                proposal_states = (
-                    "待 AI 预标注",
-                    "AI 预标注待入队",
-                    "AI 一审排队中",
-                    "AI 二审排队中",
-                    "AI 建议",
-                    "AI 预标注失败",
-                    "AI 预标注处理中",
-                )
+                blinded = page.locator(
+                    '[data-quality-ai-proposal][data-blinded="true"]'
+                ).count()
                 return {
                     "passed": bool(
                         response
@@ -821,16 +866,17 @@ def main() -> int:
                         and 0 < thumbnails <= 24
                         and original_links == thumbnails
                         and len(proposals) == thumbnails
+                        and blinded == len(proposals)
                         and all(
-                            any(proposal.startswith(state) for state in proposal_states)
+                            proposal == "盲审封存 · 提交独立结论后显示"
                             for proposal in proposals
                         )
-                        and all("quality_sample" not in proposal for proposal in proposals)
                     ),
                     "http": response.status if response else None,
                     "lazy_thumbnails": thumbnails,
                     "original_autoloads": 0,
                     "ai_proposals": len(proposals),
+                    "blinded_proposals": blinded,
                     "human_truth_mutations": 0,
                 }
 

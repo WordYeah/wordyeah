@@ -38,6 +38,7 @@ def _passing_evidence(tmp_path: Path) -> dict[str, Path]:
         "focus_actions_no_modal",
         "desktop_list_1280",
         "all_dropdowns_share_alignment_contract",
+        "quality_blind_keyboard_contract",
         "mobile_quality_workspace",
         "mobile_no_horizontal_overflow",
         "corpus_quality_1100_paginated_thumbnails",
