@@ -184,6 +184,7 @@ class G2AVisionProvider:
             "findings (array of category, label, optional score, explanation, region), and "
             "evidence (array of kind, description, optional region). Every region must be null "
             "or a JSON object; use {\"label\":\"full_image\"} for the entire image. You are "
+            "required to use non-empty category and label strings for every finding. "
             "receiving the actual image bytes: inspect them directly, do not simulate a result "
             "or claim that the image is unavailable. "
             f"Evaluate: {categories}.{context} When uncertain, use review."
@@ -298,7 +299,7 @@ def _parse_findings(value: object) -> tuple[VisionFinding, ...]:
         result.append(
             VisionFinding(
                 category=_required_string(item, "category"),
-                label=_required_string(item, "label"),
+                label=_finding_label(item),
                 score=_optional_score(item.get("score")),
                 explanation=_optional_string(item.get("explanation"), "explanation"),
                 region=region,
@@ -340,6 +341,13 @@ def _required_string(value: Mapping[str, object], field: str) -> str:
     if not isinstance(item, str) or not item.strip():
         raise ValueError(f"{field} must be a non-empty string")
     return item
+
+
+def _finding_label(value: Mapping[str, object]) -> str:
+    label = value.get("label")
+    if label is None or (isinstance(label, str) and not label.strip()):
+        return "unspecified"
+    return _required_string(value, "label")
 
 
 def _optional_string(value: object, field: str) -> str | None:

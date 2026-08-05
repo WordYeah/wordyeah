@@ -154,6 +154,24 @@ class G2AProviderTests(unittest.TestCase):
         self.assertEqual(result.findings[0].region, {"label": "full_image"})
         self.assertEqual(result.evidence[0].region, {"label": "full_image"})
 
+    def test_blank_finding_label_is_normalized_without_allowing_invalid_decision(self) -> None:
+        body = json.dumps(
+            {
+                "decision": "review",
+                "confidence": 0.72,
+                "reasons": ["ambiguous"],
+                "findings": [{"category": "sexual_content", "label": ""}],
+                "evidence": [],
+            }
+        ).encode()
+        provider = G2AVisionProvider(
+            enabled_config(), transport=lambda _r, _t: HttpResponse(200, body)
+        )
+
+        result = provider.review(request())
+
+        self.assertEqual(result.findings[0].label, "unspecified")
+
     def test_timeout_is_retryable_and_classified(self) -> None:
         def timeout(_request, _seconds):
             raise socket.timeout("fixture timeout")
