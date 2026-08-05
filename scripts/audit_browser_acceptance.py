@@ -351,13 +351,20 @@ def main() -> int:
                             }"""
                         )
                         trigger.click()
+                        page.wait_for_timeout(200)
                         menu_box = page.locator(
                             selector.replace("> summary", ".consumer-popover-menu")
                         ).bounding_box()
+                        trigger_box = trigger.bounding_box()
                         trigger_measurement["menuWithinViewport"] = bool(
                             menu_box
                             and menu_box["x"] >= 0
                             and menu_box["x"] + menu_box["width"] <= width
+                        )
+                        trigger_measurement["anchorEdgeDelta"] = (
+                            abs(menu_box["x"] - trigger_box["x"])
+                            if menu_box and trigger_box
+                            else None
                         )
                         trigger_measurement.update({"path": path, "viewport": width})
                         mobile_triggers.append(trigger_measurement)
@@ -366,6 +373,8 @@ def main() -> int:
                     and row["iconSize"] == [14, 14]
                     and row["centerDelta"] <= 0.5
                     and row["menuWithinViewport"]
+                    and row["anchorEdgeDelta"] is not None
+                    and row["anchorEdgeDelta"] <= 0.5
                     for row in mobile_triggers
                 )
                 desktop_popovers: list[dict[str, object]] = []
@@ -389,6 +398,7 @@ def main() -> int:
                     page.wait_for_timeout(200)
                     popover = page.locator(menu_selector)
                     menu_box = popover.bounding_box()
+                    trigger_box = page.locator(trigger_selector).bounding_box()
                     icon_sizes = popover.locator(".popover-action-btn > .icon").evaluate_all(
                         "icons => icons.map(icon => { const box = icon.getBoundingClientRect(); return [box.width, box.height]; })"
                     )
@@ -407,6 +417,18 @@ def main() -> int:
                                 and menu_box["y"] >= 0
                                 and menu_box["y"] + menu_box["height"] <= 900
                             ),
+                            "anchorEdgeDelta": (
+                                abs(menu_box["x"] - trigger_box["x"])
+                                if path.startswith("/review?") and menu_box and trigger_box
+                                else abs(
+                                    menu_box["x"]
+                                    + menu_box["width"]
+                                    - trigger_box["x"]
+                                    - trigger_box["width"]
+                                )
+                                if menu_box and trigger_box
+                                else None
+                            ),
                             "iconsWithinContract": all(
                                 width <= 16 and height <= 16
                                 for width, height in icon_sizes
@@ -416,6 +438,8 @@ def main() -> int:
                 desktop_popovers_aligned = all(
                     row["heightWithinContract"]
                     and row["insideViewport"]
+                    and row["anchorEdgeDelta"] is not None
+                    and row["anchorEdgeDelta"] <= 0.5
                     and row["iconsWithinContract"]
                     for row in desktop_popovers
                 )

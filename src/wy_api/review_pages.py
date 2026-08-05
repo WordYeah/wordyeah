@@ -300,7 +300,12 @@ code,
 }
 .support-mobile-workspace { display: none; position: relative; }
 .support-mobile-workspace > summary { min-height: 34px; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); font-size: 11px; font-weight: 700; line-height: 1; cursor: pointer; }
-.support-mobile-workspace .consumer-popover-menu { right: 0; left: auto; min-width: 250px; }
+.support-mobile-workspace .consumer-popover-menu {
+  right: auto;
+  left: 0;
+  width: min(250px, calc(100vw - 32px));
+  min-width: 0;
+}
 
 .support-hero {
   display: flex;
@@ -702,10 +707,10 @@ tbody tr:hover { background: var(--support-panel-soft); }
   .support-mobile-workspace { display: block; margin-left: auto; }
   .support-mobile-workspace .consumer-popover-menu {
     top: calc(100% + 8px);
-    right: 0;
+    right: auto;
     bottom: auto;
-    left: auto;
-    max-width: calc(100vw - 48px);
+    left: 0;
+    width: min(250px, calc(100vw - 48px));
   }
 }
 
@@ -717,7 +722,7 @@ tbody tr:hover { background: var(--support-panel-soft); }
     right: auto;
     bottom: auto;
     left: 0;
-    max-width: calc(100vw - 32px);
+    width: min(250px, calc(100vw - 32px));
   }
   .dashboard-grid,
   .charts-row { grid-template-columns: 1fr; }

@@ -121,14 +121,17 @@ button, a { -webkit-tap-highlight-color: transparent; }
   --select-chevron-size: 14px;
   position: relative;
   display: inline-grid;
-  grid-template-areas: "select-control";
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: var(--select-height);
   min-width: 0;
   align-items: center;
   vertical-align: middle;
 }
 :where(.select-control) > select {
-  grid-area: select-control;
+  grid-column: 1;
+  grid-row: 1;
   align-self: stretch;
+  box-sizing: border-box;
   display: block;
   width: 100%;
   height: var(--select-height);
@@ -142,7 +145,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   background: var(--panel);
   background-image: none;
   color: var(--text);
-  line-height: 1.2;
+  line-height: normal;
   text-align: left;
   text-align-last: left;
   cursor: pointer;
@@ -150,11 +153,13 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .select-control > .select-control__icon {
   position: relative;
   z-index: 1;
-  grid-area: select-control;
+  grid-column: 1;
+  grid-row: 1;
   display: grid;
   width: var(--select-chevron-size);
   height: var(--select-chevron-size);
   margin-right: 11px;
+  align-self: center;
   place-items: center;
   justify-self: end;
   color: var(--quiet);
@@ -620,7 +625,8 @@ details[open] > .dropdown-trigger > .icon:last-child {
   position: absolute;
   bottom: calc(100% + 10px);
   left: 0;
-  width: 250px;
+  box-sizing: border-box;
+  width: 100%;
   padding: 8px;
   border-radius: 12px;
   background: var(--panel);
@@ -632,8 +638,8 @@ details[open] > .dropdown-trigger > .icon:last-child {
   animation: popoverFadeIn 160ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 @keyframes popoverFadeIn {
-  from { opacity: 0; transform: translateY(6px) scale(0.98); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 .consumer-popover-header {
   padding: 8px 10px;
@@ -684,6 +690,7 @@ details[open] > .dropdown-trigger > .icon:last-child {
   right: auto;
   bottom: auto;
   left: 0;
+  width: min(250px, calc(100vw - 32px));
 }
 
 .consumer-popover-item {
