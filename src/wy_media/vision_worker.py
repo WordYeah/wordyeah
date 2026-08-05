@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import threading
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -24,6 +25,54 @@ from .vision_provider import AdvancedVisionProvider, VisionErrorKind, VisionProv
 
 def _stamp() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+class JobLeaseHeartbeatError(RuntimeError):
+    """Raised when a worker can no longer extend the job it is processing."""
+
+
+class _JobLeaseHeartbeat:
+    def __init__(
+        self,
+        store: JobStore,
+        job_id: str,
+        worker_id: str,
+        lease_seconds: int,
+    ) -> None:
+        self.store = store
+        self.job_id = job_id
+        self.worker_id = worker_id
+        self.lease_seconds = lease_seconds
+        self._stop = threading.Event()
+        self._error: Exception | None = None
+        self._thread = threading.Thread(
+            target=self._run,
+            name=f"vision-lease-{job_id[:8]}",
+            daemon=True,
+        )
+
+    def __enter__(self) -> "_JobLeaseHeartbeat":
+        self._thread.start()
+        return self
+
+    def __exit__(self, _type: object, _value: object, _traceback: object) -> None:
+        self._stop.set()
+        self._thread.join()
+        if self._error is not None:
+            raise JobLeaseHeartbeatError("vision job lease heartbeat failed") from self._error
+
+    def _run(self) -> None:
+        interval = max(0.05, self.lease_seconds / 3)
+        while not self._stop.wait(interval):
+            try:
+                self.store.heartbeat(
+                    self.job_id,
+                    self.worker_id,
+                    self.lease_seconds,
+                )
+            except Exception as exc:  # pragma: no cover - exercised through worker behavior
+                self._error = exc
+                return
 
 
 @dataclass
@@ -68,6 +117,17 @@ class VisionReviewWorker:
             payload = VisionReviewJobPayload.from_mapping(job.payload)
             self._validate_job(job, payload)
             return self._execute(job, payload)
+        except JobLeaseHeartbeatError:
+            current = self.job_store.get(job.job_id)
+            if current.status == "running" and current.worker_id == self.worker_id:
+                return self.job_store.fail(
+                    job.job_id,
+                    self.worker_id,
+                    "vision job lease heartbeat failed",
+                    error_kind="lease_heartbeat",
+                    retryable=True,
+                )
+            return current
         except VisionProviderError as exc:
             payload = self._payload_or_none(job)
             return self._record_provider_failure(job, payload, exc)
@@ -115,15 +175,21 @@ class VisionReviewWorker:
         request_id = f"{payload.request_id}:try-{job.attempts}"
         started_at = _stamp()
         started = time.perf_counter()
-        conclusion = provider.review(
-            VisionReviewRequest(
-                image_bytes=image_bytes,
-                media_type=payload.media_type,
-                request_id=request_id,
-                categories=payload.categories,
-                context=payload.context,
+        with _JobLeaseHeartbeat(
+            self.job_store,
+            job.job_id,
+            self.worker_id,
+            self.lease_seconds,
+        ):
+            conclusion = provider.review(
+                VisionReviewRequest(
+                    image_bytes=image_bytes,
+                    media_type=payload.media_type,
+                    request_id=request_id,
+                    categories=payload.categories,
+                    context=payload.context,
+                )
             )
-        )
         self._assert_independent_second_review(payload, conclusion, job.consumer_id)
         attempt = self.attempt_store.append_attempt(
             item_id=payload.item_id,

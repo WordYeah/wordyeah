@@ -44,6 +44,16 @@ class JobsAndApiTest(unittest.TestCase):
             first_store.close()
             second_store.close()
 
+    def test_job_heartbeat_validates_lease_duration(self) -> None:
+        store = JobStore(":memory:")
+        try:
+            job = store.enqueue("fixture", {}, "consumer-a")
+            store.claim("worker-a")
+            with self.assertRaisesRegex(ValueError, "between 1 and 86400"):
+                store.heartbeat(job.job_id, "worker-a", lease_seconds=0)
+        finally:
+            store.close()
+
     def test_job_persists_after_store_restart(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             database = str(Path(directory) / "wordyeah.sqlite3")

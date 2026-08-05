@@ -4,6 +4,7 @@ import hashlib
 import json
 import socket
 import tempfile
+import threading
 import time
 import unittest
 from datetime import datetime
@@ -313,6 +314,35 @@ class VisionWorkerTests(unittest.TestCase):
         vision_attempts = self.attempts.list_attempts("item-1", "vision_review_1")
         self.assertEqual([item.attempt_number for item in vision_attempts], [1, 2])
         self.assertEqual([item.status for item in vision_attempts], ["failed", "succeeded"])
+
+    def test_slow_provider_heartbeats_lease_before_another_worker_can_reclaim(self) -> None:
+        enqueue_vision_review(self.jobs, self.payload(), "consumer-a")
+        competitor = JobStore(self.database)
+        competitor_result: list[object] = []
+
+        def attempt_reclaim() -> None:
+            time.sleep(1.1)
+            competitor_result.append(
+                competitor.claim(
+                    "competing-worker",
+                    lease_seconds=1,
+                    kinds=("vision_review_1",),
+                )
+            )
+
+        reclaim_thread = threading.Thread(target=attempt_reclaim)
+        reclaim_thread.start()
+        try:
+            finished = self.worker(
+                lambda _r, _t: (time.sleep(1.3), response("allow", 0.99))[1],
+                lease_seconds=1,
+            ).run_once()
+            reclaim_thread.join()
+        finally:
+            competitor.close()
+
+        self.assertEqual(finished.status, "succeeded")
+        self.assertEqual(competitor_result, [None])
 
     def test_rate_limit_honors_retry_after_header(self) -> None:
         enqueue_vision_review(self.jobs, self.payload(), "consumer-a")

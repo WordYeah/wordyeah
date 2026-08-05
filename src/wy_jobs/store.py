@@ -283,6 +283,8 @@ class JobStore:
             raise
 
     def heartbeat(self, job_id: str, worker_id: str, lease_seconds: int = 120) -> Job:
+        if lease_seconds < 1 or lease_seconds > 86400:
+            raise ValueError("lease_seconds must be between 1 and 86400")
         now = _now()
         updated = self.connection.execute(
             "UPDATE jobs SET lease_until = ?, updated_at = ? "

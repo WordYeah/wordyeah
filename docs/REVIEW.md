@@ -99,6 +99,10 @@ python scripts/enqueue_corpus_ai_prelabels.py \
 只有携带完整 proposal metadata、两个精确 context 标记，并能由成功 job result 追溯到的
 attempt 才能进入质量建议；无来源 attempt 不参与路由或质量统计。
 
+高级视觉调用可能同时经历远端超时和本机模型排队。worker 在模型调用期间按租约时长的
+三分之一自动续租，避免超过默认 120 秒的请求被其他 worker 当成失联任务重新领取；续租
+失败时不会继续写 attempt 或最终路由，而是安全重试或返回已经被接管的任务状态。
+
 ## 安全边界
 
 - 只绑定 loopback/private network；不做公网匿名审核入口。
