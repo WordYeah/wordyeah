@@ -734,7 +734,20 @@ def main() -> int:
                 )
                 page.set_viewport_size({"width": 1440, "height": 900})
                 page.goto(base + "/review/history", wait_until="networkidle")
-                shot = screenshot("dropdowns-1440x900.png")
+                page.locator(".audit-filter-menu:first-of-type > summary").click()
+                visual_shots = [screenshot("dropdown-history-open-1440x900.png")]
+                page.goto(
+                    base + "/review?status=all&view=list&per_page=20",
+                    wait_until="networkidle",
+                )
+                page.locator(".risk-filter-dropdown > summary").click()
+                visual_shots.append(screenshot("dropdown-risk-open-1440x900.png"))
+                page.locator(".risk-filter-dropdown > summary").click()
+                page.locator(".per-page-dropdown > summary").click()
+                visual_shots.append(screenshot("dropdown-per-page-open-1440x900.png"))
+                page.locator(".per-page-dropdown > summary").click()
+                page.locator(".account-menu > summary").click()
+                visual_shots.append(screenshot("dropdown-account-open-1440x900.png"))
                 return {
                     "passed": (
                         aligned
@@ -754,7 +767,7 @@ def main() -> int:
                     "mobile_triggers": mobile_triggers,
                     "desktop_popovers": desktop_popovers,
                     "responsive_account_popovers": responsive_account_popovers,
-                    "screenshot": shot,
+                    "screenshots": visual_shots,
                 }
 
             checks.append(_check("all_dropdowns_share_alignment_contract", dropdown_alignment))

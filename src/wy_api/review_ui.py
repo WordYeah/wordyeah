@@ -1645,7 +1645,7 @@ details[open] > .dropdown-trigger > .dropdown-trigger__chevron > .icon {
 }
 .per-page-dropdown {
   --dropdown-height: 30px;
-  width: 104px;
+  width: 116px;
   margin: 0;
 }
 .per-page-dropdown > summary {
@@ -2899,8 +2899,8 @@ details[open] > .dropdown-trigger > .dropdown-trigger__chevron > .icon {
     gap: 8px;
   }
   .per-page-dropdown {
-    flex: 0 0 104px;
-    width: 104px;
+    flex: 0 0 116px;
+    width: 116px;
   }
   .keyboard-help-btn span { display: none; }
   .queue-tool-note { display: none; }
