@@ -120,12 +120,15 @@ button, a { -webkit-tap-highlight-color: transparent; }
   --select-height: 36px;
   --select-chevron-size: 14px;
   position: relative;
-  display: inline-flex;
+  display: inline-grid;
+  grid-template-areas: "select-control";
   min-width: 0;
   align-items: center;
   vertical-align: middle;
 }
 :where(.select-control) > select {
+  grid-area: select-control;
+  align-self: stretch;
   display: block;
   width: 100%;
   height: var(--select-height);
@@ -137,24 +140,26 @@ button, a { -webkit-tap-highlight-color: transparent; }
   border-radius: 8px;
   outline: 0;
   background: var(--panel);
+  background-image: none;
   color: var(--text);
-  line-height: normal;
+  line-height: 1.2;
   text-align: left;
   text-align-last: left;
   cursor: pointer;
 }
 .select-control > .select-control__icon {
-  position: absolute;
-  top: 50%;
-  right: 11px;
+  position: relative;
   z-index: 1;
+  grid-area: select-control;
   display: grid;
   width: var(--select-chevron-size);
   height: var(--select-chevron-size);
+  margin-right: 11px;
   place-items: center;
+  justify-self: end;
   color: var(--quiet);
+  line-height: 0;
   pointer-events: none;
-  transform: translateY(-50%);
 }
 .select-control > .select-control__icon > .icon {
   display: block;
@@ -164,7 +169,9 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .dropdown-trigger {
   display: inline-flex;
   align-items: center;
+  box-sizing: border-box;
   list-style: none;
+  line-height: 1.2;
 }
 .dropdown-trigger::-webkit-details-marker { display: none; }
 .dropdown-trigger > .icon,
@@ -173,6 +180,19 @@ button, a { -webkit-tap-highlight-color: transparent; }
   flex: 0 0 auto;
   width: 14px;
   height: 14px;
+}
+.dropdown-trigger > .chevron {
+  display: grid;
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  margin-left: auto;
+  place-items: center;
+  line-height: 0;
+}
+details[open] > .dropdown-trigger > .chevron > .icon,
+details[open] > .dropdown-trigger > .icon:last-child {
+  transform: rotate(180deg);
 }
 
 .sr-only {
@@ -426,7 +446,6 @@ button, a { -webkit-tap-highlight-color: transparent; }
 
 .chevron {
   display: inline-flex;
-  margin-left: auto;
   color: var(--quiet);
 }
 .chevron .icon { width: 15px; height: 15px; }
@@ -1548,6 +1567,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   --select-chevron-size: 12px;
   margin: 0;
 }
+.per-page-form > .select-control__icon { margin-right: 9px; }
 .per-page-select {
   padding: 0 28px 0 9px;
   border: 1px solid var(--line);

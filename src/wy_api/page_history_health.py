@@ -30,6 +30,7 @@ CSS = """
   background: var(--panel-soft);
 }
 .audit-filter { position: relative; display: flex; min-width: 0; align-items: center; }
+.audit-filter-select { display: grid; }
 .audit-filter-search .icon {
   position: absolute;
   left: 11px;
@@ -49,7 +50,7 @@ CSS = """
   background: var(--panel);
   color: var(--text);
   font-size: 12px;
-  line-height: normal;
+  line-height: 1.2;
 }
 .audit-filter-search input { padding-left: 34px; }
 .audit-filter-select select {
