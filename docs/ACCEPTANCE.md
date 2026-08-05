@@ -21,6 +21,21 @@
 - 预标注 worker 必须同时按 consumer 和受控 context marker 领取任务，不得为了绕过旧任务
   改写全局队列顺序、取消其他任务或复用人工身份
 
+预标注排空期间使用只读审计命令核对覆盖率、当前任务、租约、重复成功、attempt 复用和
+人工真值不变式。ETA 只估算“当前已经入队”的任务，不包含运行中可能新增的二审任务：
+
+```bash
+PYTHONPATH=src .venv/bin/python scripts/audit_corpus_prelabel_progress.py \
+  --database /path/to/private/wordyeah.sqlite3 \
+  --consumer-id corpus-avatar \
+  --batch-id corpus-primary-v1
+```
+
+`HEALTHY` 表示排空仍在进行且完整性门闸正常，`COMPLETE` 表示 1,100 条均已有可评测
+AI 建议且当前任务已排空；`STALLED` 表示建议未齐但已无活动任务，`DEGRADED` 表示租约、
+关联、结果、重复成功或人工真值边界异常。正式人工标注开始后必须显式加
+`--allow-human-truth`，不能把 AI 建议写成真人结论。
+
 ## 图片结果
 
 - 普通真人头像：block 误报率 <= 0.5%，review 率 <= 3%

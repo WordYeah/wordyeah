@@ -182,6 +182,7 @@ Cravatar 增量 shadow 输入
 - 聚合验收：`queue_load_15m`、`fault_drills`、`browser_acceptance`、`cravatar_shadow`、`advanced_vision_canary` 和 `production_write_boundary` 为 PASS；仅 `representative_corpus` 因真人标签为 0 保持 INCOMPLETE，聚合退出码为 3。证据保存在本地忽略文件 `artifacts/avatar-mvp-acceptance.json`。
 - corpus 候选准备：通过受控 Hugging Face viewer/archive/Parquet 采集器在仓库外私有目录准备真人 300、动漫 300、logo/文字 100、边界 200、明确违规 200 条候选；共 1,100 条、哈希唯一、文件与 manifest 均为 0600。候选全部保持 `unreviewed`，没有 `expected_decision`，不能作为准确率或双审通过证据。
 - corpus 质量收件箱：上述 1,100 条已按五分层复制到仓库外 reviewer session 保护的私有媒体目录并幂等登记为质量样本；重复导入复用 1,100 条、未新增副本。质量页每页最多 24 条并提供受控缩略图与三态直接操作。所有最终决定仍为空，不能作为 ground truth 或双审通过证据。
+- corpus 预标排空审计：只读命令按冻结批次核对 AI 建议覆盖率、两级任务状态、worker 租约、重复成功、attempt ID 复用、样本关联和人工真值不变式，并仅按最近 60 分钟吞吐估算当前已入队任务的排空时间；不修改 SQLite、审核决定或头像。
 - 主审与 10% 双审：全部 1,100 条已登记为不可变全量主审批次，其中固定 seed 选出的 110 条另登记为独立双审子集，五分层配额为 30/30/10/20/20。其余 990 条经一名 reviewer 后收敛，110 条必须由两名独立 reviewer 一致或完成仲裁后收敛；批次和样本顺序拒绝漂移。质量页默认先显示全量主审，也可切换 10% 双审，并在分页提交中保留批次上下文。
 - corpus：全量主审完成数和 10% 双审完成数都仍为 0，必须保持 `INCOMPLETE/SKIP`，不能把只冻结任务集合写成 ground truth。
 - 生产边界：没有 WordPress、头像、Cavalcade、腾讯云或生产数据库写入。
