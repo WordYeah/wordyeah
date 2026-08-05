@@ -258,6 +258,7 @@ CSS = """
 @media (max-width: 760px) {
   .audit-filters { grid-template-columns: 1fr 1fr; }
   .audit-filter-search { grid-column: 1 / -1; }
+  .audit-filter-select:last-of-type { grid-column: 1 / -1; }
   .audit-list-meta { align-items: flex-start; flex-direction: column; }
   .audit-list-head { display: none; }
   .audit-event { grid-template-columns: 1fr auto; gap: 6px 10px; }
