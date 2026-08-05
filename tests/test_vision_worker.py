@@ -118,6 +118,38 @@ class VisionWorkerTests(unittest.TestCase):
         values.update(changes)
         return VisionReviewWorker(**values)
 
+    def mark_quality_proposal(self) -> None:
+        metadata = {
+            "origin": "quality_corpus",
+            "quality_sample_id": "sample-1",
+            "quality_ai_prelabel": True,
+            "ground_truth": False,
+            "human_decision": False,
+            "counts_toward_quality_decisions": False,
+            "stratum_hidden_from_model": True,
+        }
+        connection = open_database(self.database)
+        connection.execute("DELETE FROM review_attempts WHERE item_id = 'item-1'")
+        connection.execute(
+            """UPDATE review_items
+            SET source_id = 'corpus-item-1', source_ref = 'quality://sample-1',
+                source_metadata_json = ?, stage = 'vision_review_1',
+                final_decision = NULL, status = 'pending', avatar_action = NULL
+            WHERE item_id = 'item-1'""",
+            (json.dumps(metadata, sort_keys=True),),
+        )
+        connection.commit()
+        connection.close()
+
+    def quality_payload(self, **changes: object) -> VisionReviewJobPayload:
+        return self.payload(
+            context=(
+                "consumer=consumer-a; policy=policy-v1; "
+                "quality_ai_prelabel=true; ground_truth=false"
+            ),
+            **changes,
+        )
+
     def test_payload_key_and_enqueue_are_stable(self) -> None:
         first_payload = self.payload(categories=("violence", "adult"))
         repeated_payload = self.payload(categories=("adult", "violence"))
@@ -159,6 +191,88 @@ class VisionWorkerTests(unittest.TestCase):
         finished = self.worker(lambda _r, _t: response("block", 0.98)).run_once()
         self.assertEqual(finished.status, "succeeded")
         self.assertEqual(self.reviews.get("item-1").stage, "auto_rejected")
+
+    def test_quality_prelabel_high_confidence_never_creates_final_decision(self) -> None:
+        self.mark_quality_proposal()
+        enqueue_vision_review(self.jobs, self.quality_payload(), "consumer-a")
+
+        finished = self.worker(lambda _r, _t: response("allow", 0.98)).run_once()
+
+        self.assertEqual(finished.status, "succeeded")
+        self.assertEqual(finished.result["route"]["reason"], "quality_ai_prelabel_ready")
+        item = self.reviews.get("item-1")
+        self.assertEqual(item.stage, "vision_review_1")
+        self.assertIsNone(item.final_decision)
+        self.assertEqual(item.status, "pending")
+        self.assertIsNone(self.jobs.claim("unexpected-second", kinds=("vision_review_2",)))
+
+    def test_quality_prelabel_low_confidence_gets_independent_second_proposal(self) -> None:
+        self.mark_quality_proposal()
+        enqueue_vision_review(self.jobs, self.quality_payload(), "consumer-a")
+        worker = self.worker(
+            lambda _r, _t: response("review", 0.50),
+            lambda _r, _t: response("allow", 0.99),
+        )
+
+        first = worker.run_once()
+        self.assertEqual(
+            first.result["route"]["reason"],
+            "quality_ai_prelabel_needs_second_review",
+        )
+        self.assertEqual(self.reviews.get("item-1").stage, "vision_review_2")
+        second = worker.run_once()
+
+        self.assertEqual(second.kind, "vision_review_2")
+        self.assertEqual(second.status, "succeeded")
+        self.assertEqual(
+            second.result["route"]["reason"], "quality_ai_prelabel_requires_human"
+        )
+        item = self.reviews.get("item-1")
+        self.assertEqual(item.stage, "vision_review_2")
+        self.assertIsNone(item.final_decision)
+        self.assertEqual(item.status, "pending")
+        recorded = self.attempts.list_attempts("item-1")
+        self.assertEqual(
+            [attempt.stage for attempt in recorded],
+            ["vision_review_1", "vision_review_2"],
+        )
+        self.assertNotEqual(recorded[0].model_id, recorded[1].model_id)
+
+    def test_quality_proposal_requires_both_exact_context_flags(self) -> None:
+        self.mark_quality_proposal()
+        enqueue_vision_review(
+            self.jobs,
+            self.payload(context="quality_ai_prelabel=true"),
+            "consumer-a",
+        )
+
+        finished = self.worker(lambda _r, _t: response("allow", 0.99)).run_once()
+
+        self.assertEqual(finished.result["route"]["reason"], "fast_scan_required")
+        self.assertEqual(self.reviews.get("item-1").stage, "fast_scan")
+        self.assertIsNone(self.reviews.get("item-1").final_decision)
+
+    def test_quality_proposal_ignores_attempts_without_proposal_job_provenance(self) -> None:
+        self.mark_quality_proposal()
+        self.attempts.append_attempt(
+            item_id="item-1",
+            consumer_id="consumer-a",
+            stage="vision_review_2",
+            attempt_number=1,
+            provider="untracked",
+            model_id="untracked-model",
+            prompt_version="untracked-prompt",
+            decision="block",
+            confidence=0.99,
+            status="succeeded",
+        )
+        enqueue_vision_review(self.jobs, self.quality_payload(), "consumer-a")
+
+        finished = self.worker(lambda _r, _t: response("allow", 0.99)).run_once()
+
+        self.assertEqual(finished.result["route"]["reason"], "quality_ai_prelabel_ready")
+        self.assertEqual(self.reviews.get("item-1").stage, "vision_review_1")
+        self.assertIsNone(self.reviews.get("item-1").final_decision)
 
     def test_low_confidence_first_review_enqueues_independent_second_review(self) -> None:
         enqueue_vision_review(self.jobs, self.payload(), "consumer-a")

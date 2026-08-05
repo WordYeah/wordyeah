@@ -9,7 +9,12 @@ from typing import Mapping
 from uuid import uuid4
 
 from wy_jobs.store import Job, JobStore
-from wy_jobs.vision import VISION_JOB_KINDS, VisionReviewJobPayload, enqueue_vision_review
+from wy_jobs.vision import VISION_JOB_KINDS, VisionJobKind, VisionReviewJobPayload, enqueue_vision_review
+from wy_review.corpus_ai_prelabels import (
+    corpus_ai_prelabel_attempts,
+    is_corpus_ai_prelabel,
+    is_corpus_ai_prelabel_context,
+)
 from wy_review.attempt_store import ReviewAttempt, ReviewAttemptStore
 from wy_review.router import ReviewRouter, RouteResult
 from wy_review.store import ReviewStore
@@ -35,6 +40,7 @@ class VisionReviewWorker:
     lease_seconds: int = 120
     consumer_id: str | None = None
     context_marker: str | None = None
+    job_kinds: tuple[VisionJobKind, ...] = VISION_JOB_KINDS
     backoff_base_seconds: float = 1.0
     backoff_cap_seconds: float = 300.0
     stage_provider_slots: Mapping[str, str] = field(
@@ -44,12 +50,15 @@ class VisionReviewWorker:
     def __post_init__(self) -> None:
         self.worker_id = self.worker_id or f"vision-worker-{uuid4().hex}"
         self.media_root = self.media_root.expanduser().resolve()
+        if not self.job_kinds or any(kind not in VISION_JOB_KINDS for kind in self.job_kinds):
+            raise ValueError("job_kinds must contain only advanced vision stages")
+        self.job_kinds = tuple(dict.fromkeys(self.job_kinds))
 
     def run_once(self) -> Job | None:
         job = self.job_store.claim(
             self.worker_id,
             self.lease_seconds,
-            kinds=VISION_JOB_KINDS,
+            kinds=self.job_kinds,
             consumer_id=self.consumer_id,
             context_marker=self.context_marker,
         )
@@ -126,7 +135,7 @@ class VisionReviewWorker:
             elapsed_ms=(time.perf_counter() - started) * 1000,
             **conclusion.to_attempt_payload(stage=payload.stage, attempt_number=attempt_number),
         )
-        route = self._apply_route(payload, job.consumer_id)
+        route = self._apply_route(payload, job.consumer_id, current_attempt=attempt)
         completed = self.job_store.complete(
             job.job_id,
             self.worker_id,
@@ -155,7 +164,7 @@ class VisionReviewWorker:
         if payload is None:
             return failed
         attempt_number = payload.attempt_number + job.attempts - 1
-        self.attempt_store.append_attempt(
+        attempt = self.attempt_store.append_attempt(
             item_id=payload.item_id,
             consumer_id=job.consumer_id,
             stage=payload.stage,
@@ -184,10 +193,16 @@ class VisionReviewWorker:
                 consumer_id=job.consumer_id,
             )
         else:
-            self._apply_route(payload, job.consumer_id)
+            self._apply_route(payload, job.consumer_id, current_attempt=attempt)
         return failed
 
-    def _apply_route(self, payload: VisionReviewJobPayload, consumer_id: str) -> RouteResult:
+    def _apply_route(
+        self,
+        payload: VisionReviewJobPayload,
+        consumer_id: str,
+        *,
+        current_attempt: ReviewAttempt | None = None,
+    ) -> RouteResult:
         item = self.review_store.get(payload.item_id, consumer_id=consumer_id)
         attempts = self.attempt_store.list_attempts(payload.item_id, consumer_id=consumer_id)
         categories = sorted(
@@ -198,7 +213,22 @@ class VisionReviewWorker:
                 if finding.get("category")
             }
         )
-        route = self.router.route(attempts, risk_score=item.top_score, categories=categories)
+        quality_proposal = _is_quality_proposal(payload, item.source_metadata)
+        route = (
+            self.router.route_proposal(
+                corpus_ai_prelabel_attempts(
+                    self.job_store,
+                    item_id=item.item_id,
+                    consumer_id=consumer_id,
+                    attempts=attempts,
+                    current_attempt=current_attempt,
+                )
+            )
+            if quality_proposal
+            else self.router.route(attempts, risk_score=item.top_score, categories=categories)
+        )
+        if quality_proposal and route.final_decision is not None:
+            raise RuntimeError("quality AI proposal attempted to create a final decision")
         self.review_store.apply_route(
             payload.item_id,
             stage=route.state,
@@ -310,3 +340,11 @@ class VisionReviewWorker:
             return VisionReviewJobPayload.from_mapping(job.payload)
         except ValueError:
             return None
+
+
+def _is_quality_proposal(
+    payload: VisionReviewJobPayload, source_metadata: Mapping[str, object]
+) -> bool:
+    return is_corpus_ai_prelabel_context(payload.context) and is_corpus_ai_prelabel(
+        source_metadata
+    )

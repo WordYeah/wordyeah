@@ -8,6 +8,7 @@ import pytest
 
 from wy_core.contracts import ModerationResult
 from wy_jobs.store import JobStore
+from wy_review.attempt_store import ReviewAttemptStore
 from wy_review.corpus_ai_prelabels import (
     CorpusPrelabelError,
     enqueue_corpus_ai_prelabels,
@@ -122,6 +123,75 @@ def test_corpus_ai_prelabels_are_idempotent_and_never_create_ground_truth() -> N
         )
         assert persisted.final_decision is None
         assert persisted.status == "awaiting_reviews"
+        quality.close()
+
+        attempts = ReviewAttemptStore(str(database))
+        first_attempt = attempts.append_attempt(
+            item_id=item.item_id,
+            consumer_id="corpus-avatar",
+            stage="vision_review_1",
+            attempt_number=1,
+            provider="local",
+            model_id="primary-model",
+            prompt_version="primary-prompt",
+            decision="review",
+            confidence=0.5,
+            status="succeeded",
+        )
+        attempts.close()
+        jobs = JobStore(str(database))
+        jobs.connection.execute(
+            """UPDATE jobs SET status = 'succeeded', attempts = 1,
+                result_json = ?
+            WHERE consumer_id = ? AND kind = 'vision_review_1'""",
+            (
+                json.dumps({"attempt": first_attempt.to_dict()}),
+                "corpus-avatar",
+            ),
+        )
+        jobs.connection.commit()
+        jobs.close()
+        reviews = ReviewStore(str(database))
+        reviews.apply_route(
+            item.item_id,
+            stage="fast_scan",
+            final_decision=None,
+            reason_code="fixture_old_router_bug",
+            consumer_id="corpus-avatar",
+        )
+        reviews.close()
+
+        reconciled = enqueue_corpus_ai_prelabels(
+            database=database,
+            policy_path=POLICY,
+            consumer_id="corpus-avatar",
+            apply=True,
+        )
+        assert reconciled["routes_ensured"] == 1
+        assert reconciled["jobs_created"] == 1
+        reviews = ReviewStore(str(database))
+        repaired = reviews.get(item.item_id, consumer_id="corpus-avatar")
+        assert repaired.stage == "vision_review_2"
+        assert repaired.final_decision is None
+        reviews.close()
+        jobs = JobStore(str(database))
+        second = jobs.connection.execute(
+            """SELECT payload_json FROM jobs
+            WHERE consumer_id = ? AND kind = 'vision_review_2'""",
+            ("corpus-avatar",),
+        ).fetchone()
+        assert second is not None
+        second_payload = json.loads(second["payload_json"])
+        assert second_payload["provider_slot"] == "secondary"
+        assert second_payload["parent_attempt_id"] == first_attempt.attempt_id
+        jobs.close()
+        quality = QualityStore(str(database))
+        assert quality.list_decisions(
+            sample_id=sample.sample_id, consumer_id="corpus-avatar"
+        ) == []
+        assert quality.get_sample(
+            sample_id=sample.sample_id, consumer_id="corpus-avatar"
+        ).final_decision is None
         quality.close()
 
 

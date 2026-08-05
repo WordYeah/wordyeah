@@ -11,9 +11,12 @@ from PIL import Image
 
 from wy_api.app import ApiSettings, create_app
 from wy_core.contracts import ModerationResult
+from wy_jobs.store import JobStore
+from wy_jobs.vision import VisionReviewJobPayload, enqueue_vision_review
 from wy_media.falconsai import ImageScores
 from wy_media.service import MediaModerationService
 from wy_review.store import ReviewStore
+from wy_review.attempt_store import ReviewAttemptStore
 from wy_review.quality import QualityStore
 from wy_review.corpus_quality_import import import_candidate_manifests
 from wy_review.corpus_ai_prelabels import enqueue_corpus_ai_prelabels
@@ -223,6 +226,99 @@ def test_quality_page_shows_ai_proposal_without_promoting_it_to_human_truth() ->
             after = client.get("/review/quality")
             assert after.status_code == 200
             assert "AI 一审排队中" in after.text
+
+            reviews = ReviewStore(str(database))
+            proposal = reviews.get_by_source_id(
+                sample.item_id, consumer_id="corpus-avatar"
+            )
+            attempts = ReviewAttemptStore(str(database))
+            first = attempts.append_attempt(
+                item_id=proposal.item_id,
+                consumer_id="corpus-avatar",
+                stage="vision_review_1",
+                attempt_number=1,
+                provider="ollama",
+                model_id="primary-model",
+                prompt_version="primary-prompt",
+                decision="review",
+                confidence=0.5,
+                status="succeeded",
+            )
+            attempts.append_attempt(
+                item_id=proposal.item_id,
+                consumer_id="corpus-avatar",
+                stage="vision_review_2",
+                attempt_number=1,
+                provider="ollama",
+                model_id="secondary-model",
+                prompt_version="secondary-prompt",
+                decision="allow",
+                confidence=0.99,
+                status="succeeded",
+                parent_attempt_id=first.attempt_id,
+            )
+            second_attempt = attempts.get_for_stage(
+                proposal.item_id,
+                "vision_review_2",
+                1,
+                consumer_id="corpus-avatar",
+            )
+            attempts.close()
+            jobs = JobStore(str(database))
+            context = (
+                f"consumer=corpus-avatar; policy={proposal.policy_version}; "
+                "quality_ai_prelabel=true; ground_truth=false"
+            )
+            first_job = jobs.connection.execute(
+                """SELECT job_id FROM jobs WHERE consumer_id = ?
+                AND kind = 'vision_review_1'""",
+                ("corpus-avatar",),
+            ).fetchone()
+            assert first_job is not None
+            jobs.connection.execute(
+                """UPDATE jobs SET status = 'succeeded', attempts = 1,
+                    result_json = ? WHERE job_id = ?""",
+                (json.dumps({"attempt": first.to_dict()}), first_job["job_id"]),
+            )
+            jobs.connection.commit()
+            second_payload = VisionReviewJobPayload(
+                item_id=proposal.item_id,
+                media_ref=proposal.media_ref,
+                media_type="image/png",
+                stage="vision_review_2",
+                attempt_number=1,
+                request_id=f"{proposal.item_id}:vision_review_2:test",
+                policy_version=proposal.policy_version,
+                content_sha256=proposal.content_sha256,
+                categories=(),
+                context=context,
+                parent_attempt_id=first.attempt_id,
+                provider_slot="secondary",
+            )
+            second_job = enqueue_vision_review(
+                jobs, second_payload, "corpus-avatar"
+            )
+            jobs.connection.execute(
+                """UPDATE jobs SET status = 'succeeded', attempts = 1,
+                    result_json = ? WHERE job_id = ?""",
+                (
+                    json.dumps({"attempt": second_attempt.to_dict()}),
+                    second_job.job_id,
+                ),
+            )
+            jobs.connection.commit()
+            jobs.close()
+            reviews.apply_route(
+                proposal.item_id,
+                stage="vision_review_2",
+                final_decision=None,
+                reason_code="quality_ai_prelabel_requires_human",
+                consumer_id="corpus-avatar",
+            )
+            reviews.close()
+            second_review = client.get("/review/quality")
+            assert second_review.status_code == 200
+            assert "AI 二审后需人工确认 · 99%" in second_review.text
 
         quality = QualityStore(str(database))
         try:

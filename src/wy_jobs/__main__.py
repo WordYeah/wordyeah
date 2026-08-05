@@ -19,6 +19,7 @@ from wy_review.attempt_store import ReviewAttemptStore
 from wy_review.store import ReviewStore
 
 from .store import Job, JobStore
+from .vision import VISION_JOB_KINDS
 from .worker import JobWorker
 
 
@@ -107,6 +108,7 @@ def _run_vision(args: argparse.Namespace) -> None:
             worker_id=args.worker_id,
             consumer_id=args.consumer_id,
             context_marker=args.vision_context_marker,
+            job_kinds=(args.vision_stage,) if args.vision_stage else VISION_JOB_KINDS,
         )
         while True:
             job = worker.run_once()
@@ -139,6 +141,11 @@ def main(argv: Sequence[str] | None = None) -> None:
         help="claim only vision jobs whose controlled context contains this marker",
     )
     parser.add_argument(
+        "--vision-stage",
+        choices=VISION_JOB_KINDS,
+        help="claim only one advanced-vision stage (requires --vision)",
+    )
+    parser.add_argument(
         "--vision",
         action="store_true",
         help="process queued advanced-vision review jobs instead of fast-scan jobs",
@@ -154,8 +161,10 @@ def main(argv: Sequence[str] | None = None) -> None:
             parser.error(str(exc))
         return
 
-    if args.consumer_id or args.vision_context_marker:
-        parser.error("--consumer-id and --vision-context-marker require --vision")
+    if args.consumer_id or args.vision_context_marker or args.vision_stage:
+        parser.error(
+            "--consumer-id, --vision-context-marker, and --vision-stage require --vision"
+        )
 
     policy_config = load_policy_config(args.policy_path)
     store = JobStore(args.database)

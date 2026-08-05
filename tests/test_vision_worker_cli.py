@@ -45,6 +45,8 @@ class VisionWorkerCliTests(unittest.TestCase):
                     "fixture-media",
                     "--worker-id",
                     "fixture-worker",
+                    "--vision-stage",
+                    "vision_review_1",
                 ]
             )
 
@@ -59,6 +61,7 @@ class VisionWorkerCliTests(unittest.TestCase):
         )
         self.assertEqual(kwargs["worker_id"], "fixture-worker")
         self.assertEqual(str(kwargs["media_root"]), "fixture-media")
+        self.assertEqual(kwargs["job_kinds"], ("vision_review_1",))
         vision_worker.run_once.assert_called_once_with()
         review_store.close.assert_called_once_with()
         attempt_store.close.assert_called_once_with()
@@ -115,6 +118,14 @@ class VisionWorkerCliTests(unittest.TestCase):
             worker_cli.main(["--once"])
 
         vision_worker.assert_not_called()
+
+    def test_vision_stage_requires_vision_mode(self) -> None:
+        stderr = io.StringIO()
+        with redirect_stderr(stderr), self.assertRaises(SystemExit) as raised:
+            worker_cli.main(["--vision-stage", "vision_review_2", "--once"])
+
+        self.assertEqual(raised.exception.code, 2)
+        self.assertIn("--vision-stage require --vision", stderr.getvalue())
 
     def test_default_worker_waits_when_queue_is_temporarily_empty(self) -> None:
         job_store = MagicMock()

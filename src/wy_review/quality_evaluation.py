@@ -7,7 +7,10 @@ import sqlite3
 from pathlib import Path
 from typing import Mapping
 
+from wy_review.corpus_ai_prelabels import is_corpus_ai_prelabel_context
 from wy_review.evaluation import DEFAULT_GATES, CorpusRecord, evaluate_corpus
+from wy_review.attempt_store import ReviewAttempt
+from wy_review.router import ReviewRouter
 
 
 def evaluate_quality_database(
@@ -126,26 +129,31 @@ def _quality_predictions(
 ) -> dict[str, str]:
     rows = connection.execute(
         """SELECT sample.sample_id, review.source_metadata_json,
-                  attempt.stage, attempt.attempt_number, attempt.decision,
-                  attempt.created_at
+                  attempt.attempt_id, attempt.item_id, attempt.stage,
+                  attempt.attempt_number, attempt.actor_type, attempt.provider,
+                  attempt.model_id, attempt.model_version, attempt.prompt_version,
+                  attempt.decision, attempt.confidence, attempt.status,
+                  attempt.parent_attempt_id, attempt.started_at,
+                  attempt.completed_at, attempt.elapsed_ms, attempt.error,
+                  attempt.created_at, job.payload_json
         FROM quality_samples AS sample
         JOIN review_items AS review
           ON review.consumer_id = sample.consumer_id
          AND review.source_id = sample.item_id
         JOIN review_attempts AS attempt ON attempt.item_id = review.item_id
+        JOIN jobs AS job
+          ON job.consumer_id = sample.consumer_id
+         AND json_extract(job.result_json, '$.attempt.attempt_id') = attempt.attempt_id
         WHERE sample.consumer_id = ?
           AND attempt.status = 'succeeded'
           AND attempt.stage IN ('vision_review_1', 'vision_review_2')
           AND attempt.decision IN ('allow', 'review', 'block')
-        ORDER BY sample.sample_id,
-                 CASE attempt.stage WHEN 'vision_review_2' THEN 0 ELSE 1 END,
-                 attempt.attempt_number DESC, attempt.created_at DESC""",
+        ORDER BY sample.sample_id, attempt.stage,
+                 attempt.attempt_number, attempt.created_at""",
         (consumer_id,),
     ).fetchall()
-    predictions: dict[str, str] = {}
+    grouped: dict[str, list[ReviewAttempt]] = {}
     for row in rows:
-        if row["sample_id"] in predictions:
-            continue
         try:
             metadata = json.loads(row["source_metadata_json"])
         except (TypeError, json.JSONDecodeError):
@@ -156,5 +164,58 @@ def _quality_predictions(
             continue
         if metadata.get("quality_sample_id") != row["sample_id"]:
             continue
-        predictions[row["sample_id"]] = row["decision"]
+        try:
+            payload = json.loads(row["payload_json"])
+        except (TypeError, json.JSONDecodeError):
+            continue
+        if not isinstance(payload, dict) or not is_corpus_ai_prelabel_context(
+            str(payload.get("context", ""))
+        ):
+            continue
+        grouped.setdefault(row["sample_id"], []).append(
+            ReviewAttempt(
+                attempt_id=row["attempt_id"],
+                item_id=row["item_id"],
+                stage=row["stage"],
+                attempt_number=int(row["attempt_number"]),
+                actor_type=row["actor_type"],
+                provider=row["provider"],
+                model_id=row["model_id"],
+                model_version=row["model_version"],
+                prompt_version=row["prompt_version"],
+                decision=row["decision"],
+                confidence=row["confidence"],
+                reasons=(),
+                findings=(),
+                evidence=(),
+                status=row["status"],
+                parent_attempt_id=row["parent_attempt_id"],
+                started_at=row["started_at"],
+                completed_at=row["completed_at"],
+                elapsed_ms=row["elapsed_ms"],
+                error=row["error"],
+                created_at=row["created_at"],
+            )
+        )
+
+    predictions: dict[str, str] = {}
+    router = ReviewRouter()
+    for sample_id, attempts in grouped.items():
+        route = router.route_proposal(attempts)
+        if route.reason == "quality_ai_prelabel_ready":
+            first = max(
+                (attempt for attempt in attempts if attempt.stage == "vision_review_1"),
+                key=lambda attempt: attempt.attempt_number,
+            )
+            assert first.decision in {"allow", "block"}
+            predictions[sample_id] = first.decision
+        elif route.reason == "quality_ai_prelabel_consensus":
+            second = max(
+                (attempt for attempt in attempts if attempt.stage == "vision_review_2"),
+                key=lambda attempt: attempt.attempt_number,
+            )
+            assert second.decision in {"allow", "block"}
+            predictions[sample_id] = second.decision
+        elif route.reason == "quality_ai_prelabel_requires_human":
+            predictions[sample_id] = "review"
     return predictions

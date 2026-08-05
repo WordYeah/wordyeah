@@ -7,13 +7,15 @@ import sqlite3
 import stat
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping
+from typing import Mapping, Sequence
 
 from wy_core.config import load_policy_config
 from wy_core.contracts import ModerationResult
 from wy_jobs.store import JobStore
 from wy_jobs.vision import VisionReviewJobPayload, enqueue_vision_review
 
+from .attempt_store import ReviewAttempt, ReviewAttemptStore
+from .router import ReviewRouter
 from .store import ReviewItem, ReviewStore
 
 
@@ -98,6 +100,7 @@ def enqueue_corpus_ai_prelabels(
         raise CorpusPrelabelError("apply requires a private database with mode 0600")
 
     review_store = ReviewStore(str(database_path))
+    attempt_store = ReviewAttemptStore(str(database_path))
     job_store = JobStore(str(database_path))
     created = routes_ensured = jobs_created = jobs_ensured = 0
     try:
@@ -129,9 +132,35 @@ def enqueue_corpus_ai_prelabels(
                 )
                 created += 1
             _validate_link(item, candidate, policy.policy_version)
-            if item.stage not in {"fast_scan", "vision_review_1"}:
+            all_attempts = attempt_store.list_attempts(
+                item.item_id, consumer_id=consumer_id
+            )
+            attempts = corpus_ai_prelabel_attempts(
+                job_store,
+                item_id=item.item_id,
+                consumer_id=consumer_id,
+                attempts=all_attempts,
+            )
+            route = ReviewRouter().route_proposal(attempts)
+            if item.stage != route.state or item.final_decision is not None:
+                item = review_store.apply_route(
+                    item.item_id,
+                    stage=route.state,
+                    final_decision=None,
+                    reason_code=route.reason,
+                    actor_id="quality-prelabel-router",
+                    consumer_id=consumer_id,
+                )
+                routes_ensured += 1
+            if route.next_stage not in {"vision_review_1", "vision_review_2"}:
                 continue
-            payload = _payload(item, candidate)
+            parent = _latest_succeeded(attempts, "vision_review_1")
+            payload = _payload(
+                item,
+                candidate,
+                stage=route.next_stage,
+                parent_attempt_id=parent.attempt_id if parent else None,
+            )
             existing_job = job_store.connection.execute(
                 "SELECT 1 FROM jobs WHERE consumer_id = ? AND idempotency_key = ?",
                 (consumer_id, payload.idempotency_key),
@@ -140,23 +169,13 @@ def enqueue_corpus_ai_prelabels(
                 raise CorpusPrelabelError(
                     f"active vision job limit reached before sample {candidate.sample_id}"
                 )
-            if item.stage == "fast_scan":
-                item = review_store.apply_route(
-                    item.item_id,
-                    stage="vision_review_1",
-                    final_decision=None,
-                    reason_code="quality_sample_ai_prelabel",
-                    actor_id="quality-prelabel-router",
-                    consumer_id=consumer_id,
-                )
-                routes_ensured += 1
-                payload = _payload(item, candidate)
             enqueue_vision_review(job_store, payload, consumer_id, max_attempts=3)
             jobs_ensured += 1
             if existing_job is None:
                 jobs_created += 1
     finally:
         job_store.close()
+        attempt_store.close()
         review_store.close()
 
     _, after = _read_snapshot(database_path, consumer_id, limit=0)
@@ -178,6 +197,65 @@ def is_corpus_ai_prelabel(metadata: Mapping[str, object]) -> bool:
     """Identify an AI proposal that is explicitly excluded from human truth."""
 
     return metadata == _source_metadata(str(metadata.get("quality_sample_id", "")))
+
+
+def is_corpus_ai_prelabel_context(context: str) -> bool:
+    """Require both proposal-only flags as exact, non-duplicated context fields."""
+
+    values: dict[str, str] = {}
+    for part in context.split(";"):
+        key, separator, value = part.strip().partition("=")
+        if not separator or not key or key in values:
+            return False
+        values[key] = value.strip()
+    return (
+        values.get("quality_ai_prelabel") == "true"
+        and values.get("ground_truth") == "false"
+    )
+
+
+def corpus_ai_prelabel_attempts(
+    job_store: JobStore,
+    *,
+    item_id: str,
+    consumer_id: str,
+    attempts: Sequence[ReviewAttempt],
+    current_attempt: ReviewAttempt | None = None,
+) -> list[ReviewAttempt]:
+    """Return only attempts attributable to controlled proposal jobs."""
+
+    rows = job_store.connection.execute(
+        """SELECT payload_json, result_json
+        FROM jobs
+        WHERE consumer_id = ?
+          AND kind IN ('vision_review_1', 'vision_review_2')
+          AND json_extract(payload_json, '$.item_id') = ?""",
+        (consumer_id, item_id),
+    ).fetchall()
+    allowed_attempt_ids: set[str] = set()
+    for row in rows:
+        try:
+            payload = VisionReviewJobPayload.from_mapping(json.loads(row["payload_json"]))
+        except (TypeError, ValueError, json.JSONDecodeError):
+            continue
+        if not is_corpus_ai_prelabel_context(payload.context):
+            continue
+        try:
+            result = json.loads(row["result_json"]) if row["result_json"] else None
+        except (TypeError, json.JSONDecodeError):
+            continue
+        if not isinstance(result, dict) or not isinstance(result.get("attempt"), dict):
+            continue
+        attempt_id = result["attempt"].get("attempt_id")
+        if isinstance(attempt_id, str) and attempt_id:
+            allowed_attempt_ids.add(attempt_id)
+    if current_attempt is not None:
+        allowed_attempt_ids.add(current_attempt.attempt_id)
+    return [
+        attempt
+        for attempt in attempts
+        if attempt.attempt_id in allowed_attempt_ids
+    ]
 
 
 def _source_metadata(sample_id: str) -> dict[str, object]:
@@ -357,15 +435,21 @@ def _validate_link(
 
 
 def _payload(
-    item: ReviewItem, candidate: CorpusPrelabelCandidate
+    item: ReviewItem,
+    candidate: CorpusPrelabelCandidate,
+    *,
+    stage: str = "vision_review_1",
+    parent_attempt_id: str | None = None,
 ) -> VisionReviewJobPayload:
+    if stage not in {"vision_review_1", "vision_review_2"}:
+        raise ValueError("proposal stage must be an advanced vision stage")
     return VisionReviewJobPayload(
         item_id=item.item_id,
         media_ref=item.media_ref,
         media_type=_media_type(item.media_ref),
-        stage="vision_review_1",
+        stage=stage,  # type: ignore[arg-type]
         attempt_number=1,
-        request_id=f"{item.item_id}:vision_review_1:quality-prelabel",
+        request_id=f"{item.item_id}:{stage}:quality-prelabel",
         policy_version=item.policy_version,
         content_sha256=item.content_sha256,
         media_sha256=candidate.content_sha256,
@@ -374,8 +458,20 @@ def _payload(
             f"consumer={item.consumer_id}; policy={item.policy_version}; "
             "quality_ai_prelabel=true; ground_truth=false"
         ),
-        provider_slot="primary",
+        parent_attempt_id=parent_attempt_id,
+        provider_slot="primary" if stage == "vision_review_1" else "secondary",
     )
+
+
+def _latest_succeeded(
+    attempts: list[ReviewAttempt], stage: str
+) -> ReviewAttempt | None:
+    matching = [
+        attempt
+        for attempt in attempts
+        if attempt.stage == stage and attempt.status == "succeeded"
+    ]
+    return matching[-1] if matching else None
 
 
 def _media_type(media_ref: str) -> str:

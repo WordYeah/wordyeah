@@ -131,6 +131,80 @@ class ReviewRouter:
             return failure
         return self._route_second_review(first, second, categories)
 
+    def route_proposal(self, attempts: Sequence[ReviewAttempt]) -> RouteResult:
+        """Route an AI-only proposal without creating an operational decision.
+
+        Quality-corpus proposals intentionally start at the first advanced
+        vision stage, so they must not be sent back through ``fast_scan`` or
+        converted into an automatic allow/block decision.
+        """
+
+        self._validate_attempts(attempts)
+        latest = self._latest_by_stage(attempts)
+        first = latest.get("vision_review_1")
+        if first is None:
+            return RouteResult(
+                "vision_review_1",
+                "vision_review_1",
+                None,
+                "quality_ai_prelabel_first_review_required",
+            )
+        failure = self._failure_route(first, attempts)
+        if failure is not None:
+            return RouteResult(
+                failure.state,
+                failure.next_stage,
+                None,
+                "quality_ai_prelabel_" + failure.reason,
+                retry=failure.retry,
+            )
+
+        second = latest.get("vision_review_2")
+        if second is None:
+            if (
+                first.decision in {"allow", "block"}
+                and first.confidence is not None
+                and first.confidence >= self.config.vision_review_1_min_confidence
+            ):
+                return RouteResult(
+                    "vision_review_1",
+                    None,
+                    None,
+                    "quality_ai_prelabel_ready",
+                )
+            return RouteResult(
+                "vision_review_2",
+                "vision_review_2",
+                None,
+                "quality_ai_prelabel_needs_second_review",
+            )
+
+        failure = self._failure_route(second, attempts)
+        if failure is not None:
+            return RouteResult(
+                failure.state,
+                failure.next_stage,
+                None,
+                "quality_ai_prelabel_" + failure.reason,
+                retry=failure.retry,
+            )
+        consensus = (
+            first.decision in {"allow", "block"}
+            and second.decision == first.decision
+            and first.confidence is not None
+            and first.confidence >= self.config.vision_review_1_min_confidence
+            and second.confidence is not None
+            and second.confidence >= self.config.vision_review_2_min_confidence
+        )
+        return RouteResult(
+            "vision_review_2",
+            None,
+            None,
+            "quality_ai_prelabel_consensus"
+            if consensus
+            else "quality_ai_prelabel_requires_human",
+        )
+
     def _route_fast_scan(
         self, attempt: ReviewAttempt, *, risk_score: float | None
     ) -> RouteResult:

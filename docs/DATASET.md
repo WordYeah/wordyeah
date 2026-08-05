@@ -164,7 +164,11 @@ submitting their own.
 Generate aggregate corpus evidence directly from the frozen batch after
 reviewing. This command opens SQLite in read-only mode and evaluates only pairs
 that have both a resolved human decision and a separately stored successful AI
-proposal. Candidate routing hints and strata are never converted into truth:
+proposal. Candidate routing hints and strata are never converted into truth. A
+high-confidence first review counts as its `allow`/`block` proposal; two
+independent models count as `allow`/`block` only when they meet the configured
+consensus thresholds. A disagreement counts as `review`, never as the second
+model's raw decision:
 
 ```bash
 python3 scripts/evaluate_quality_corpus.py \

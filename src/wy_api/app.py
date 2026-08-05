@@ -32,7 +32,10 @@ from wy_review.quality import (
     QualityConflictError,
     QualityStore,
 )
-from wy_review.corpus_ai_prelabels import is_corpus_ai_prelabel
+from wy_review.corpus_ai_prelabels import (
+    corpus_ai_prelabel_attempts,
+    is_corpus_ai_prelabel,
+)
 from wy_review.workspace import Workspace, WorkspaceStore
 from wy_api.login_ui import render_login_page
 from wy_api.review_pages import ReviewPageContext, render_review_page
@@ -1565,17 +1568,55 @@ def create_app(
                     return "待 AI 预标注"
                 if not is_corpus_ai_prelabel(item.source_metadata):
                     return "待 AI 预标注"
-                item_attempts = attempt_store.list_attempts(
+                all_item_attempts = attempt_store.list_attempts(
                     item.item_id, consumer_id=consumer_id
                 )
-                latest = next(
+                item_attempts = corpus_ai_prelabel_attempts(
+                    job_store,
+                    item_id=item.item_id,
+                    consumer_id=consumer_id,
+                    attempts=all_item_attempts,
+                )
+                succeeded = [
+                    attempt
+                    for attempt in item_attempts
+                    if attempt.status == "succeeded"
+                    and attempt.decision
+                    and attempt.stage in VISION_JOB_KINDS
+                ]
+                first = next(
                     (
                         attempt
-                        for attempt in reversed(item_attempts)
-                        if attempt.status == "succeeded" and attempt.decision
+                        for attempt in reversed(succeeded)
+                        if attempt.stage == "vision_review_1"
                     ),
                     None,
                 )
+                second = next(
+                    (
+                        attempt
+                        for attempt in reversed(succeeded)
+                        if attempt.stage == "vision_review_2"
+                    ),
+                    None,
+                )
+                if second is not None:
+                    route = review_router.route_proposal(item_attempts)
+                    if route.reason == "quality_ai_prelabel_consensus":
+                        label = (
+                            "AI 双模型一致通过"
+                            if second.decision == "allow"
+                            else "AI 双模型一致拒绝"
+                        )
+                    else:
+                        label = "AI 二审后需人工确认"
+                    confidence = (
+                        f" · {second.confidence:.0%}"
+                        if second.confidence is not None
+                        else ""
+                    )
+                    return label + confidence
+                latest = first
                 if latest is not None:
                     decision_text = {
                         "allow": "AI 建议通过",

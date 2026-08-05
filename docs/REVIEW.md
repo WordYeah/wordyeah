@@ -73,7 +73,8 @@ python scripts/enqueue_corpus_ai_prelabels.py \
   --apply
 ```
 
-脚本按 corpus item id 幂等关联审核项目，并幂等确保 `vision_review_1` 任务。报告固定声明
+脚本按 corpus item id 幂等关联审核项目，并按已归属的 proposal attempt 幂等确保下一阶段
+`vision_review_1` 或 `vision_review_2` 任务。报告固定声明
 `production_write=false`、`mutates_avatar=false` 和
 `counts_toward_ground_truth=false`，同时比较执行前后的样本数、人工决定数和已收敛数；任何
 变化都按错误处理。入队不等于模型已完成，只有 attempt 成功后质量页才显示实际 AI 建议。
@@ -87,11 +88,16 @@ python scripts/enqueue_corpus_ai_prelabels.py \
   --media-root /private/wordyeah/avatar-corpus-review/media \
   --consumer-id corpus-avatar \
   --vision-context-marker quality_ai_prelabel=true \
+  --vision-stage vision_review_1 \
   --worker-id corpus-prelabel-1
 ```
 
-G2A 或 Ollama 的超时、限流和无效响应仍按原有 lease/backoff/dead-letter 规则处理；筛选器
-不会跳过同一预标注任务自身的失败重试，也不会把模型 attempt 写成人工决定。
+二审使用同样的 consumer/context 约束，并将 `--vision-stage` 改为
+`vision_review_2`；worker 会继续执行独立 provider/model/prompt 检查。G2A 或 Ollama
+的超时、限流和无效响应仍按原有 lease/backoff/dead-letter 规则处理；筛选器不会跳过
+同一预标注任务自身的失败重试，也不会把模型 attempt 写成人工决定或最终头像结论。
+只有携带完整 proposal metadata、两个精确 context 标记，并能由成功 job result 追溯到的
+attempt 才能进入质量建议；无来源 attempt 不参与路由或质量统计。
 
 ## 安全边界
 

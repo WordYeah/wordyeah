@@ -56,8 +56,9 @@
 - [CX] 已实现并试运行：私有 1,100 条代表性 corpus 已幂等关联 1,100 个审核项目并确保 1,100 个 AI 一审建议任务；执行前后 `quality_samples=1100`、人工决定数 0、已收敛数 0 均未变化，prompt 不含分层或预期标签，未写生产头像。任务已入队，不代表 1,100 条模型建议已完成；执行前 0600 SQLite 备份位于仓库外 `avatar-corpus-review/backups/wordyeah-before-ai-prelabels-20260805T103108Z.sqlite3`，完整性检查为 `ok`
 - [CX] 已验证：243 个 pytest、12 个 subtest、Ruff、compileall 和 diff check 通过；真实 reviewer session Chromium 验收显示 24/24 个质量页模型单元均为独立 AI 建议状态，人工真值写入为 0，报告未输出凭据
 - [CX] 已实现并验证：vision worker 可同时按 consumer 与受控 context marker 领取 corpus AI 预标注，不再受前置普通视觉任务阻塞，默认领取顺序不变；244 个 pytest、12 个 subtest、Ruff、compileall 和 diff check 通过
-- [CX] 已实现并验证：冻结质量批次可通过只读 SQLite 直接生成聚合验收证据；只把已收敛真人结论与独立成功 AI attempt 配对，候选提示和分层不转成真值，报告不写审核结论或头像。2026-08-05 实时批次为已选 1,100、真人收敛 0、AI 建议 5、可评测配对 0，状态保持 `INCOMPLETE`；248 个 pytest、12 个 subtest 通过
+- [CX] 已实现并验证：冻结质量批次可通过只读 SQLite 直接生成聚合验收证据；只把已收敛真人结论与可追溯到受控 proposal job 的 AI attempt 配对，候选提示和分层不转成真值，报告不写审核结论或头像。2026-08-05 实时批次为已选 1,100、真人收敛 0、成功一审 attempt 5、已形成可评测 AI 建议 4、可评测人机配对 0，状态保持 `INCOMPLETE`
 - [CX] 当次试运行验证：G2A Web 真实 corpus canary 超时；4 路 Ollama `qwen3-vl:8b` 在默认 120 秒内也超时并安全重试，改为单路 300 秒后 46.9 秒完成 1 条真实预标注（allow/0.95）。该次快照为预标注成功 1、排队 1,099，人工决定 0、已收敛样本 0；未写生产头像。该吞吐证据不支持直接开启 4 路本机长批次
+- [CX] 2026-08-05 再次验证：G2A Web 池 `grok-chat-fast` 对同一真实 corpus 头像连续两次返回可重试 HTTP 502，因此未启动真实长队列。随后只在 0600 SQLite 快照上运行一个受限一审任务，G2A 失败后由本机 `qwen3-vl:8b` 完成 `allow/0.95`；快照成功数 5→6、排队 1095→1094，质量人工决定和 proposal 最终决定均保持 0，未写生产头像
 - [CX] 已恢复试运行副作用：首次未加 lane 的 4 个普通视觉任务因旧媒体哈希失败，失败 attempt 作为审计保留，并已按真实受控媒体哈希各自确保一个新 retry；修复前 0600 SQLite 备份完整性为 `ok`。质量预标注 lane 未受这 4 个普通任务影响
 - [CX] 已核对范围：上述 1,100 条只是从 Cavalcade 历史任务抽取并关联 `wp_9_avatar_verify` 的审核样本，不是头像登记表全量。2026-08-05 实时只读查询登记表为 Gravatar 3,068,649 条、Cravatar 18,320 条；这 3,086,969 条尚未全量导入 WordYeah，禁止把 1,100/1,100 写成全库覆盖
 - [CX] 未完成：代表性头像 corpus 的真人全量主审 0/1100、固定 10% 独立双审 0/110 和可能产生的分歧仲裁；目标主机持续调度部署仍未批准
