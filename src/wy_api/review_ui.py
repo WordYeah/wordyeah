@@ -1266,6 +1266,16 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 
 .queue-tool-note { color: var(--quiet); font-size: 11px; }
+.queue-tool-actions { display: flex; align-items: center; gap: 8px; }
+.queue-tools .view-switch a {
+  width: 32px;
+  min-height: 30px;
+  justify-content: center;
+  padding: 0;
+}
+.queue-tools .view-switch a svg,
+.queue-tools .batch-toggle svg { width: 14px; height: 14px; }
+.queue-tools .batch-toggle { min-height: 36px; gap: 6px; padding-inline: 10px; }
 
 .view-switch {
   display: inline-flex;
@@ -3236,7 +3246,7 @@ def render_review_workbench(
     queue_list = f'<div class="queue-list" data-view="{escape(view_value if view_value != "focus" else "list")}">{queue_cards}</div>'
     if batch_mode:
         queue_body = f'''
-        <form class="batch-form" method="post" action="/review/batch" data-batch-form>
+        <form class="batch-form" method="post" action="/review/batch" data-batch-form data-batch-limit="50" aria-label="批量审核，单批最多 50 项">
           <input type="hidden" name="csrf_token" value="{escape(csrf_token)}">
           <input type="hidden" name="return_to" value="{escape(_review_href(status=status_filter, risk=risk_filter, query=search_query, view=view_value, batch=True))}">
           <div class="batch-bar">
@@ -3462,6 +3472,14 @@ def render_review_workbench(
 
           <div class="queue-tools">
             <span class="filtered-count">显示第 <strong>{start_num_disp} - {end_num_disp}</strong> 项 (共 {total_filtered} 项)</span>
+            <div class="queue-tool-actions">
+              <nav class="view-switch" aria-label="队列视图">
+                <a class="{'is-active' if view_value == 'list' else ''}" href="{escape(_review_href(status=status_filter, risk=risk_filter, query=search_query, view='list', batch=batch_mode, page=current_page, per_page=per_page))}" title="紧凑列表" aria-label="紧凑列表">{icon('list')}</a>
+                <a class="{'is-active' if view_value == 'grid' else ''}" href="{escape(_review_href(status=status_filter, risk=risk_filter, query=search_query, view='grid', batch=batch_mode, page=current_page, per_page=per_page))}" title="视觉网格" aria-label="视觉网格">{icon('grid')}</a>
+                <a class="{'is-active' if view_value == 'focus' else ''}" href="{escape(_review_href(status=status_filter, risk=risk_filter, query=search_query, view='focus', page=current_page, per_page=per_page))}" title="沉浸标记" aria-label="沉浸标记">{icon('zap')}</a>
+              </nav>
+              <a class="batch-toggle{' is-active' if batch_mode else ''}" href="{escape(_review_href(status=status_filter, risk=risk_filter, query=search_query, view=view_value if view_value != 'focus' else 'list', batch=not batch_mode, page=current_page, per_page=per_page))}" aria-label="{'退出批量模式' if batch_mode else '进入批量模式'}">{icon('clipboard-check')}<span>{'退出批量' if batch_mode else '批量'}</span></a>
+            </div>
           </div>
 
           {f'<div class="batch-result">{escape(batch_result)}</div>' if batch_result else ''}

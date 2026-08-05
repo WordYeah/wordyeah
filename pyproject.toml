@@ -16,6 +16,7 @@ dependencies = [
 [project.optional-dependencies]
 test = ["pytest>=8"]
 api = ["fastapi>=0.110,<1", "uvicorn>=0.29,<1", "python-multipart>=0.0.9"]
+browser = ["playwright>=1.52,<2"]
 
 [project.scripts]
 wordyeah-api = "wy_api.__main__:main"

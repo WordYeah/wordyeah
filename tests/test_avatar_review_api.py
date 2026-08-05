@@ -339,6 +339,10 @@ class AvatarReviewApiTest(unittest.TestCase):
                 self.assertIn('data-view="list"', queue_page.text)
                 self.assertIn('class="pagination-bar"', queue_page.text)
                 self.assertIn('class="per-page-select"', queue_page.text)
+                self.assertIn('aria-label="队列视图"', queue_page.text)
+                self.assertIn('aria-label="视觉网格"', queue_page.text)
+                self.assertIn('aria-label="沉浸标记"', queue_page.text)
+                self.assertIn('aria-label="进入批量模式"', queue_page.text)
 
                 invalid_view = client.get("/review?view=bogus")
                 self.assertEqual(invalid_view.status_code, 200)
@@ -348,6 +352,7 @@ class AvatarReviewApiTest(unittest.TestCase):
                 self.assertEqual(grid.status_code, 200)
                 self.assertIn('data-view="grid"', grid.text)
                 self.assertIn("data-batch-form", grid.text)
+                self.assertIn('data-batch-limit="50"', grid.text)
                 self.assertEqual(grid.text.count('name="selected"'), 2)
 
                 focus = client.get("/review?view=focus")

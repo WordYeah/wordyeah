@@ -57,6 +57,22 @@ shadow 规模门槛默认至少 1,100 条，与代表性 corpus 五个分层的�
 
 ## 聚合验收
 
+浏览器证据必须由真实 Chromium 和独立 reviewer session 重跑生成，不能手写 PASS JSON。
+运行实例需至少包含一条 `human_required` 项和分页质量样本；脚本会阻止动作表单提交，
+不会改变审核结论：
+
+```bash
+python -m pip install -e '.[api,browser]'
+python -m playwright install chromium
+python scripts/audit_browser_acceptance.py \
+  --base-url http://127.0.0.1:18765 \
+  --runtime /path/to/private/reviewer-runtime.json \
+  --output artifacts/browser-acceptance-mvp.json
+```
+
+`reviewer-runtime.json` 必须为 0600，固定包含 `reviewer-a`、`reviewer-b`、
+`arbitrator` 和独立 session secret；报告和截图均以私有权限原子写入，不输出凭据。
+
 所有门槛统一由一个只读聚合器核对：
 
 ```bash
