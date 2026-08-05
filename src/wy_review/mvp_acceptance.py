@@ -16,6 +16,7 @@ def audit_avatar_mvp(
     queue_load: Path,
     fault_drills: Path,
     browser: Path,
+    reviewer_runtime: Path,
     shadow: Path,
     vision_canary: Path,
     shadow_minimum: int = 1100,
@@ -30,6 +31,9 @@ def audit_avatar_mvp(
         _evidence_check("queue_load_15m", queue_load, _queue_load_pass),
         _evidence_check("fault_drills", fault_drills, _fault_drills_pass),
         _evidence_check("browser_acceptance", browser, _browser_pass),
+        _evidence_check(
+            "reviewer_runtime", reviewer_runtime, _reviewer_runtime_pass
+        ),
         _evidence_check(
             "cravatar_shadow",
             shadow,
@@ -179,6 +183,32 @@ def _browser_pass(value: Evidence) -> tuple[bool, str]:
         and all(checks[name].get("status") == "PASS" for name in required)
     )
     return passed, "required_browser_flows_pass" if passed else "browser_gate_failed"
+
+
+def _reviewer_runtime_pass(value: Evidence) -> tuple[bool, str]:
+    required = {"reviewer-a", "reviewer-b", "arbitrator"}
+    checks = _unique_named_checks(value.get("checks"))
+    passed = (
+        value.get("kind") == "reviewer_runtime_acceptance"
+        and value.get("status") == "PASS"
+        and value.get("consumer_id") == "corpus-avatar"
+        and value.get("secrets_emitted") is False
+        and checks is not None
+        and set(checks) == required
+        and all(
+            checks[name].get("status") == "PASS"
+            and checks[name].get("csrf_present") is True
+            and checks[name].get("account_identity_present") is True
+            and checks[name].get("quality_batches_present") is True
+            and _integer(checks[name].get("cookie_count")) == 1
+            for name in required
+        )
+    )
+    return passed, (
+        "three_isolated_reviewer_sessions_pass"
+        if passed
+        else "reviewer_runtime_gate_failed"
+    )
 
 
 def _shadow_pass(value: Evidence, *, minimum: int) -> tuple[bool, str]:

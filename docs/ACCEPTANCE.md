@@ -99,7 +99,9 @@ python scripts/run_isolated_browser_acceptance.py \
 只有已经明确属于一次性测试的数据实例，才直接运行底层 `audit_browser_acceptance.py`。
 聚合验收要求浏览器报告同时证明 `isolated_fixture=true`、源库只读、审核决定未变化、
 生产头像未写入，以及全部页面下拉框、质量页 AI 建议盲审与键盘提交契约、1,100 条质量
-分页路径通过。
+分页路径通过。独立 reviewer runtime 报告还必须证明 `reviewer-a`、`reviewer-b`、
+`arbitrator` 三个会话各自只有一个 cookie，身份、CSRF 和两个冻结质量批次均可见，且报告
+未输出 secret。
 
 所有门槛统一由一个只读聚合器核对：
 
@@ -115,5 +117,5 @@ PYTHONPATH=src .venv/bin/python scripts/audit_avatar_mvp.py \
 - `3`：证据缺失，或来源报告仍为 `SKIP/INCOMPLETE`。
 
 聚合器要求代表性 corpus、15 分钟队列负载、故障演练、浏览器主路径、至少
-1,100 条 Cravatar shadow 和真实高级视觉响应全部有证据。缺失项不会被本地 mock、
-零样本或静态页面替代。
+1,100 条 Cravatar shadow、三角色 reviewer runtime 和真实高级视觉响应全部有证据。
+缺失项不会被本地 mock、零样本或静态页面替代。

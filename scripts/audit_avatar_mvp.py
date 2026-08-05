@@ -46,6 +46,11 @@ def main() -> int:
         default=ROOT / "artifacts/browser-acceptance-mvp.json",
     )
     parser.add_argument(
+        "--reviewer-runtime",
+        type=Path,
+        default=ROOT / "artifacts/reviewer-runtime-acceptance-mvp.json",
+    )
+    parser.add_argument(
         "--shadow",
         type=Path,
         default=ROOT / "artifacts/cravatar-shadow-acceptance-mvp.json",
@@ -64,6 +69,7 @@ def main() -> int:
         queue_load=args.queue_load,
         fault_drills=args.fault_drills,
         browser=args.browser,
+        reviewer_runtime=args.reviewer_runtime,
         shadow=args.shadow,
         vision_canary=args.vision_canary,
         shadow_minimum=args.shadow_minimum,

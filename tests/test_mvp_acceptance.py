@@ -89,6 +89,26 @@ def _passing_evidence(tmp_path: Path) -> dict[str, Path]:
                 ],
             },
         ),
+        "reviewer_runtime": _write(
+            tmp_path / "reviewer-runtime.json",
+            {
+                "kind": "reviewer_runtime_acceptance",
+                "status": "PASS",
+                "consumer_id": "corpus-avatar",
+                "secrets_emitted": False,
+                "checks": [
+                    {
+                        "name": name,
+                        "status": "PASS",
+                        "csrf_present": True,
+                        "account_identity_present": True,
+                        "quality_batches_present": True,
+                        "cookie_count": 1,
+                    }
+                    for name in ("reviewer-a", "reviewer-b", "arbitrator")
+                ],
+            },
+        ),
         "shadow": _write(
             tmp_path / "shadow.json",
             {
@@ -197,6 +217,23 @@ def test_browser_evidence_requires_isolated_non_mutating_source(tmp_path: Path) 
     checks = {check["name"]: check for check in report["checks"]}
     assert report["status"] == "FAIL"
     assert checks["browser_acceptance"]["status"] == "FAIL"
+
+
+def test_reviewer_runtime_requires_three_isolated_secret_free_sessions(
+    tmp_path: Path,
+) -> None:
+    evidence = _passing_evidence(tmp_path)
+    payload = json.loads(evidence["reviewer_runtime"].read_text(encoding="utf-8"))
+    payload["checks"][1]["cookie_count"] = 2
+    payload["secrets_emitted"] = True
+    evidence["reviewer_runtime"] = _write(
+        tmp_path / "reviewer-runtime.json", payload
+    )
+
+    report = audit_avatar_mvp(**evidence)
+    checks = {check["name"]: check for check in report["checks"]}
+    assert report["status"] == "FAIL"
+    assert checks["reviewer_runtime"]["status"] == "FAIL"
 
 
 def test_invalid_utf8_evidence_is_a_structured_failure(tmp_path: Path) -> None:

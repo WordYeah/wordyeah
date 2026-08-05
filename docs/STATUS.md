@@ -90,3 +90,4 @@
 - [CX] 2026-08-05 G2A Web 实时复核：受控 corpus 头像收到 HTTP 200，但 `grok-chat-fast` 将完整结构化结论放在单一 `json` Markdown fence 中，旧解析器因此安全报 `invalid_response`。适配器现只解包“完整 fence 且无外围文字”的 JSON，真实响应离线重放得到 `allow/0.90`、1 条 finding、1 条 evidence；随后一次独立 30 秒 canary 仍超时，因此未切换正在运行的 Ollama 双 worker，也未把 G2A 写成稳定恢复。
 - [CX] 2026-08-05 下拉框 1280px 补漏：实际浏览器复核发现原七档门闸跳过 1280px，审计执行者菜单仍会截断长名称；现将执行者弹层改为不超过 280px 的内容宽度，并把 1280px 固定加入九页面验收。隔离 Chromium 共检查 184 个可见控件组合、72 个页面布局，1280px 的 23 个控件无文字截断，整体 PASS；完整测试 275 passed、12 subtests passed，Ruff、compileall、diff check 通过，源数据库与生产头像未写入。
 - [CX] 2026-08-05 已隔离质量预标 lane：常驻高级视觉 worker 新增排除 context marker 的领取条件，systemd 模板默认拒绝 `quality_ai_prelabel=true`；冻结 corpus 建议只由显式 consumer、包含 marker 且有 `--vision-max-jobs` 上限的批次 worker 消费，避免普通审核进程抢占质量任务或改变盲审批次边界。
+- [CX] 2026-08-05 聚合验收补入三角色 reviewer runtime 硬门闸：除浏览器隔离副本外，还必须有 `reviewer-a`、`reviewer-b`、`arbitrator` 三个独立登录会话的身份、CSRF、冻结主审/双审批次和单 cookie 证据，且报告声明未输出 secret；缺失、身份不全、多 cookie 或 secret 泄露均不能通过头像 MVP。
