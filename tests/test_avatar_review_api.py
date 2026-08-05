@@ -337,6 +337,8 @@ class AvatarReviewApiTest(unittest.TestCase):
                 queue_page = client.get("/review")
                 self.assertEqual(queue_page.status_code, 200)
                 self.assertIn('data-view="list"', queue_page.text)
+                self.assertIn('class="pagination-bar"', queue_page.text)
+                self.assertIn('class="per-page-select"', queue_page.text)
 
                 invalid_view = client.get("/review?view=bogus")
                 self.assertEqual(invalid_view.status_code, 200)

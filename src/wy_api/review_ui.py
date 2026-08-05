@@ -3436,7 +3436,7 @@ def render_review_workbench(
                 <input type="hidden" name="status" value="{escape(status_value)}">
                 <input type="hidden" name="risk" value="{escape(risk_value)}">
                 <input type="hidden" name="view" value="{escape(view_value)}">
-                {f'<input type="hidden" name="batch" value="1">' if batch_mode else ''}
+                {'<input type="hidden" name="batch" value="1">' if batch_mode else ''}
                 <div class="search-box">
                   <span class="search-icon">{icon('search')}</span>
                   <input type="search" name="q" value="{escape(search_query)}" placeholder="搜索项目 ID、标签或描述..." aria-label="搜索项目 ID、标签或描述">
@@ -3447,7 +3447,7 @@ def render_review_workbench(
                 <input type="hidden" name="status" value="{escape(status_value)}">
                 <input type="hidden" name="view" value="{escape(view_value)}">
                 {f'<input type="hidden" name="q" value="{escape(search_query)}">' if search_query else ''}
-                {f'<input type="hidden" name="batch" value="1">' if batch_mode else ''}
+                {'<input type="hidden" name="batch" value="1">' if batch_mode else ''}
                 <select name="risk" class="risk-select" onchange="this.form.submit()" aria-label="按风险等级筛选">
                   {_filter_option("all", "所有风险等级", risk_value)}
                   {_filter_option("low", "低风险", risk_value)}
@@ -3467,6 +3467,7 @@ def render_review_workbench(
           {f'<div class="batch-result">{escape(batch_result)}</div>' if batch_result else ''}
 
           {queue_body}
+          {pagination_html}
         </section>
         '''}
       </main>
@@ -3564,7 +3565,7 @@ def _render_pagination(
       <input type="hidden" name="risk" value="{escape(risk)}">
       <input type="hidden" name="view" value="{escape(view)}">
       {f'<input type="hidden" name="q" value="{escape(query)}">' if query else ''}
-      {f'<input type="hidden" name="batch" value="1">' if batch else ''}
+      {'<input type="hidden" name="batch" value="1">' if batch else ''}
       <select name="per_page" class="per-page-select" onchange="this.form.submit()">
         {page_size_options}
       </select>
