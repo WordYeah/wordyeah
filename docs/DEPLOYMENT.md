@@ -23,9 +23,16 @@ complete temporary manifest and rename it atomically; the shadow runner never
 queries or updates the production database. Image paths remain relative to the
 controlled root and are re-hashed immediately before submission.
 
+The export also reads `wp_<site>_avatar_verify` by queued `image_md5` so a
+Gravatar-mirror avatar is not mislabeled as a native Cravatar upload. Legacy
+`cravatar.cn` values may be consumed from historical queue rows, but exporters
+normalize them and only emit `cravatar.com`; no new manifest or UI URL uses the
+redirected domain.
+
 The repository includes two bounded producer stages. The PHP stage runs under
 WordPress and performs one `SELECT`; it emits metadata-only JSONL to stdout.
-The collector accepts only the exact `https://cravatar.cn/avatar/<hash>` source,
+The collector accepts only exact `https://cravatar.com/avatar/<hash>` or
+`https://cn.cravatar.com/avatar/<hash>` sources,
 fetches through the allowlisted `cn.cravatar.com` image endpoint, checks byte,
 pixel and decode limits, and atomically publishes local images plus a manifest:
 
@@ -104,6 +111,10 @@ Acceptance requires `mutates_avatar=false`, expected `source_count`, no
 unexpected failures, a stable cursor after rerunning the same manifest, and a
 WordYeah queue scoped to the `cravatar` workspace. Service enablement is a
 separate host decision; this repository does not perform it.
+
+The review path has no Tencent Cloud CI or vendor moderation API fallback. It
+uses WordYeah fast scan, the self-managed G2A Web pool when configured, and
+local Ollama vision models. Provider failure is fail-closed into hold/review.
 
 验收证据由 `scripts/audit_cravatar_shadow.py` 从前后两次只读导出、首次运行、
 稳定重跑、暂停耗时和采集报告生成。它要求选中源记录前后完全一致、完成数达到

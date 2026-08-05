@@ -12,6 +12,15 @@ from wy_media.image_safety import ImageLimits, decode_image
 
 PathField = Literal["path", "local_path", "image_path"]
 PATH_FIELDS: tuple[PathField, ...] = ("path", "local_path", "image_path")
+MODERATION_SOURCE_METADATA_FIELDS = (
+    "avatar_origin",
+    "origin_verified",
+    "registry_status",
+    "image_md5",
+    "collected_content_md5",
+    "matches_queued_image_md5",
+    "requires_ai_review",
+)
 
 
 @dataclass(frozen=True)
@@ -80,6 +89,21 @@ class CravatarBacklog:
 
     def to_jsonl(self) -> str:
         return "".join(json.dumps(record.to_dict(), ensure_ascii=False) + "\n" for record in self.records)
+
+
+def moderation_source_metadata(record: CravatarBacklogRecord) -> dict[str, object]:
+    """Return the bounded Cravatar provenance passed to the local WordYeah API."""
+
+    metadata = {
+        key: record.source_metadata[key]
+        for key in MODERATION_SOURCE_METADATA_FIELDS
+        if key in record.source_metadata
+    }
+    # A backlog entry is not a live request. Even when the inexpensive scan
+    # says allow, the historical item must still receive the normal AI review
+    # chain before it can be considered closed.
+    metadata["requires_ai_review"] = True
+    return metadata
 
 
 def _read_rows(manifest: Path) -> list[dict[str, object]]:

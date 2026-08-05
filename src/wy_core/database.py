@@ -4,7 +4,7 @@ import sqlite3
 from pathlib import Path
 
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 
 def open_database(database: str) -> sqlite3.Connection:
@@ -160,7 +160,7 @@ def open_database(database: str) -> sqlite3.Connection:
             created_at TEXT NOT NULL
         );
 
-        INSERT OR IGNORE INTO schema_migrations(version) VALUES (1), (2), (3), (4), (5);
+        INSERT OR IGNORE INTO schema_migrations(version) VALUES (1), (2), (3), (4), (5), (6);
         """
     )
     _ensure_columns(
@@ -169,6 +169,7 @@ def open_database(database: str) -> sqlite3.Connection:
         {
             "source_id": "TEXT",
             "source_ref": "TEXT",
+            "source_metadata_json": "TEXT NOT NULL DEFAULT '{}'",
         },
     )
     connection.execute(
@@ -198,6 +199,7 @@ def open_database(database: str) -> sqlite3.Connection:
             "updated_at": "TEXT",
             "source_id": "TEXT",
             "source_ref": "TEXT",
+            "source_metadata_json": "TEXT NOT NULL DEFAULT '{}'",
         },
     )
     _ensure_columns(

@@ -389,7 +389,7 @@ class AvatarReviewApiTest(unittest.TestCase):
 
                 reviewed_page = client.get("/review?status=reviewed")
                 self.assertEqual(reviewed_page.status_code, 200)
-                self.assertIn("已处理", reviewed_page.text)
+                self.assertIn("已终审", reviewed_page.text)
 
                 risk_page = client.get("/review?status=pending&risk=guarded&q=nsfw")
                 self.assertEqual(risk_page.status_code, 200)

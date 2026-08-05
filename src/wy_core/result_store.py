@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
+from typing import Mapping
 from uuid import uuid4
 
 from .contracts import ModerationResult
@@ -30,6 +31,7 @@ class ResultStore:
         *,
         source_id: str | None = None,
         source_ref: str | None = None,
+        source_metadata: Mapping[str, object] | None = None,
     ) -> str:
         if not consumer_id or not media_ref or not policy_profile:
             raise ValueError("consumer_id, media_ref, and policy_profile are required")
@@ -56,15 +58,16 @@ class ResultStore:
             self.connection.execute(
                 """
                 INSERT INTO submissions
-                  (submission_id, consumer_id, source_id, source_ref, content_sha256,
-                   media_type, media_ref, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                  (submission_id, consumer_id, source_id, source_ref, source_metadata_json,
+                   content_sha256, media_type, media_ref, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     submission_id,
                     consumer_id,
                     source_id,
                     source_ref,
+                    json.dumps(dict(source_metadata or {}), ensure_ascii=False, sort_keys=True),
                     result.content_sha256,
                     result.media_type,
                     media_ref,

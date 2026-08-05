@@ -29,6 +29,27 @@ class ReviewAndAdapterTest(unittest.TestCase):
         self.assertEqual(decided.avatar_action, "keep")
         self.assertEqual(decided.reviewer, "tester")
 
+    def test_source_id_remains_idempotent_after_final_decision(self) -> None:
+        store = ReviewStore()
+        first = store.enqueue(
+            result("review"),
+            "media://first.png",
+            consumer_id="cravatar",
+            source_id="cravatar-job:1",
+        )
+        store.decide(first.item_id, "approve", "tester", consumer_id="cravatar")
+        repeated = store.enqueue(
+            result("allow"),
+            "media://second.png",
+            consumer_id="cravatar",
+            source_id="cravatar-job:1",
+            force=True,
+        )
+        self.assertEqual(repeated.item_id, first.item_id)
+        self.assertEqual(
+            len(store.list_items(status=None, consumer_id="cravatar")), 1
+        )
+
     def test_reject_replaces_default_while_blacklist_uses_the_ban_state(self) -> None:
         store = ReviewStore()
         ordinary = store.enqueue(result("review", "e" * 64), "media://ordinary.png")

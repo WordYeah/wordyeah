@@ -13,7 +13,11 @@ from typing import Sequence
 
 from PIL import Image
 
-from .backlog import CravatarBacklogRecord, import_cravatar_backlog
+from .backlog import (
+    CravatarBacklogRecord,
+    import_cravatar_backlog,
+    moderation_source_metadata,
+)
 from .incremental import CravatarCursorStore, CravatarIncrementalImporter
 
 
@@ -48,6 +52,14 @@ def _submitter(endpoint: str, workspace: str):
             "X-WordYeah-Workspace": workspace,
             "X-WordYeah-Source-ID": urllib.parse.quote(record.source_id, safe=":._-"),
             "X-WordYeah-Source-Ref": urllib.parse.quote(record.avatar_ref, safe=":._-"),
+            "X-WordYeah-Source-Metadata": urllib.parse.quote(
+                json.dumps(
+                    moderation_source_metadata(record),
+                    ensure_ascii=True,
+                    separators=(",", ":"),
+                ),
+                safe="",
+            ),
         }
         if token:
             headers["Authorization"] = f"Bearer {token}"

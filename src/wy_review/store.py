@@ -5,7 +5,7 @@ import base64
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Literal
+from typing import Literal, Mapping
 from uuid import uuid4
 
 from wy_core.contracts import ModerationResult
@@ -37,6 +37,7 @@ class ReviewItem:
     media_ref: str
     source_id: str | None
     source_ref: str | None
+    source_metadata: dict[str, object]
     decision_hint: str
     reasons: tuple[str, ...]
     findings: tuple[dict[str, object], ...]
@@ -70,6 +71,7 @@ class ReviewItem:
             "media_ref": self.media_ref,
             "source_id": self.source_id,
             "source_ref": self.source_ref,
+            "source_metadata": dict(self.source_metadata),
             "decision_hint": self.decision_hint,
             "reasons": list(self.reasons),
             "findings": [dict(finding) for finding in self.findings],
@@ -161,8 +163,10 @@ class ReviewStore:
         *,
         source_id: str | None = None,
         source_ref: str | None = None,
+        source_metadata: Mapping[str, object] | None = None,
+        force: bool = False,
     ) -> ReviewItem:
-        if result.decision not in {"review", "block", "error"}:
+        if result.decision not in {"review", "block", "error"} and not force:
             raise ValueError("only review, block, or error results enter the review queue")
         if not consumer_id or len(consumer_id) > 128:
             raise ValueError("consumer_id must be between 1 and 128 characters")
@@ -172,7 +176,7 @@ class ReviewStore:
             existing = self.connection.execute(
                 """
                 SELECT * FROM review_items
-                WHERE consumer_id = ? AND source_id = ? AND status = 'pending'
+                WHERE consumer_id = ? AND source_id = ?
                 ORDER BY created_at LIMIT 1
                 """,
                 (consumer_id, source_id),
@@ -196,17 +200,19 @@ class ReviewStore:
         self.connection.execute(
             """
             INSERT INTO review_items
-              (item_id, consumer_id, source_id, source_ref, content_sha256, media_type, media_ref,
+              (item_id, consumer_id, source_id, source_ref, source_metadata_json,
+               content_sha256, media_type, media_ref,
                decision_hint, reasons_json, findings_json, model_versions_json,
                top_score, request_id, policy_version, status, version, created_at,
                stage, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
             """,
             (
                 item_id,
                 consumer_id,
                 source_id,
                 source_ref,
+                json.dumps(dict(source_metadata or {}), ensure_ascii=False, sort_keys=True),
                 result.content_sha256,
                 result.media_type,
                 media_ref,
@@ -247,8 +253,8 @@ class ReviewStore:
         limit: int = 100,
         decision_hint: str | None = None,
     ) -> list[ReviewItem]:
-        if limit < 1 or limit > 1000:
-            raise ValueError("limit must be between 1 and 1000")
+        if limit < 1 or limit > 5000:
+            raise ValueError("limit must be between 1 and 5000")
         if status is not None and status not in {"pending", "approved", "rejected", "held"}:
             raise ValueError("unknown review status")
         clauses: list[str] = []
@@ -632,6 +638,7 @@ class ReviewStore:
             media_ref=row["media_ref"],
             source_id=row["source_id"],
             source_ref=row["source_ref"],
+            source_metadata=dict(json.loads(row["source_metadata_json"] or "{}")),
             decision_hint=row["decision_hint"],
             reasons=tuple(json.loads(row["reasons_json"])),
             findings=tuple(json.loads(row["findings_json"] or "[]")),

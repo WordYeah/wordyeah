@@ -196,10 +196,11 @@ class JobsAndApiTest(unittest.TestCase):
                     "quality_sample",
                     "arbitration_required",
                     "appealed",
+                    "source_metadata_json",
                 }
                 <= columns
             )
-            self.assertEqual(connection.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0], 5)
+            self.assertEqual(connection.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0], 6)
             connection.close()
 
 

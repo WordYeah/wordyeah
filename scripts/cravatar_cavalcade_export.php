@@ -40,6 +40,7 @@ $sql = "SELECT id, status, start, args FROM {$table}
 	WHERE site = %d AND hook = %s AND status = %s AND id > %d{$since_where}
 	ORDER BY id ASC LIMIT %d";
 $rows = $wpdb->get_results( $wpdb->prepare( $sql, $parameters ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+$candidates = array();
 
 foreach ( $rows as $row ) {
 	$data = maybe_unserialize( $row['args'] ?? null );
@@ -55,8 +56,44 @@ foreach ( $rows as $row ) {
 	if ( 32 !== strlen( $image_md5 ) || ! ctype_xdigit( $image_md5 ) ) {
 		continue;
 	}
-	if ( "https://cravatar.cn/avatar/{$email_hash}" !== $url ) {
+	$accepted_urls = array(
+		"https://cravatar.cn/avatar/{$email_hash}", // Legacy queue value; never emitted.
+		"https://cravatar.com/avatar/{$email_hash}",
+		"https://cn.cravatar.com/avatar/{$email_hash}",
+	);
+	if ( ! in_array( $url, $accepted_urls, true ) ) {
 		continue;
+	}
+	$url = "https://cravatar.com/avatar/{$email_hash}";
+	$candidates[] = array(
+		'row'        => $row,
+		'email_hash' => $email_hash,
+		'image_md5'  => $image_md5,
+		'url'        => $url,
+	);
+}
+
+$registry = array();
+if ( $candidates ) {
+	$verify_table = $wpdb->get_blog_prefix( $site_id ) . 'avatar_verify';
+	$image_md5s   = array_values( array_unique( array_column( $candidates, 'image_md5' ) ) );
+	$placeholders = implode( ', ', array_fill( 0, count( $image_md5s ), '%s' ) );
+	$verify_sql   = "SELECT image_md5, type, status, url FROM {$verify_table} WHERE image_md5 IN ({$placeholders})";
+	$verify_rows  = $wpdb->get_results( $wpdb->prepare( $verify_sql, $image_md5s ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+	foreach ( $verify_rows as $verify_row ) {
+		$registry[ strtolower( (string) $verify_row['image_md5'] ) ] = $verify_row;
+	}
+}
+
+foreach ( $candidates as $candidate ) {
+	$row         = $candidate['row'];
+	$email_hash  = $candidate['email_hash'];
+	$image_md5   = $candidate['image_md5'];
+	$url         = $candidate['url'];
+	$verify      = $registry[ $image_md5 ] ?? null;
+	$origin      = is_array( $verify ) ? strtolower( (string) ( $verify['type'] ?? '' ) ) : '';
+	if ( ! in_array( $origin, array( 'cravatar', 'gravatar' ), true ) ) {
+		$origin = 'unknown';
 	}
 	echo wp_json_encode(
 		array(
@@ -67,6 +104,9 @@ foreach ( $rows as $row ) {
 			'avatar_url'      => $url,
 			'email_hash'      => $email_hash,
 			'image_md5'       => $image_md5,
+			'avatar_origin'   => $origin,
+			'registry_status'  => is_array( $verify ) ? (int) $verify['status'] : null,
+			'registry_url'     => is_array( $verify ) ? $url : null,
 			'mutates_avatar'  => false,
 		)
 	) . "\n";

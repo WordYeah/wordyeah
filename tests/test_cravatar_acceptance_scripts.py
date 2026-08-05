@@ -25,10 +25,63 @@ def _load_script(name: str):
 
 
 @pytest.mark.skipif(shutil.which("php") is None, reason="PHP CLI is unavailable")
+def test_cavalcade_export_preserves_gravatar_registry_origin(tmp_path: Path) -> None:
+    exporter = ROOT / "scripts" / "cravatar_cavalcade_export.php"
+    harness = tmp_path / "export-harness.php"
+    harness.write_text(
+        """<?php
+define('ABSPATH', __DIR__);
+define('ARRAY_A', 'ARRAY_A');
+function maybe_unserialize($value) { return $value; }
+function wp_json_encode($value) { return json_encode($value, JSON_UNESCAPED_SLASHES); }
+class FakeWpdb {
+    public $base_prefix = 'wp_';
+    private $calls = 0;
+    public function prepare($sql, $parameters) { return $sql; }
+    public function get_blog_prefix($site_id) { return 'wp_' . $site_id . '_'; }
+    public function get_results($sql, $format) {
+        $this->calls++;
+        if ($this->calls === 1) {
+            return [[
+                'id' => 42,
+                'status' => 'completed',
+                'start' => '2026-08-05 00:00:00',
+                'args' => [
+                    'url' => 'https://cravatar.cn/avatar/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+                    'image_md5' => 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+                    'email_hash' => 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+                ],
+            ]];
+        }
+        return [[
+            'image_md5' => 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+            'type' => 'gravatar',
+            'status' => 0,
+            'url' => 'https://cravatar.cn/avatar/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        ]];
+    }
+}
+$wpdb = new FakeWpdb();
+require """
+        + repr(str(exporter))
+        + ";\n",
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        ["php", str(harness)], check=True, capture_output=True, text=True
+    )
+    row = json.loads(result.stdout)
+    assert row["avatar_origin"] == "gravatar"
+    assert row["registry_status"] == 0
+    assert row["avatar_url"].startswith("https://cravatar.com/avatar/")
+    assert row["registry_url"].startswith("https://cravatar.com/avatar/")
+
+
+@pytest.mark.skipif(shutil.which("php") is None, reason="PHP CLI is unavailable")
 def test_cavalcade_tsv_converter_handles_wrapped_base64(tmp_path: Path) -> None:
     email_hash = "a" * 32
     image_md5 = "b" * 32
-    url = f"https://cravatar.cn/avatar/{email_hash}"
+    url = f"https://cravatar.com/avatar/{email_hash}"
     serialized = (
         f'a:3:{{s:3:"url";s:{len(url)}:"{url}";'
         f's:9:"image_md5";s:32:"{image_md5}";'
@@ -58,9 +111,12 @@ def test_shadow_audit_requires_stable_complete_non_mutating_run(tmp_path: Path) 
         "job_id": 42,
         "source_status": "completed",
         "source_start": "2026-08-05 00:00:00",
-        "avatar_url": f"https://cravatar.cn/avatar/{'a' * 32}",
+        "avatar_url": f"https://cravatar.com/avatar/{'a' * 32}",
         "email_hash": "a" * 32,
         "image_md5": "b" * 32,
+        "avatar_origin": "gravatar",
+        "registry_status": 0,
+        "registry_url": f"https://cravatar.com/avatar/{'a' * 32}",
         "mutates_avatar": False,
     }
     manifest_row = {

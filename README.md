@@ -17,7 +17,7 @@ read-only; WordYeah does not write to WordPress, avatar state, or Cavalcade.
 
 ## 当前阶段
 
-头像 MVP P5 实施中：FastAPI 边界、SQLite WAL 元数据表、持久 job lease、本地 Falconsai worker、G2A Web 一审、本机 Ollama 兜底与独立二审、审核页面和 Cravatar 增量 shadow runner已接入开发链路。当前不连接 Cravatar 生产判定，不调用腾讯云；高级视觉 provider 默认关闭。本机开发队列已用 `grok-chat-fast` 和 `qwen3-vl:8b` 验证真实受控头像，`grok-4.3`、`grok-4.5` 的 Build 池状态不作为本链路阻塞。
+头像 MVP P5 实施中：FastAPI 边界、SQLite WAL 元数据表、持久 job lease、本地 Falconsai worker、自管 G2A Web 号池一审、本机 Ollama 兜底与独立二审、审核页面和 Cravatar 增量 shadow runner 已接入开发链路。Cravatar 与 Gravatar 镜像来源会随受控图片快照进入审核记录；新数据只使用 `cravatar.com`/`cn.cravatar.com`。系统不调用腾讯云或其他第三方内容审核 API，模型不可用时留置而不是外部降级；高级视觉 provider 默认关闭。
 配置启动会校验头像 policy；`enforce` 当前固定为 `false`。队列有单 consumer 深度上限，超限返回可重试的 429。
 
 审查结果统一为：`allow`、`block`、`review`、`error`。头像接口只接收原始图片 bytes，不接受远程 URL。

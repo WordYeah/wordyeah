@@ -24,6 +24,7 @@
 - [CX] 已实现：服务端 cursor 分页、工作区切换、consumer 约束、最多 50 项的批量 API 与特殊风险服务端禁批
 - [CX] 已实现：Cravatar 增量 cursor、幂等、暂停/恢复、失败重放、水位和持续 watch CLI；仅允许 loopback WordYeah endpoint；已提供默认禁用的 systemd hardening 模板，未安装或启用
 - [CX] 已实现：有界只读 Cavalcade PHP 导出器与本地受控采集器；导出器只执行 `SELECT`，采集器严格限制 Cravatar 源、校验图片并原子发布 manifest，不改变任务或头像状态
+- [CX] 已实现：Cavalcade 导出按 `image_md5` 关联头像登记表并保留 `cravatar`/`gravatar` 来源、登记状态和采集哈希；历史 `cravatar.cn` 仅作旧队列输入兼容，新数据统一使用 `cravatar.com`/`cn.cravatar.com`；来源证据写入 submission 和 review item。审核只使用无言 fast scan、自管 G2A Web 号池与本机 Ollama，不设置腾讯云或其他内容审核 API 降级
 - [CX] 已验证：217 个 pytest、12 个 subtest、compileall、PHP syntax 和 diff check 通过；真实 reviewer session 验证 1440×900 三种队列视图、显式批量模式、快速标记四种动作且零弹窗，1280×800 紧凑列表，以及 390×844 质量页与工作区菜单无横向溢出；质量页三态按钮直接提交且不弹窗
 - [CX] 已验证：持久队列以 50 jobs/s 连续运行 900 秒，完成 45,000 项、零 active 残留、49.9998 jobs/s、cycle p95 1.02ms，15 分钟时长和速率门槛均 PASS
 - [CX] 已验证：可复现故障演练覆盖数据库重启、过期 lease 回收、死信、provider 关闭、429、无效响应和 Cravatar shadow 非写入；错误路径均不产生 allow
@@ -46,6 +47,9 @@
 - [CX] 已接线并验证：高级视觉一审使用 G2A Web `grok-chat-fast`，失败时回退本机 Ollama `qwen3-vl:8b`，低置信度二审预留本机 `gemma3:12b`；真实 Cravatar 受控头像得到 G2A `allow/0.95`，队列任务也已验证 Ollama 兜底成功
 - [CX] 已修复：归一化 JPEG 预览与原始内容哈希不同会导致 vision worker 拒绝任务；队列现分别保存内容哈希和受控媒体哈希，本机 29 条积压任务已补齐媒体哈希并保留修复前数据库备份
 - [CX] 已验证：29 条 Cravatar 高级视觉一审任务和 3 条低置信度二审任务全部成功收敛；审核项为 29 条自动通过、6 条自动拒绝、0 条人工待审，未执行 Cravatar 写回
+- [CX] 已修复并回填：Cravatar 工作区的历史清单同时覆盖 Cravatar 原生头像 88 条和 Gravatar 镜像头像 1,012 条，两类共 1,100/1,100 条均已有审核项；既有 35 条保持原结论，新增 1,065 条进入 AI 一审队列。持续 worker 使用自管 G2A Web 号池并在 429 或超时时回退本机 Ollama。`cravatar.cn` 只作为历史 301 域名识别，不用于采集、预览或新数据输出
+- [CX] 已验证：232 个 pytest、12 个 subtest 全部通过；回填后 SQLite 为 1,100 submissions、1,100 review items，人工队列仍只接 AI 两轮后不确定项
+- [CX] 已核对范围：上述 1,100 条只是从 Cavalcade 历史任务抽取并关联 `wp_9_avatar_verify` 的审核样本，不是头像登记表全量。2026-08-05 实时只读查询登记表为 Gravatar 3,068,649 条、Cravatar 18,320 条；这 3,086,969 条尚未全量导入 WordYeah，禁止把 1,100/1,100 写成全库覆盖
 - [CX] 未完成：代表性头像 corpus 的真人全量主审 0/1100、固定 10% 独立双审 0/110 和可能产生的分歧仲裁；目标主机持续调度部署仍未批准
 - 生产接入：只读 canary 已完成；未写回 WordPress/头像/队列
 - 外部审查 API：生产默认关闭；仅做过受控 G2A canary

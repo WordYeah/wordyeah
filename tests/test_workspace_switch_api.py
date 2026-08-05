@@ -26,6 +26,11 @@ class Classifier:
         return ImageScores(normal=0.5, nsfw=0.5)
 
 
+class AllowClassifier(Classifier):
+    def classify(self, _payload: bytes) -> ImageScores:
+        return ImageScores(normal=0.99, nsfw=0.01)
+
+
 def result(digest: str) -> ModerationResult:
     return ModerationResult(
         request_id=f"request-{digest[0]}",
@@ -139,6 +144,11 @@ def test_api_submission_is_persisted_and_routed_to_requested_workspace() -> None
             "X-WordYeah-Workspace": "cravatar",
             "X-WordYeah-Source-ID": "cravatar-job%3A123",
             "X-WordYeah-Source-Ref": "cravatar-avatar%3A123",
+            "X-WordYeah-Source-Metadata": (
+                "%7B%22avatar_origin%22%3A%22gravatar%22%2C"
+                "%22origin_verified%22%3Atrue%2C"
+                "%22image_md5%22%3A%22bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb%22%7D"
+            ),
         }
         with TestClient(app) as client:
             response = client.post("/v1/moderate/image", content=image.getvalue(), headers=headers)
@@ -156,6 +166,11 @@ def test_api_submission_is_persisted_and_routed_to_requested_workspace() -> None
             assert len(review_items) == 1
             assert review_items[0].source_id == "cravatar-job:123"
             assert review_items[0].source_ref == "cravatar-avatar:123"
+            assert review_items[0].source_metadata == {
+                "avatar_origin": "gravatar",
+                "origin_verified": True,
+                "image_md5": "b" * 32,
+            }
             assert app.state.review_store.list_items(consumer_id="default") == []
 
             duplicate = client.post(
@@ -171,6 +186,69 @@ def test_api_submission_is_persisted_and_routed_to_requested_workspace() -> None
                 headers={**headers, "X-WordYeah-Workspace": "missing"},
             )
             assert missing.status_code == 404
+
+
+def test_historical_allow_submission_is_forced_into_ai_review() -> None:
+    with tempfile.TemporaryDirectory() as directory:
+        database = str(Path(directory) / "wordyeah.sqlite3")
+        workspaces = WorkspaceStore(database)
+        workspaces.create(
+            workspace_id="cravatar",
+            consumer_id="default",
+            name="Cravatar",
+            adapter="cravatar",
+            policy_profile="avatar-default",
+        )
+        app = create_app(
+            settings=ApiSettings(
+                database_path=database,
+                media_root=Path(directory) / "media",
+                local_review_no_auth=True,
+            ),
+            service=MediaModerationService(AllowClassifier()),
+            workspace_store=workspaces,
+        )
+        image = io.BytesIO()
+        Image.new("RGB", (8, 8), (10, 20, 30)).save(image, format="PNG")
+        headers = {
+            "Content-Type": "image/png",
+            "Content-Length": str(len(image.getvalue())),
+            "X-WordYeah-Workspace": "cravatar",
+            "X-WordYeah-Source-ID": "cravatar-job%3A456",
+            "X-WordYeah-Source-Ref": "cravatar-avatar%3A456",
+            "X-WordYeah-Source-Metadata": "%7B%22requires_ai_review%22%3Atrue%7D",
+        }
+        with TestClient(app) as client:
+            response = client.post("/v1/moderate/image", content=image.getvalue(), headers=headers)
+            assert response.status_code == 200
+            assert response.json()["decision"] == "allow"
+
+            items = app.state.review_store.list_items(
+                status=None, consumer_id="cravatar"
+            )
+            assert len(items) == 1
+            assert items[0].stage == "vision_review_1"
+            assert items[0].source_metadata["requires_ai_review"] is True
+            jobs = app.state.job_store.connection.execute(
+                "SELECT kind, status FROM jobs WHERE consumer_id = ?",
+                ("cravatar",),
+            ).fetchall()
+            assert [(row["kind"], row["status"]) for row in jobs] == [
+                ("vision_review_1", "queued")
+            ]
+
+            invalid = client.post(
+                "/v1/moderate/image",
+                content=image.getvalue(),
+                headers={
+                    **headers,
+                    "X-WordYeah-Source-ID": "cravatar-job%3A457",
+                    "X-WordYeah-Source-Metadata": (
+                        "%7B%22requires_ai_review%22%3A%22yes%22%7D"
+                    ),
+                },
+            )
+            assert invalid.status_code == 400
 
 
 def test_workspace_definitions_load_from_environment(monkeypatch) -> None:

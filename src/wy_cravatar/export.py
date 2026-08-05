@@ -7,6 +7,7 @@ import io
 import json
 import os
 import tempfile
+from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
@@ -30,6 +31,9 @@ class ExportRecord:
     avatar_url: str
     email_hash: str
     image_md5: str
+    avatar_origin: str
+    registry_status: int | None
+    registry_url: str | None
 
 
 def read_export(path: Path) -> list[ExportRecord]:
@@ -48,6 +52,13 @@ def read_export(path: Path) -> list[ExportRecord]:
             avatar_url = str(row["avatar_url"])
             source_status = str(row["source_status"])
             source_start = str(row["source_start"])
+            avatar_origin = str(row["avatar_origin"]).lower()
+            raw_registry_status = row.get("registry_status")
+            registry_status = (
+                None if raw_registry_status is None else int(raw_registry_status)
+            )
+            raw_registry_url = row.get("registry_url")
+            registry_url = None if raw_registry_url in (None, "") else str(raw_registry_url)
         except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
             raise ValueError(f"invalid export row {line_number}: {exc}") from exc
         if job_id < 1 or job_id in seen:
@@ -58,7 +69,11 @@ def read_export(path: Path) -> list[ExportRecord]:
             raise ValueError(f"invalid image_md5 on row {line_number}")
         if source_status not in {"completed", "failed", "waiting", "running"}:
             raise ValueError(f"invalid source_status on row {line_number}")
+        if avatar_origin not in {"cravatar", "gravatar", "unknown"}:
+            raise ValueError(f"invalid avatar_origin on row {line_number}")
         _normalized_avatar_url(avatar_url, email_hash)
+        if registry_url is not None:
+            _normalized_avatar_url(registry_url, email_hash)
         seen.add(job_id)
         records.append(
             ExportRecord(
@@ -68,6 +83,9 @@ def read_export(path: Path) -> list[ExportRecord]:
                 avatar_url=avatar_url,
                 email_hash=email_hash,
                 image_md5=image_md5,
+                avatar_origin=avatar_origin,
+                registry_status=registry_status,
+                registry_url=registry_url,
             )
         )
     return records
@@ -96,6 +114,7 @@ def collect_export(
             payload = fetch_image(public_url)
             _validate_image(payload)
             digest = hashlib.sha256(payload).hexdigest()
+            collected_md5 = hashlib.md5(payload, usedforsecurity=False).hexdigest()
             filename = f"{record.job_id}-{digest[:12]}.img"
             _atomic_write(controlled_root / filename, payload, mode=0o600)
             return (
@@ -110,6 +129,15 @@ def collect_export(
                     "source_kind": "cavalcade-read-only-export",
                     "email_hash": record.email_hash,
                     "image_md5": record.image_md5,
+                    "avatar_origin": record.avatar_origin,
+                    "origin_verified": record.avatar_origin in {"cravatar", "gravatar"},
+                    "registry_status": record.registry_status,
+                    "registry_url": record.registry_url,
+                    "collection_url": public_url,
+                    "collected_at": datetime.now(timezone.utc).isoformat(),
+                    "collected_content_md5": collected_md5,
+                    "matches_queued_image_md5": collected_md5 == record.image_md5,
+                    "requires_ai_review": True,
                     "mutates_avatar": False,
                 },
                 None,
@@ -138,7 +166,7 @@ def _normalized_avatar_url(value: str, email_hash: str) -> str:
     parsed = urlsplit(value)
     if (
         parsed.scheme != "https"
-        or parsed.hostname != "cravatar.cn"
+        or parsed.hostname not in {"cravatar.com", "cn.cravatar.com"}
         or parsed.port is not None
         or parsed.username is not None
         or parsed.password is not None

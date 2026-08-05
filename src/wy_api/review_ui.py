@@ -1248,39 +1248,185 @@ button, a { -webkit-tap-highlight-color: transparent; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
-  margin: 12px 0;
-  padding: 10px 12px;
-  border: 1px solid var(--line-strong);
-  border-radius: 13px;
-  background: var(--panel-soft);
-  box-shadow: var(--shadow-sticky);
+  gap: 16px;
+  margin: 12px 0 16px;
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
   backdrop-filter: blur(12px);
 }
 
-.batch-summary { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12px; }
-.batch-summary strong { color: var(--accent); font-size: 13px; }
-.batch-actions { display: flex; flex-wrap: wrap; gap: 7px; }
-.batch-actions button {
-  min-height: 32px;
-  padding: 0 11px;
+.batch-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 550;
+  cursor: pointer;
+  user-select: none;
+}
+.batch-summary input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+  accent-color: var(--accent);
+}
+.batch-count-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--panel-soft);
   border: 1px solid var(--line);
-  border-radius: 9px;
-  background: var(--panel);
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+.batch-count-pill strong {
+  color: var(--accent);
+  margin: 0 2px;
+  font-family: var(--mono);
+}
+
+.batch-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.batch-actions button {
+  min-height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--panel-soft);
   color: var(--text);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
   cursor: pointer;
+  transition: all 140ms ease;
 }
-.batch-actions button[value="approve"] { color: var(--green); }
-.batch-actions button[value="reject"] { color: var(--amber); }
-.batch-actions button[value="blacklist"] { color: var(--red); }
-.batch-actions button[value="hold"] { color: var(--amber); }
+.batch-actions button:hover {
+  border-color: var(--line-strong);
+  transform: translateY(-1px);
+}
+.batch-actions button[value="approve"] {
+  color: var(--green);
+  background: var(--green-soft);
+  border-color: rgba(22, 163, 74, 0.2);
+}
+.batch-actions button[value="reject"] {
+  color: var(--amber);
+  background: var(--amber-soft);
+  border-color: rgba(217, 119, 6, 0.2);
+}
+.batch-actions button[value="blacklist"] {
+  color: var(--red);
+  background: var(--red-soft);
+  border-color: rgba(220, 38, 38, 0.2);
+}
+.batch-actions button[value="hold"] {
+  color: var(--muted);
+}
 
 .filtered-count {
   color: var(--quiet);
-  font-size: 11px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
+}
+
+.pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 24px;
+  padding: 14px 18px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  font-size: 12.5px;
+}
+.pagination-info {
+  color: var(--muted);
+}
+.pagination-info strong {
+  color: var(--text);
+  font-weight: 650;
+  font-family: var(--mono);
+}
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.page-numbers {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.page-num, .page-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--panel-soft);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 140ms ease;
+}
+.page-num:hover, .page-nav-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.page-num.is-current {
+  background: var(--accent);
+  color: #ffffff;
+  border-color: var(--accent);
+}
+.page-nav-btn.is-disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+.page-nav-btn.prev svg {
+  transform: rotate(180deg);
+}
+.page-nav-btn svg {
+  width: 14px;
+  height: 14px;
+}
+.page-ellipsis {
+  color: var(--quiet);
+  padding: 0 4px;
+}
+.per-page-form {
+  margin: 0;
+}
+.per-page-select {
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--panel-soft);
+  color: var(--text);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  outline: none;
+}
+.per-page-select:hover {
+  border-color: var(--accent);
 }
 
 .batch-result {
@@ -2900,6 +3046,8 @@ def render_review_workbench(
     view_mode: str = "list",
     batch_mode: bool = False,
     batch_result: str = "",
+    page: int = 1,
+    per_page: int = 20,
     workspaces: Iterable[Mapping[str, str]] = (),
 ) -> str:
     all_items = list(items)
@@ -2910,9 +3058,17 @@ def render_review_workbench(
         status_filter=status_filter,
         risk_filter=risk_filter,
     )
+    total_filtered = len(filtered_items)
+    per_page = max(5, min(200, per_page))
+    total_pages = max(1, (total_filtered + per_page - 1) // per_page)
+    current_page = max(1, min(page, total_pages))
+
+    start_index = (current_page - 1) * per_page
+    paged_items = filtered_items[start_index : start_index + per_page]
+
     if view_value == "focus" and not focus_item_id and filtered_items:
         focus_item_id = filtered_items[0].item_id
-    item_list = filtered_items
+    item_list = paged_items
     pending_count = sum(1 for item in all_items if _requires_human_review(item))
     held_count = sum(1 for item in all_items if item.status == "held")
     reviewed_count = sum(1 for item in all_items if item.status in {"approved", "rejected"})
@@ -2938,6 +3094,8 @@ def render_review_workbench(
                 query=search_query,
                 view="focus",
                 focus=view.item.item_id,
+                page=current_page,
+                per_page=per_page,
             ),
             batch_mode=batch_mode,
         )
@@ -2987,12 +3145,16 @@ def render_review_workbench(
           <input type="hidden" name="csrf_token" value="{escape(csrf_token)}">
           <input type="hidden" name="return_to" value="{escape(_review_href(status=status_filter, risk=risk_filter, query=search_query, view=view_value, batch=True))}">
           <div class="batch-bar">
-            <label class="batch-summary"><input type="checkbox" data-select-all> <strong><span data-selected-count>0</span> 项已选</strong><span>单次最多 50 项，后端逐项写审计事件</span></label>
+            <label class="batch-summary">
+              <input type="checkbox" data-select-all>
+              <span>全选</span>
+              <span class="batch-count-pill">已选 <strong data-selected-count>0</strong> 项</span>
+            </label>
             <div class="batch-actions">
-              <button type="submit" name="action" value="approve">批量通过</button>
-              <button type="submit" name="action" value="reject">批量替换默认头像</button>
-              <button type="submit" name="action" value="blacklist">批量加入黑名单</button>
-              <button type="submit" name="action" value="hold">批量留置</button>
+              <button type="submit" name="action" value="approve" title="批量通过所选项">通过</button>
+              <button type="submit" name="action" value="reject" title="批量判定违规并替换默认头像">违规拒绝</button>
+              <button type="submit" name="action" value="blacklist" title="批量加黑">加黑名单</button>
+              <button type="submit" name="action" value="hold" title="批量暂缓留置">暂缓留置</button>
             </div>
           </div>
           {queue_list}
@@ -3022,6 +3184,22 @@ def render_review_workbench(
         </form>'''
         for row in workspace_rows
     )
+
+    pagination_html = _render_pagination(
+        current_page=current_page,
+        total_pages=total_pages,
+        total_items=total_filtered,
+        per_page=per_page,
+        status=status_filter,
+        risk=risk_filter,
+        query=search_query,
+        view=view_value if view_value != "focus" else "list",
+        batch=batch_mode,
+    )
+
+    start_num_disp = start_index + 1 if total_filtered > 0 else 0
+    end_num_disp = min(start_index + per_page, total_filtered)
+
     return f"""<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -3064,13 +3242,13 @@ def render_review_workbench(
           <span class="nav-icon" aria-hidden="true">{_nav_icon("policy")}</span><span>审核策略</span>
         </a>
         <a class="nav-item" href="/review/quality">
-          <span class="nav-icon" aria-hidden="true">{_nav_icon("quality")}</span><span>质量与仲裁</span>
+          <span class="nav-icon" aria-hidden="true">{_nav_icon("quality")}</span><span>抽检质量</span>
         </a>
         <a class="nav-item" href="/review/health">
           <span class="nav-icon" aria-hidden="true">{_nav_icon("health")}</span><span>系统健康</span>
         </a>
         <a class="nav-item" href="/review/account">
-          <span class="nav-icon" aria-hidden="true">{_nav_icon("account")}</span><span>账户</span>
+          <span class="nav-icon" aria-hidden="true">{_nav_icon("account")}</span><span>账户与会话</span>
         </a>
         <a class="nav-item" href="/review/guide">
           <span class="nav-icon" aria-hidden="true">{_nav_icon("guide")}</span><span>审核说明</span>
@@ -3091,11 +3269,11 @@ def render_review_workbench(
             {workspace_menu}
           </div>
           <div class="consumer-popover-actions">
-            <a class="popover-action-btn" href="/review/account">管理工作区</a>
-            <form method="post" action="/review/logout">
-              <input type="hidden" name="csrf_token" value="{escape(csrf_token)}">
-              <button class="popover-action-btn logout-btn" type="submit">Log out</button>
-            </form>
+            <a class="popover-action-btn" href="/review/account">
+              {_top_icon('settings')}
+              <span>账户与会话</span>
+            </a>
+            {'<form class="logout-form" method="post" action="/review/logout"><input type="hidden" name="csrf_token" value="' + escape(csrf_token) + '"><button class="popover-action-btn logout-btn" type="submit"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg><span>退出登录</span></button></form>' if csrf_token else '<a class="popover-action-btn" href="/review/account">Account Details</a>'}
           </div>
         </div>
       </details>
@@ -3125,91 +3303,70 @@ def render_review_workbench(
             <span class="theme-icon-sun">{_top_icon('sun')}</span>
             <span class="theme-icon-moon">{_top_icon('moon')}</span>
           </button>
-          <span class="topbar-icon" data-tone="{ready_tone}" title="{'本地扫描可用' if service_ready else '本地扫描异常'}" aria-label="{'本地扫描可用' if service_ready else '本地扫描异常'}">{_top_icon('spark')}</span>
-          <a class="topbar-icon" href="/review/guide" title="审核说明" aria-label="审核说明">{_top_icon('help')}</a>
-          <details class="account-menu">
-            <summary><span class="reviewer-avatar">{escape(reviewer_id[:1].upper() or 'R')}</span><span>{escape(reviewer_id)}</span><span aria-hidden="true">⌄</span></summary>
-            <div class="account-popover">
-              <p>{escape(consumer_id)} · 受限审核会话</p>
-              <form class="toolbar-logout" method="post" action="/review/logout">
-                <input type="hidden" name="csrf_token" value="{escape(csrf_token)}">
-                <button type="submit">退出审核台</button>
-              </form>
-            </div>
-          </details>
+          <span class="topbar-icon service-status" data-tone="{ready_tone}" role="status" title="本地多模型引擎及扫描服务" aria-label="本地多模型引擎及扫描服务">
+            {_top_icon('spark')}
+          </span>
+          <a class="topbar-icon" href="/review/guide" title="查看审核系统使用指引" aria-label="查看审核系统使用指引">
+            {_top_icon('guide')}
+          </a>
+          <div class="user-chip">
+            <span class="reviewer-avatar">{escape(reviewer_id[:1].upper() or 'R')}</span>
+            <span>{escape(reviewer_id)}</span>
+          </div>
         </div>
       </header>
 
-      <main class="shell{' shell-focus' if focus_item_id else ''}" id="main-workbench">
-        {f'''
-        {detail_html}
-        ''' if focus_item_id else f'''
-        <section class="queue-section is-primary" id="review-queue" aria-labelledby="queue-title">
-          <header class="support-hero">
-            <div class="support-hero-left">
-              <div><h1 id="queue-title">审核队列</h1><p class="queue-intro">人工例外 {pending_count} · AI 已处理 {reviewed_count}</p></div>
+      <main class="shell" id="main-content">
+        {f'<div class="detail-overlay" data-detail-overlay>{detail_html}</div>' if focus_item_id and summary.focus_item else f'''
+        <section class="workbench-main" id="review-queue">
+          <div class="tabs-header">
+            <div class="page-tabs" role="tablist" aria-label="审核状态维度">
+              <a class="tab-item{' is-active' if active_tab == 'pending' else ''}" href="{escape(_review_href(status='pending', risk=risk_filter, query=search_query, view=view_value, batch=batch_mode))}" role="tab" aria-selected="{'true' if active_tab == 'pending' else 'false'}">
+                待处理<span class="badge">{pending_count}</span>
+              </a>
+              <a class="tab-item{' is-active' if active_tab == 'held' else ''}" href="{escape(_review_href(status='held', risk=risk_filter, query=search_query, view=view_value, batch=batch_mode))}" role="tab" aria-selected="{'true' if active_tab == 'held' else 'false'}">
+                暂缓留置<span class="badge">{held_count}</span>
+              </a>
+              <a class="tab-item{' is-active' if active_tab == 'reviewed' else ''}" href="{escape(_review_href(status='reviewed', risk=risk_filter, query=search_query, view=view_value, batch=batch_mode))}" role="tab" aria-selected="{'true' if active_tab == 'reviewed' else 'false'}">
+                已终审<span class="badge">{reviewed_count}</span>
+              </a>
+              <a class="tab-item{' is-active' if active_tab == 'all' else ''}" href="{escape(_review_href(status='all', risk=risk_filter, query=search_query, view=view_value, batch=batch_mode))}" role="tab" aria-selected="{'true' if active_tab == 'all' else 'false'}">
+                全部样本<span class="badge">{total_count}</span>
+              </a>
             </div>
-            <span class="status-dot-pill" data-tone="{ready_tone}">
-              <span class="dot"></span>
-              {'本地扫描可用' if service_ready else '本地扫描受阻'}
-            </span>
-          </header>
 
-          <div class="control-dock">
-            <nav class="page-tabs" aria-label="审核状态">
-              <a class="{'is-active' if active_tab == 'pending' else ''}" href="{escape(_review_href(status='pending', risk=risk_filter, query=search_query, view=view_value, batch=batch_mode))}#review-queue">待审核 <span>{pending_count}</span></a>
-              <a class="{'is-active' if active_tab == 'held' else ''}" href="{escape(_review_href(status='held', risk=risk_filter, query=search_query, view=view_value, batch=batch_mode))}#review-queue">已留置 <span>{held_count}</span></a>
-              <a class="{'is-active' if active_tab == 'reviewed' else ''}" href="{escape(_review_href(status='reviewed', risk=risk_filter, query=search_query, view=view_value, batch=batch_mode))}#review-queue">已处理 <span>{reviewed_count}</span></a>
-              <a class="{'is-active' if active_tab == 'all' else ''}" href="{escape(_review_href(status='all', risk=risk_filter, query=search_query, view=view_value, batch=batch_mode))}#review-queue">全部 <span>{total_count}</span></a>
-            </nav>
-
-            <div class="control-row">
-              <form class="filter-bar" method="get" action="/review">
+            <div class="toolbar-right">
+              <div class="filter-controls">
+              <form class="search-form" method="get" action="/review" data-search-form>
                 <input type="hidden" name="status" value="{escape(status_value)}">
-                <input type="hidden" name="view" value="{escape(view_value if view_value != 'focus' else 'list')}">
-                {'<input type="hidden" name="batch" value="1">' if batch_mode else ''}
+                <input type="hidden" name="risk" value="{escape(risk_value)}">
+                <input type="hidden" name="view" value="{escape(view_value)}">
+                {f'<input type="hidden" name="batch" value="1">' if batch_mode else ''}
                 <div class="search-box">
-                  {_top_icon("search")}
-                  <input name="q" type="search" value="{escape(search_query)}" placeholder="搜索 ID / 内容...">
-                  <kbd class="search-kbd">/</kbd>
+                  <span class="search-icon">{_top_icon('search')}</span>
+                  <input type="search" name="q" value="{escape(search_query)}" placeholder="搜索项目 ID、标签或描述..." aria-label="搜索项目 ID、标签或描述">
                 </div>
-                <select class="select-pill" name="risk" onchange="this.form.submit()">
-                  {_filter_option("all", "全部风险", risk_value)}
+              </form>
+
+              <form class="risk-filter-form" method="get" action="/review">
+                <input type="hidden" name="status" value="{escape(status_value)}">
+                <input type="hidden" name="view" value="{escape(view_value)}">
+                {f'<input type="hidden" name="q" value="{escape(search_query)}">' if search_query else ''}
+                {f'<input type="hidden" name="batch" value="1">' if batch_mode else ''}
+                <select name="risk" class="risk-select" onchange="this.form.submit()" aria-label="按风险等级筛选">
+                  {_filter_option("all", "所有风险等级", risk_value)}
                   {_filter_option("low", "低风险", risk_value)}
                   {_filter_option("guarded", "需确认", risk_value)}
                   {_filter_option("elevated", "高风险", risk_value)}
                   {_filter_option("critical", "严重风险", risk_value)}
                 </select>
               </form>
-              <div class="control-actions">
-                <nav class="view-switch" aria-label="队列视图">
-                  <a class="{'is-active' if view_value == 'grid' else ''}" href="{escape(_review_href(status=status_filter, risk=risk_filter, query=search_query, view='grid', batch=batch_mode))}" title="视觉网格">{_top_icon('grid')}<span>网格</span></a>
-                  <a class="{'is-active' if view_value == 'list' else ''}" href="{escape(_review_href(status=status_filter, risk=risk_filter, query=search_query, view='list', batch=batch_mode))}" title="紧凑列表">{_top_icon('list')}<span>列表</span></a>
-                  <a class="{'is-active' if view_value == 'focus' else ''}" href="{escape(_review_href(status=status_filter, risk=risk_filter, query=search_query, view='focus'))}" title="沉浸标记">{_top_icon('zap')}<span>沉浸</span></a>
-                </nav>
-              <details class="keyboard-help-popover">
-                <summary class="keyboard-help-btn" title="查看键盘快捷键说明">{_top_icon('keyboard')}<span>快捷键说明</span></summary>
-                <div class="keyboard-popover-content">
-                  <strong>极速审核快捷键</strong>
-                  <ul>
-                    <li><span>通过 (Approve)</span><kbd>A</kbd></li>
-                    <li><span>拒绝 (Reject)</span><kbd>R</kbd></li>
-                    <li><span>留置 (Hold)</span><kbd>H</kbd></li>
-                    <li><span>重试 (Retry)</span><kbd>X</kbd></li>
-                    <li><span>切换卡片</span><kbd>J</kbd> / <kbd>K</kbd> / <kbd>↑</kbd> / <kbd>↓</kbd></li>
-                    <li><span>放大预览</span><kbd>Space</kbd></li>
-                    <li><span>搜索框</span><kbd>/</kbd></li>
-                    <li><span>关闭弹窗</span><kbd>Esc</kbd></li>
-                  </ul>
-                </div>
-              </details>
-              <a class="batch-toggle{' is-active' if batch_mode else ''}" href="{escape(_review_href(status=status_filter, risk=risk_filter, query=search_query, view=view_value if view_value != 'focus' else 'list', batch=not batch_mode))}">{'退出批量模式' if batch_mode else '批量模式'}</a>
               </div>
             </div>
           </div>
 
           <div class="queue-tools">
-            <span class="filtered-count">当前显示 {len(filtered_items)} 项</span>
+            <span class="filtered-count">显示第 <strong>{start_num_disp} - {end_num_disp}</strong> 项 (共 {total_filtered} 项)</span>
           </div>
 
           {f'<div class="batch-result">{escape(batch_result)}</div>' if batch_result else ''}
@@ -3247,6 +3404,8 @@ def _review_href(
     view: str,
     focus: str | None = None,
     batch: bool = False,
+    page: int = 1,
+    per_page: int = 20,
 ) -> str:
     values: dict[str, str] = {"status": status, "risk": risk, "view": view}
     if query:
@@ -3255,7 +3414,83 @@ def _review_href(
         values["focus"] = focus
     if batch:
         values["batch"] = "1"
+    if page > 1:
+        values["page"] = str(page)
+    if per_page != 20:
+        values["per_page"] = str(per_page)
     return f"/review?{urlencode(values)}"
+
+
+def _render_pagination(
+    *,
+    current_page: int,
+    total_pages: int,
+    total_items: int,
+    per_page: int,
+    status: str,
+    risk: str,
+    query: str,
+    view: str,
+    batch: bool,
+) -> str:
+    if total_items == 0:
+        return ""
+    start_num = (current_page - 1) * per_page + 1 if total_items > 0 else 0
+    end_num = min(current_page * per_page, total_items)
+
+    prev_link = (
+        f'<a class="page-nav-btn prev" href="{_review_href(status=status, risk=risk, query=query, view=view, batch=batch, page=current_page-1, per_page=per_page)}" title="上一页" aria-label="上一页">{_top_icon("arrow")}</a>'
+        if current_page > 1
+        else '<span class="page-nav-btn prev is-disabled" aria-disabled="true">' + _top_icon("arrow") + '</span>'
+    )
+    next_link = (
+        f'<a class="page-nav-btn next" href="{_review_href(status=status, risk=risk, query=query, view=view, batch=batch, page=current_page+1, per_page=per_page)}" title="下一页" aria-label="下一页">{_top_icon("arrow")}</a>'
+        if current_page < total_pages
+        else '<span class="page-nav-btn next is-disabled" aria-disabled="true">' + _top_icon("arrow") + '</span>'
+    )
+
+    page_numbers: list[str] = []
+    for p in range(1, total_pages + 1):
+        if p == current_page:
+            page_numbers.append(f'<span class="page-num is-current" aria-current="page">{p}</span>')
+        elif p == 1 or p == total_pages or abs(p - current_page) <= 2:
+            page_numbers.append(f'<a class="page-num" href="{_review_href(status=status, risk=risk, query=query, view=view, batch=batch, page=p, per_page=per_page)}">{p}</a>')
+        elif page_numbers and page_numbers[-1] != '<span class="page-ellipsis">…</span>':
+            page_numbers.append('<span class="page-ellipsis">…</span>')
+
+    page_size_options = "".join(
+        f'<option value="{size}"{" selected" if size == per_page else ""}>{size} 条/页</option>'
+        for size in (10, 20, 50, 100)
+    )
+
+    per_page_select = f'''
+    <form class="per-page-form" method="get" action="/review">
+      <input type="hidden" name="status" value="{escape(status)}">
+      <input type="hidden" name="risk" value="{escape(risk)}">
+      <input type="hidden" name="view" value="{escape(view)}">
+      {f'<input type="hidden" name="q" value="{escape(query)}">' if query else ''}
+      {f'<input type="hidden" name="batch" value="1">' if batch else ''}
+      <select name="per_page" class="per-page-select" onchange="this.form.submit()">
+        {page_size_options}
+      </select>
+    </form>
+    '''
+
+    return f'''
+    <nav class="pagination-bar" aria-label="分页导航">
+      <div class="pagination-info">
+        显示第 <strong>{start_num} - {end_num}</strong> 项，共 <strong>{total_items}</strong> 项
+      </div>
+      <div class="pagination-controls">
+        <div class="page-numbers">
+          {prev_link}
+          {"".join(page_numbers)}
+          {next_link}
+        </div>
+        {per_page_select}
+      </div>
+    </nav>
+    '''
 
 def _filter_items(
     items: list[ReviewItem],

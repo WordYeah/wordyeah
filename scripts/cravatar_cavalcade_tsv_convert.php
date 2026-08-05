@@ -53,9 +53,15 @@ $emit = static function ( array $row, int $source_line ) use ( &$seen ): void {
 	if ( 32 !== strlen( $image_md5 ) || ! ctype_xdigit( $image_md5 ) ) {
 		return;
 	}
-	if ( "https://cravatar.cn/avatar/{$email_hash}" !== $url ) {
+	$accepted_urls = array(
+		"https://cravatar.cn/avatar/{$email_hash}", // Legacy queue value; never emitted.
+		"https://cravatar.com/avatar/{$email_hash}",
+		"https://cn.cravatar.com/avatar/{$email_hash}",
+	);
+	if ( ! in_array( $url, $accepted_urls, true ) ) {
 		return;
 	}
+	$url = "https://cravatar.com/avatar/{$email_hash}";
 
 	$seen[ $job_id ] = true;
 	echo json_encode(

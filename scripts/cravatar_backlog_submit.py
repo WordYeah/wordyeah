@@ -21,6 +21,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from wy_cravatar.backlog import (  # noqa: E402
     CravatarBacklogRecord,
     import_cravatar_backlog,
+    moderation_source_metadata,
     submit_cravatar_backlog,
 )
 
@@ -61,6 +62,14 @@ def main() -> int:
                 "X-WordYeah-Workspace": args.workspace,
                 "X-WordYeah-Source-ID": urllib.parse.quote(record.source_id, safe=":._-"),
                 "X-WordYeah-Source-Ref": urllib.parse.quote(record.avatar_ref, safe=":._-"),
+                "X-WordYeah-Source-Metadata": urllib.parse.quote(
+                    json.dumps(
+                        moderation_source_metadata(record),
+                        ensure_ascii=True,
+                        separators=(",", ":"),
+                    ),
+                    safe="",
+                ),
             }
             if token:
                 headers["Authorization"] = f"Bearer {token}"

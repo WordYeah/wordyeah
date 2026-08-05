@@ -490,7 +490,9 @@ def create_app(
             raise HTTPException(status_code=403, detail="WordYeah workspace is disabled")
         return workspace
 
-    def _api_source_metadata(request: Request) -> tuple[str | None, str | None]:
+    def _api_source_metadata(
+        request: Request,
+    ) -> tuple[str | None, str | None, dict[str, object]]:
         values: list[str | None] = []
         for header in ("X-WordYeah-Source-ID", "X-WordYeah-Source-Ref"):
             raw = request.headers.get(header)
@@ -506,7 +508,52 @@ def create_app(
             ):
                 raise HTTPException(status_code=400, detail=f"invalid {header}")
             values.append(value)
-        return values[0], values[1]
+        metadata_raw = request.headers.get("X-WordYeah-Source-Metadata")
+        if metadata_raw is None:
+            metadata: dict[str, object] = {}
+        else:
+            if len(metadata_raw) > 2048:
+                raise HTTPException(status_code=400, detail="source metadata is too large")
+            try:
+                decoded = json.loads(unquote(metadata_raw))
+            except (ValueError, TypeError) as exc:
+                raise HTTPException(status_code=400, detail="invalid source metadata") from exc
+            allowed_keys = {
+                "avatar_origin",
+                "origin_verified",
+                "registry_status",
+                "image_md5",
+                "collected_content_md5",
+                "matches_queued_image_md5",
+                "requires_ai_review",
+            }
+            if not isinstance(decoded, dict) or not set(decoded).issubset(allowed_keys):
+                raise HTTPException(status_code=400, detail="invalid source metadata")
+            origin = decoded.get("avatar_origin")
+            if origin not in {None, "cravatar", "gravatar", "unknown"}:
+                raise HTTPException(status_code=400, detail="invalid avatar origin")
+            for key in (
+                "origin_verified",
+                "matches_queued_image_md5",
+                "requires_ai_review",
+            ):
+                if key in decoded and not isinstance(decoded[key], bool):
+                    raise HTTPException(status_code=400, detail=f"invalid {key}")
+            registry_status = decoded.get("registry_status")
+            if registry_status is not None and (
+                isinstance(registry_status, bool) or not isinstance(registry_status, int)
+            ):
+                raise HTTPException(status_code=400, detail="invalid registry_status")
+            for key in ("image_md5", "collected_content_md5"):
+                digest = decoded.get(key)
+                if digest is not None and (
+                    not isinstance(digest, str)
+                    or len(digest) != 32
+                    or any(char not in "0123456789abcdef" for char in digest.lower())
+                ):
+                    raise HTTPException(status_code=400, detail=f"invalid {key}")
+            metadata = decoded
+        return values[0], values[1], metadata
 
     def _quality_vocabulary(consumer_id: str) -> None:
         """Create the immutable built-in vocabulary on first use per workspace."""
@@ -773,7 +820,11 @@ def create_app(
         }.get(suffix, "image/jpeg")
 
     def _record_fast_scan(
-        item_id: str, result: ModerationResult, *, consumer_id: str | None = None
+        item_id: str,
+        result: ModerationResult,
+        *,
+        consumer_id: str | None = None,
+        force_ai_review: bool = False,
     ) -> None:
         target_consumer = consumer_id or settings.consumer_id
         if attempt_store.list_attempts(
@@ -798,7 +849,63 @@ def create_app(
             elapsed_ms=result.elapsed_ms,
             error=result.error,
         )
-        _route_item(item_id, risk_score=result.top_score, consumer_id=target_consumer)
+        if not force_ai_review:
+            _route_item(item_id, risk_score=result.top_score, consumer_id=target_consumer)
+            return
+
+        item = review_store.get(item_id, consumer_id=target_consumer)
+        attempts = attempt_store.list_attempts(item_id, consumer_id=target_consumer)
+        review_store.apply_route(
+            item_id,
+            stage="vision_review_1",
+            final_decision=None,
+            reason_code="source_requires_ai_review",
+            consumer_id=target_consumer,
+        )
+        if job_store.count_active(target_consumer) >= settings.max_queue_depth:
+            review_store.apply_route(
+                item_id,
+                stage="model_error",
+                final_decision=None,
+                reason_code="vision_queue_full",
+                consumer_id=target_consumer,
+            )
+            return
+        payload = VisionReviewJobPayload(
+            item_id=item.item_id,
+            media_ref=item.media_ref,
+            media_type=_media_type_for_ref(item.media_ref),
+            stage="vision_review_1",
+            attempt_number=attempt_store.next_attempt_number(
+                item_id, "vision_review_1", consumer_id=target_consumer
+            ),
+            request_id=f"{item.item_id}:vision_review_1:source-required",
+            policy_version=item.policy_version,
+            content_sha256=item.content_sha256,
+            media_sha256=_review_media_sha256(item.media_ref),
+            categories=tuple(
+                sorted(
+                    {
+                        str(finding.get("category"))
+                        for attempt in attempts
+                        for finding in attempt.findings
+                        if finding.get("category")
+                    }
+                )
+            ),
+            context=(
+                f"consumer={item.consumer_id}; policy={item.policy_version}; "
+                "source_requires_ai_review=true"
+            ),
+            parent_attempt_id=attempts[-1].attempt_id if attempts else None,
+            provider_slot="primary",
+        )
+        enqueue_vision_review(
+            job_store,
+            payload,
+            target_consumer,
+            max_attempts=review_router.config.max_attempts_per_stage,
+        )
 
     def _enqueue_manual_vision_retry(item: Any, consumer_id: str) -> None:
         attempts = attempt_store.list_attempts(
@@ -912,7 +1019,8 @@ def create_app(
         require_api_access(request)
         workspace = _api_workspace(request)
         target_consumer = workspace.workspace_id
-        source_id, source_ref = _api_source_metadata(request)
+        source_id, source_ref, source_metadata = _api_source_metadata(request)
+        force_ai_review = source_metadata.get("requires_ai_review") is True
         if not app.state.ready:
             raise HTTPException(status_code=503, detail="model is not ready")
         content_type = request.headers.get("Content-Type", "").split(";", 1)[0].strip().lower()
@@ -921,7 +1029,7 @@ def create_app(
         body = await read_limited_body(request)
         result = service.moderate_image(body)
         media_ref = f"sha256://{result.content_sha256}"
-        if result.decision in {"review", "block", "error"}:
+        if force_ai_review or result.decision in {"review", "block", "error"}:
             try:
                 media_ref = _store_review_preview(body, result.content_sha256)
             except Exception as exc:
@@ -938,10 +1046,11 @@ def create_app(
                 workspace.policy_profile,
                 source_id=source_id,
                 source_ref=source_ref,
+                source_metadata=source_metadata,
             )
         except Exception as exc:
             result = _error_result(result, "result_persistence_failed", f"{type(exc).__name__}: {exc}")
-        if result.decision in {"review", "block", "error"}:
+        if force_ai_review or result.decision in {"review", "block", "error"}:
             try:
                 item = review_store.enqueue(
                     result,
@@ -949,8 +1058,15 @@ def create_app(
                     consumer_id=target_consumer,
                     source_id=source_id,
                     source_ref=source_ref,
+                    source_metadata=source_metadata,
+                    force=force_ai_review,
                 )
-                _record_fast_scan(item.item_id, result, consumer_id=target_consumer)
+                _record_fast_scan(
+                    item.item_id,
+                    result,
+                    consumer_id=target_consumer,
+                    force_ai_review=force_ai_review,
+                )
             except Exception as exc:
                 result = _error_result(result, "review_queue_failed", f"{type(exc).__name__}: {exc}")
         status_code = 422 if result.decision == "error" else 200
@@ -1182,9 +1298,17 @@ def create_app(
         view_mode = request.query_params.get("view", "list")
         batch_mode = request.query_params.get("batch") == "1"
         batch_result = request.query_params.get("batch_result", "")
+        try:
+            current_page = max(1, int(request.query_params.get("page", "1")))
+        except ValueError:
+            current_page = 1
+        try:
+            per_page = max(5, min(200, int(request.query_params.get("per_page", "20"))))
+        except ValueError:
+            per_page = 20
         workspace = _review_workspace(request)
         items = review_store.list_items(
-            status=None, consumer_id=workspace.workspace_id, limit=1000
+            status=None, consumer_id=workspace.workspace_id, limit=5000
         )
         events = review_store.list_all_events(workspace.workspace_id, limit=1000)
         return HTMLResponse(
@@ -1205,6 +1329,8 @@ def create_app(
                 view_mode=view_mode,
                 batch_mode=batch_mode,
                 batch_result=batch_result,
+                page=current_page,
+                per_page=per_page,
                 workspaces=(
                     {
                         "workspace_id": candidate.workspace_id,
