@@ -16,6 +16,20 @@ WORDYEAH_REVIEW_SESSION_SECRET='independent-runtime-session-secret'
 
 同一 reviewer 不能提交两次双审，也不能仲裁自己参与过的样本。
 
+真实 corpus 验收不要使用 `WORDYEAH_LOCAL_REVIEW_NO_AUTH`。运行时凭据保存在仓库外
+0600 JSON，固定包含 `reviewer-a`、`reviewer-b`、`arbitrator` 和独立 session secret；
+token 不写入文档、日志或验收证据。服务启动后可执行只读登录验收：
+
+```bash
+python scripts/audit_reviewer_runtime.py \
+  --runtime /private/wordyeah/reviewer-runtime.json \
+  --base-url http://127.0.0.1:8768 \
+  --output artifacts/reviewer-runtime-acceptance-mvp.json
+```
+
+验收器只允许 loopback HTTP，要求凭据文件拒绝 group/other 访问，分别建立三份 cookie
+session，并核对账户身份、`corpus-primary-v1` 和 `dual-review-10pct-v2`；输出不包含 token。
+
 ## 页面
 
 `/review` 是 AI Agent 优先的图像审核工作台，视觉结构按 Windsor 风格参考稿收敛：

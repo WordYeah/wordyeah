@@ -169,7 +169,7 @@ Cravatar 增量 shadow 输入
 
 ## 9. 2026-08-05 验证记录
 
-- 全量测试：215 passed，12 subtests passed；覆盖 Cravatar TSV 转换、并发采集、shadow 证据审计和真实视觉 canary 默认关闭边界。仅有 Starlette/httpx 弃用警告。
+- 全量测试：217 passed，12 subtests passed；覆盖 Cravatar TSV 转换、并发采集、shadow 证据审计、真实视觉 canary 默认关闭边界和三角色 reviewer runtime 私密配置校验。仅有 Starlette/httpx 弃用警告。
 - 质量双审：人工标签结论已扩展为 `allow/review/block`，两名独立 reviewer 可把边界样本收敛为 `review`；旧 `allow/block` 文件库迁移在提交前执行外键校验，失败会完整回滚。
 - 浏览器：真实 reviewer session 下验证 1440×900 三种队列视图、显式批量模式与最多 50 项提示、快速标记四种动作且零弹窗；1280×800 验证紧凑列表；390×844 验证质量页与工作区菜单且无横向溢出。证据保存在本地忽略文件 `artifacts/browser-acceptance-mvp.json`。
 - 持久队列负载：50 jobs/s 连续 900 秒，完成 45,000 项、零 active 残留、49.9998 jobs/s、cycle p95 1.02ms；时长与速率门槛均 `PASS`。结果保存在本地忽略文件 `artifacts/review-queue-load-15m.json`。

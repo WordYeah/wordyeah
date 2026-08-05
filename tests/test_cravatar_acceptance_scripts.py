@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import importlib.util
 import json
 import shutil
 import subprocess
@@ -12,6 +13,15 @@ from PIL import Image
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def _load_script(name: str):
+    path = ROOT / "scripts" / name
+    spec = importlib.util.spec_from_file_location(name.removesuffix(".py"), path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 @pytest.mark.skipif(shutil.which("php") is None, reason="PHP CLI is unavailable")
@@ -129,3 +139,33 @@ def test_vision_canary_is_disabled_without_explicit_provider_config(tmp_path: Pa
     assert evidence["status"] == "FAIL"
     assert evidence["actual_provider_response"] is False
     assert evidence["error_kind"] == "disabled"
+
+
+def test_reviewer_runtime_audit_rejects_non_loopback_url() -> None:
+    module = _load_script("audit_reviewer_runtime.py")
+    with pytest.raises(ValueError, match="loopback"):
+        module._loopback_base("https://review.example.com")
+
+
+def test_reviewer_runtime_audit_requires_private_exact_config(tmp_path: Path) -> None:
+    module = _load_script("audit_reviewer_runtime.py")
+    path = tmp_path / "runtime.json"
+    value = {
+        "reviewers": {
+            "reviewer-a": "a" * 16,
+            "reviewer-b": "b" * 16,
+            "arbitrator": "c" * 16,
+        },
+        "session_secret": "s" * 32,
+    }
+    path.write_text(json.dumps(value))
+    path.chmod(0o600)
+    assert module._load_runtime(path) == value
+    path.chmod(0o644)
+    with pytest.raises(ValueError, match="group or others"):
+        module._load_runtime(path)
+    path.chmod(0o600)
+    link = tmp_path / "runtime-link.json"
+    link.symlink_to(path)
+    with pytest.raises(OSError):
+        module._load_runtime(link)
