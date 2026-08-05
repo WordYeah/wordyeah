@@ -104,6 +104,27 @@ def test_cursor_persists_across_instances_and_manifest_growth(tmp_path: Path) ->
     assert len(raw["streams"]) == 1
 
 
+def test_cursor_retains_source_to_decision_audit_mapping(tmp_path: Path) -> None:
+    images, backlog = _backlog(tmp_path, 1)
+    state_path = tmp_path / "cursor.json"
+    importer = CravatarIncrementalImporter(CravatarCursorStore(state_path), workspace="cravatar")
+    importer.run(
+        backlog,
+        controlled_root=images,
+        callback=lambda _record, _payload: {
+            "request_id": "request-123",
+            "decision": "review",
+            "mutates_avatar": False,
+        },
+    )
+
+    raw = json.loads(state_path.read_text(encoding="utf-8"))
+    stream = next(iter(raw["streams"].values()))
+    completed = next(iter(stream["completed"].values()))
+    assert completed["request_id"] == "request-123"
+    assert completed["decision"] == "review"
+
+
 def test_failures_are_recorded_and_explicitly_replayed(tmp_path: Path) -> None:
     images, backlog = _backlog(tmp_path, 2)
     importer = CravatarIncrementalImporter(

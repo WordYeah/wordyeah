@@ -46,7 +46,9 @@ def test_run_is_incremental_and_persists_watermark(tmp_path: Path, monkeypatch, 
     monkeypatch.setattr(
         cli,
         "_submitter",
-        lambda _endpoint: lambda record, _payload: submitted.append(record.source_id)
+        lambda _endpoint, workspace: lambda record, _payload: submitted.append(
+            f"{workspace}:{record.source_id}"
+        )
         or {"mutates_avatar": False},
     )
     arguments = [
@@ -68,13 +70,14 @@ def test_run_is_incremental_and_persists_watermark(tmp_path: Path, monkeypatch, 
     assert second["outcomes"] == []
     assert second["watermark"]["completed_count"] == 1
     assert len(submitted) == 1
+    assert submitted[0].startswith("cravatar:cravatar-sha256:")
 
 
 def test_failed_submission_returns_nonzero_and_is_replayable(tmp_path: Path, monkeypatch, capsys) -> None:
     root, manifest = fixture(tmp_path)
     state = tmp_path / "cursor.json"
     monkeypatch.setattr(
-        cli, "_submitter", lambda _endpoint: lambda *_args: (_ for _ in ()).throw(RuntimeError("down"))
+        cli, "_submitter", lambda _endpoint, _workspace: lambda *_args: (_ for _ in ()).throw(RuntimeError("down"))
     )
     arguments = [
         "run", "--workspace", "cravatar", "--state", str(state),
@@ -83,7 +86,7 @@ def test_failed_submission_returns_nonzero_and_is_replayable(tmp_path: Path, mon
     assert cli.main(arguments) == 2
     assert json.loads(capsys.readouterr().out)["watermark"]["failed_count"] == 1
     monkeypatch.setattr(
-        cli, "_submitter", lambda _endpoint: lambda *_args: {"mutates_avatar": False}
+        cli, "_submitter", lambda _endpoint, _workspace: lambda *_args: {"mutates_avatar": False}
     )
     assert cli.main(["replay", *arguments[1:]]) == 0
     assert json.loads(capsys.readouterr().out)["watermark"]["failed_count"] == 0
@@ -97,7 +100,9 @@ def test_watch_refreshes_manifest_and_writes_atomic_status(tmp_path: Path, monke
     monkeypatch.setattr(
         cli,
         "_submitter",
-        lambda _endpoint: lambda record, _payload: submitted.append(record.source_id)
+        lambda _endpoint, workspace: lambda record, _payload: submitted.append(
+            f"{workspace}:{record.source_id}"
+        )
         or {"mutates_avatar": False},
     )
 
@@ -124,5 +129,6 @@ def test_watch_refreshes_manifest_and_writes_atomic_status(tmp_path: Path, monke
     assert payload["command"] == "watch"
     assert payload["mutates_avatar"] is False
     assert payload["watermark"]["completed_count"] == 1
-    assert submitted and len(submitted) == 1
+    assert len(submitted) == 1
+    assert submitted[0].startswith("cravatar:cravatar-sha256:")
     assert status.stat().st_mode & 0o777 == 0o600

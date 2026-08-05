@@ -12,7 +12,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit
+from urllib.parse import parse_qs, unquote, urlencode, urlsplit, urlunsplit
 
 from wy_core.config import load_policy_config
 from wy_core.contracts import ModerationResult
@@ -74,6 +74,7 @@ class ApiSettings:
     reviewer_id: str = "reviewer"
     reviewer_credentials: tuple[tuple[str, str], ...] = ()
     local_review_no_auth: bool = False
+    workspace_definitions: tuple[tuple[str, str, str, str, bool], ...] = ()
     model_path: str | None = None
     device: str = "auto"
 
@@ -116,6 +117,47 @@ class ApiSettings:
                     )
                 normalized.append((reviewer, token))
             reviewer_credentials = tuple(sorted(normalized))
+        workspace_definitions: tuple[tuple[str, str, str, str, bool], ...] = ()
+        raw_workspaces = os.getenv("WORDYEAH_WORKSPACES_JSON", "").strip()
+        if raw_workspaces:
+            try:
+                parsed_workspaces = json.loads(raw_workspaces)
+            except json.JSONDecodeError as exc:
+                raise ValueError("WORDYEAH_WORKSPACES_JSON must be valid JSON") from exc
+            if not isinstance(parsed_workspaces, dict) or not parsed_workspaces:
+                raise ValueError("WORDYEAH_WORKSPACES_JSON must be a non-empty object")
+            normalized_workspaces: list[tuple[str, str, str, str, bool]] = []
+            for workspace_id, definition in parsed_workspaces.items():
+                if (
+                    not isinstance(workspace_id, str)
+                    or not workspace_id.strip()
+                    or len(workspace_id) > 128
+                    or not isinstance(definition, dict)
+                ):
+                    raise ValueError("WORDYEAH_WORKSPACES_JSON contains an invalid workspace")
+                name = definition.get("name", workspace_id)
+                adapter = definition.get("adapter", "generic")
+                policy_profile = definition.get(
+                    "policy_profile", os.getenv("WORDYEAH_POLICY_PROFILE", "avatar-default")
+                )
+                enabled = definition.get("enabled", True)
+                if (
+                    not isinstance(name, str)
+                    or not name.strip()
+                    or len(name) > 256
+                    or not isinstance(adapter, str)
+                    or not adapter.strip()
+                    or len(adapter) > 256
+                    or not isinstance(policy_profile, str)
+                    or not policy_profile.strip()
+                    or len(policy_profile) > 256
+                    or not isinstance(enabled, bool)
+                ):
+                    raise ValueError("WORDYEAH_WORKSPACES_JSON contains invalid workspace fields")
+                normalized_workspaces.append(
+                    (workspace_id, name, adapter, policy_profile, enabled)
+                )
+            workspace_definitions = tuple(sorted(normalized_workspaces))
         return cls(
             bind=os.getenv("WORDYEAH_BIND", "127.0.0.1"),
             database_path=os.getenv("WORDYEAH_DATABASE", "./var/wordyeah.sqlite3"),
@@ -136,6 +178,7 @@ class ApiSettings:
             reviewer_credentials=reviewer_credentials,
             local_review_no_auth=os.getenv("WORDYEAH_LOCAL_REVIEW_NO_AUTH", "").strip().lower()
             in {"1", "true", "yes", "on"},
+            workspace_definitions=workspace_definitions,
             model_path=os.getenv("WORDYEAH_MEDIA_MODEL_PATH") or None,
             device=os.getenv("WORDYEAH_DEVICE", "auto"),
         )
@@ -233,6 +276,27 @@ def create_app(
             adapter="cravatar" if settings.consumer_id == "cravatar" else "generic",
             policy_profile=settings.policy_profile,
         )
+    for workspace_id, name, adapter, policy_profile, enabled in settings.workspace_definitions:
+        try:
+            workspace_store.get(workspace_id, settings.consumer_id)
+        except KeyError:
+            workspace_store.create(
+                workspace_id=workspace_id,
+                consumer_id=settings.consumer_id,
+                name=name,
+                adapter=adapter,
+                policy_profile=policy_profile,
+                enabled=enabled,
+            )
+        else:
+            workspace_store.update(
+                workspace_id,
+                settings.consumer_id,
+                name=name,
+                adapter=adapter,
+                policy_profile=policy_profile,
+                enabled=enabled,
+            )
     advanced_vision_provider = advanced_vision_provider or G2AVisionProvider(G2AConfig.from_env())
 
     @asynccontextmanager
@@ -405,6 +469,36 @@ def create_app(
         if not workspace.enabled:
             raise HTTPException(status_code=403, detail="review workspace is disabled")
         return workspace
+
+    def _api_workspace(request: Request) -> Workspace:
+        workspace_id = request.headers.get("X-WordYeah-Workspace", settings.consumer_id).strip()
+        if not workspace_id or len(workspace_id) > 128 or any(ord(char) < 32 for char in workspace_id):
+            raise HTTPException(status_code=400, detail="invalid WordYeah workspace")
+        try:
+            workspace = workspace_store.get(workspace_id, settings.consumer_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="WordYeah workspace not found") from exc
+        if not workspace.enabled:
+            raise HTTPException(status_code=403, detail="WordYeah workspace is disabled")
+        return workspace
+
+    def _api_source_metadata(request: Request) -> tuple[str | None, str | None]:
+        values: list[str | None] = []
+        for header in ("X-WordYeah-Source-ID", "X-WordYeah-Source-Ref"):
+            raw = request.headers.get(header)
+            if raw is None:
+                values.append(None)
+                continue
+            value = unquote(raw).strip()
+            if (
+                not value
+                or len(value) > 512
+                or any(ord(char) < 32 for char in value)
+                or value.lower().startswith(("http://", "https://"))
+            ):
+                raise HTTPException(status_code=400, detail=f"invalid {header}")
+            values.append(value)
+        return values[0], values[1]
 
     def _quality_vocabulary(consumer_id: str) -> None:
         """Create the immutable built-in vocabulary on first use per workspace."""
@@ -599,9 +693,12 @@ def create_app(
         <p>证据优先；人工 decision 与模型提示分开。当前 consumer：{html.escape(settings.consumer_id)}</p>
         {body}</body></html>"""
 
-    def _route_item(item_id: str, *, risk_score: float | None = None) -> object:
-        item = review_store.get(item_id, consumer_id=settings.consumer_id)
-        attempts = attempt_store.list_attempts(item_id, consumer_id=settings.consumer_id)
+    def _route_item(
+        item_id: str, *, risk_score: float | None = None, consumer_id: str | None = None
+    ) -> object:
+        target_consumer = consumer_id or settings.consumer_id
+        item = review_store.get(item_id, consumer_id=target_consumer)
+        attempts = attempt_store.list_attempts(item_id, consumer_id=target_consumer)
         categories = sorted(
             {
                 str(finding.get("category"))
@@ -616,21 +713,21 @@ def create_app(
             stage=route.state,
             final_decision=route.final_decision,
             reason_code=route.reason,
-            consumer_id=settings.consumer_id,
+            consumer_id=target_consumer,
         )
         if route.next_stage in VISION_JOB_KINDS:
-            if job_store.count_active(settings.consumer_id) >= settings.max_queue_depth:
+            if job_store.count_active(target_consumer) >= settings.max_queue_depth:
                 review_store.apply_route(
                     item_id,
                     stage="model_error",
                     final_decision=None,
                     reason_code="vision_queue_full",
-                    consumer_id=settings.consumer_id,
+                    consumer_id=target_consumer,
                 )
                 return route
             stage = route.next_stage
             attempt_number = attempt_store.next_attempt_number(
-                item_id, stage, consumer_id=settings.consumer_id
+                item_id, stage, consumer_id=target_consumer
             )
             parent_attempt_id = attempts[-1].attempt_id if attempts else None
             payload = VisionReviewJobPayload(
@@ -650,7 +747,7 @@ def create_app(
             enqueue_vision_review(
                 job_store,
                 payload,
-                settings.consumer_id,
+                target_consumer,
                 max_attempts=review_router.config.max_attempts_per_stage,
             )
         return route
@@ -666,14 +763,17 @@ def create_app(
             ".bmp": "image/bmp",
         }.get(suffix, "image/jpeg")
 
-    def _record_fast_scan(item_id: str, result: ModerationResult) -> None:
+    def _record_fast_scan(
+        item_id: str, result: ModerationResult, *, consumer_id: str | None = None
+    ) -> None:
+        target_consumer = consumer_id or settings.consumer_id
         if attempt_store.list_attempts(
-            item_id, "fast_scan", consumer_id=settings.consumer_id
+            item_id, "fast_scan", consumer_id=target_consumer
         ):
             return
         attempt_store.append_attempt(
             item_id=item_id,
-            consumer_id=settings.consumer_id,
+            consumer_id=target_consumer,
             stage="fast_scan",
             attempt_number=1,
             actor_type="agent",
@@ -689,7 +789,7 @@ def create_app(
             elapsed_ms=result.elapsed_ms,
             error=result.error,
         )
-        _route_item(item_id, risk_score=result.top_score)
+        _route_item(item_id, risk_score=result.top_score, consumer_id=target_consumer)
 
     def _enqueue_manual_vision_retry(item: Any, consumer_id: str) -> None:
         attempts = attempt_store.list_attempts(
@@ -800,6 +900,9 @@ def create_app(
     @app.post("/v1/moderate/image")
     async def moderate_image(request: Request) -> JSONResponse:
         require_api_access(request)
+        workspace = _api_workspace(request)
+        target_consumer = workspace.workspace_id
+        source_id, source_ref = _api_source_metadata(request)
         if not app.state.ready:
             raise HTTPException(status_code=503, detail="model is not ready")
         content_type = request.headers.get("Content-Type", "").split(";", 1)[0].strip().lower()
@@ -818,21 +921,40 @@ def create_app(
                     f"{type(exc).__name__}: {exc}",
                 )
         try:
-            result_store.record(result, settings.consumer_id, media_ref, settings.policy_profile)
+            result_store.record(
+                result,
+                target_consumer,
+                media_ref,
+                workspace.policy_profile,
+                source_id=source_id,
+                source_ref=source_ref,
+            )
         except Exception as exc:
             result = _error_result(result, "result_persistence_failed", f"{type(exc).__name__}: {exc}")
         if result.decision in {"review", "block", "error"}:
             try:
-                item = review_store.enqueue(result, media_ref, consumer_id=settings.consumer_id)
-                _record_fast_scan(item.item_id, result)
+                item = review_store.enqueue(
+                    result,
+                    media_ref,
+                    consumer_id=target_consumer,
+                    source_id=source_id,
+                    source_ref=source_ref,
+                )
+                _record_fast_scan(item.item_id, result, consumer_id=target_consumer)
             except Exception as exc:
                 result = _error_result(result, "review_queue_failed", f"{type(exc).__name__}: {exc}")
         status_code = 422 if result.decision == "error" else 200
-        return JSONResponse(result.to_dict(), status_code=status_code)
+        return JSONResponse(
+            result.to_dict(),
+            status_code=status_code,
+            headers={"X-WordYeah-Workspace": target_consumer},
+        )
 
     @app.post("/v1/jobs", status_code=202)
     async def create_job(request: Request) -> dict[str, Any]:
         require_api_access(request)
+        workspace = _api_workspace(request)
+        target_consumer = workspace.workspace_id
         body = await read_limited_body(request)
         if len(body) > 64 * 1024:
             raise HTTPException(status_code=413, detail="job payload too large")
@@ -845,7 +967,7 @@ def create_app(
         media_ref = payload.get("media_ref")
         if not isinstance(media_ref, str) or not media_ref.startswith("media://") or len(media_ref) > 512:
             raise HTTPException(status_code=400, detail="media_ref must be a controlled media:// reference")
-        if job_store.count_active(settings.consumer_id) >= settings.max_queue_depth:
+        if job_store.count_active(target_consumer) >= settings.max_queue_depth:
             raise HTTPException(
                 status_code=429,
                 detail="consumer queue is full",
@@ -854,7 +976,7 @@ def create_app(
         job = job_store.enqueue(
             "moderate_image",
             {"media_ref": media_ref},
-            settings.consumer_id,
+            target_consumer,
         )
         return job.to_dict()
 
@@ -1138,38 +1260,34 @@ def create_app(
         if page == "overview":
             today = datetime.now(timezone.utc).date()
             days = [today - timedelta(days=offset) for offset in range(13, -1, -1)]
-            incoming_by_day = {day.isoformat(): 0 for day in days}
+            result_summary = result_store.decision_summary(consumer_id)
+            daily_runs = result_store.daily_volume(
+                consumer_id, since_date=days[0].isoformat()
+            )
+            incoming_by_day = {
+                day.isoformat(): daily_runs.get(day.isoformat(), 0) for day in days
+            }
             decided_by_day = {day.isoformat(): 0 for day in days}
-            for item in items:
-                day_key = item.created_at[:10]
-                if day_key in incoming_by_day:
-                    incoming_by_day[day_key] += 1
             for event in events:
                 day_key = event.created_at[:10]
                 if day_key in decided_by_day and event.action in {"approve", "reject", "blacklist"}:
                     decided_by_day[day_key] += 1
-            status_labels = (
-                ("待处理", "pending"),
-                ("已通过", "approved"),
-                ("已拒绝", "rejected"),
-                ("留置", "held"),
+            classified_count = (
+                result_summary["allow"]
+                + result_summary["review"]
+                + result_summary["block"]
             )
-            status_counts = {
-                label: sum(item.status == status for item in items)
-                for label, status in status_labels
-            }
-            finalized_count = status_counts["已通过"] + status_counts["已拒绝"]
             incoming_14d = sum(incoming_by_day.values())
             return {
                 "exceptions": common_exceptions,
                 "metrics": metrics,
                 "overview_metrics": (
-                    {"label": "审核总量", "value": len(items), "detail": "当前工作区"},
-                    {"label": "14 天入队", "value": incoming_14d, "detail": "按创建时间统计"},
+                    {"label": "审核总量", "value": result_summary["total"], "detail": "当前工作区全部模型结果"},
+                    {"label": "14 天处理", "value": incoming_14d, "detail": "按模型运行时间统计"},
                     {
                         "label": "通过率",
-                        "value": f"{status_counts['已通过'] * 100 / finalized_count:.1f}%" if finalized_count else "—",
-                        "detail": f"{finalized_count} 条已有最终结论",
+                        "value": f"{result_summary['allow'] * 100 / classified_count:.1f}%" if classified_count else "—",
+                        "detail": f"{classified_count} 条有效模型结论",
                     },
                     {"label": "人工待审", "value": len(human), "detail": "AI 二审后仍不确定"},
                 ),
@@ -1182,8 +1300,10 @@ def create_app(
                     for day in days
                 ],
                 "decision_distribution": [
-                    {"label": label, "value": status_counts[label]}
-                    for label, _ in status_labels
+                    {"label": "模型通过", "value": result_summary["allow"]},
+                    {"label": "进入复核", "value": result_summary["review"]},
+                    {"label": "模型拒绝", "value": result_summary["block"]},
+                    {"label": "处理错误", "value": result_summary["error"]},
                 ],
                 "pipeline": [
                     {

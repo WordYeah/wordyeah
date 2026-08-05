@@ -23,9 +23,18 @@ stdlib server 仍保留为隔离 smoke 入口，但不作为新 API 的实现目
 - No URL input; the service does not fetch remote content.
 - Model loading uses `local_files_only=True`.
 - If `WORDYEAH_API_KEY` is set, requests require `Authorization: Bearer ...`.
+- Adapter requests select a preconfigured workspace with
+  `X-WordYeah-Workspace`. Unknown or disabled workspace IDs are rejected;
+  `WORDYEAH_WORKSPACES_JSON` declaratively creates/reconciles the allowed
+  workspace list at startup.
+- Adapters may attach local, non-URL identifiers with
+  `X-WordYeah-Source-ID` and `X-WordYeah-Source-Ref`. They are stored with the
+  model run and review item so a final decision can be traced back to the
+  originating Cravatar job without storing credentials or remote URLs.
 - Results are bounded in-memory by content SHA-256 for repeated-request
   idempotency; image bytes are not stored in SQLite.
-- 每次结果会写入 `submissions`、`model_runs` 和 `findings` 元数据表；原始图片不进入 SQLite。
+- 每次新来源结果会写入 `submissions`、`model_runs` 和 `findings` 元数据表；同一
+  workspace 下重复的 `source_id` 不会重复计数，原始图片不进入 SQLite。
 - `review`、`block` 会进入 pending review；`error` 会进入 `held`，没有可用持久化或队列时不返回 allow。
 - 图片在模型解码前执行格式、尺寸、像素数和动图帧数限制；动图默认拒绝，不取第一帧冒充静态头像。
 
@@ -81,7 +90,7 @@ of this PoC and no production decision is changed.
 ```
 
 任务会持久化到 SQLite，worker 使用 lease claim；远程 URL、任意路径和未受控文件引用都会被拒绝。
-`WORDYEAH_MAX_QUEUE_DEPTH`（默认 1000）限制单个 `consumer_id` 的 queued/running
+`WORDYEAH_MAX_QUEUE_DEPTH`（默认 1000）限制单个 workspace 的 queued/running
 任务数；超过上限返回 `429` 和 `Retry-After: 1`。
 
 策略从 `WORDYEAH_POLICY_PATH` 加载。启动时会校验 profile、阈值和 `enforce=false`，

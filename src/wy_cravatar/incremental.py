@@ -322,6 +322,12 @@ class CravatarIncrementalImporter:
         stream["completed"][record.source_id] = {
             "content_sha256": record.content_sha256,
             "completed_at": completed_at,
+            "request_id": callback_result.get("request_id")
+            if isinstance(callback_result, dict)
+            else None,
+            "decision": callback_result.get("decision")
+            if isinstance(callback_result, dict)
+            else None,
         }
         stream["failures"].pop(record.source_id, None)
         stream["last_source_id"] = record.source_id

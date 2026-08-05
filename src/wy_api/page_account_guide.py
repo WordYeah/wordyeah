@@ -20,56 +20,56 @@ CSS = """
   border-radius: 12px;
   background: var(--panel);
 }
-.account-guide__heading { margin: 0; font-size: 16px; line-height: 1.35; }
-.account-guide__copy { margin: 5px 0 0; color: var(--muted); font-size: 12px; line-height: 1.65; }
-.account-guide__panel > header { padding: 18px 20px 12px; border-bottom: 1px solid var(--line); }
-.account-guide__body { display: grid; gap: 18px; padding: 18px 20px 20px; }
-.account-guide__section { display: grid; gap: 10px; }
-.account-guide__section + .account-guide__section { padding-top: 18px; border-top: 1px solid var(--line); }
-.account-guide__section h3 { margin: 0; font-size: 13px; line-height: 1.4; }
-.account-guide__facts { display: grid; grid-template-columns: minmax(140px, .45fr) minmax(0, 1fr); margin: 0; }
-.account-guide__facts dt,
-.account-guide__facts dd { margin: 0; padding: 10px 12px; border-bottom: 1px solid var(--line); }
-.account-guide__facts dt { color: var(--muted); font-size: 12px; }
-.account-guide__facts dd { overflow-wrap: anywhere; font-size: 12px; }
-.account-guide__facts dt:last-of-type,
-.account-guide__facts dd:last-of-type { border-bottom: 0; }
+.account-guide__heading { margin: 0; font-size: 18px; font-weight: 700; line-height: 1.35; letter-spacing: -0.01em; }
+.account-guide__copy { margin: 5px 0 0; color: var(--muted); font-size: 12.5px; line-height: 1.55; }
+.account-guide__panel > header { padding: 20px 24px 16px; border-bottom: 1px solid var(--line); }
+.account-guide__body { display: grid; gap: 22px; padding: 20px 24px 24px; }
+.account-guide__section { display: grid; gap: 12px; }
+.account-guide__section + .account-guide__section { padding-top: 20px; border-top: 1px solid var(--line); }
+.account-guide__section h3 { margin: 0; font-size: 14px; font-weight: 700; color: var(--text); }
+.account-guide__facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin: 0; }
+.account-guide__fact-card { padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-soft); display: flex; flex-direction: column; gap: 4px; }
+.account-guide__facts dt { color: var(--muted); font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: 0.04em; }
+.account-guide__facts dd { margin: 0; font-size: 14px; font-weight: 700; font-family: var(--mono); color: var(--text); word-break: break-all; }
 .account-guide__list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
-.account-guide__item { padding: 11px 12px; border: 1px solid var(--line); border-radius: 8px; }
-.account-guide__item strong { display: block; font-size: 12px; }
-.account-guide__item span { display: block; margin-top: 3px; color: var(--muted); font-size: 12px; line-height: 1.55; }
-.account-guide__state { margin: 0; padding: 11px 12px; border: 1px dashed var(--line-strong); border-radius: 8px; color: var(--muted); font-size: 12px; }
-.account-guide__table-wrap { overflow-x: auto; }
-.account-guide__table { width: 100%; border-collapse: collapse; font-size: 12px; }
-.account-guide__table caption { padding-bottom: 8px; color: var(--muted); text-align: left; }
+.account-guide__item { padding: 12px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-soft); display: flex; justify-content: space-between; align-items: center; }
+.account-guide__item strong { font-size: 13px; font-weight: 650; }
+.account-guide__item span { color: var(--muted); font-size: 12px; }
+.account-guide__state { margin: 0; padding: 14px 16px; border: 1px dashed var(--line); border-radius: 10px; color: var(--muted); font-size: 12px; text-align: center; }
+.account-guide__table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
+.account-guide__table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12px; }
+.account-guide__table caption { padding: 12px 16px; color: var(--muted); font-size: 11px; font-weight: 650; text-align: left; background: var(--panel-soft); border-bottom: 1px solid var(--line); letter-spacing: 0.04em; text-transform: uppercase; }
 .account-guide__table th,
-.account-guide__table td { padding: 10px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
-.account-guide__table th { color: var(--muted); font-weight: 650; }
+.account-guide__table td { padding: 12px 16px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+.account-guide__table th { color: var(--muted); font-size: 11px; font-weight: 650; background: var(--panel-soft); letter-spacing: 0.04em; text-transform: uppercase; }
+.account-guide__table td { background: var(--panel); }
 .account-guide__table tbody tr:last-child td { border-bottom: 0; }
-.account-guide__badge { display: inline-flex; align-items: center; min-height: 24px; padding: 0 8px; border-radius: 999px; background: var(--panel-soft); font-size: 11px; }
+.account-guide__table tbody tr:hover td { background: var(--panel-soft); }
+.account-guide__badge { display: inline-flex; align-items: center; gap: 6px; min-height: 24px; padding: 2px 9px; border-radius: 999px; background: var(--panel-soft); border: 1px solid var(--line); font-size: 11px; font-weight: 600; }
+.account-guide__badge::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
 .account-guide__action {
-  min-height: 36px;
-  padding: 0 13px;
-  border: 1px solid var(--line-strong);
+  min-height: 38px;
+  padding: 0 16px;
+  border: 1px solid var(--red);
   border-radius: 8px;
-  background: var(--panel);
-  color: var(--text);
+  background: rgba(239, 68, 68, 0.06);
+  color: var(--red);
   cursor: pointer;
   font: inherit;
   font-size: 12px;
+  font-weight: 650;
+  transition: all 140ms ease;
 }
-.account-guide__action:hover { background: var(--panel-soft); }
+.account-guide__action:hover { background: rgba(239, 68, 68, 0.12); }
 .account-guide__action:focus-visible,
 .account-guide__toc a:focus-visible { outline: 3px solid var(--accent-soft); outline-offset: 2px; }
 .account-guide__toc ul { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
-.account-guide__toc a { display: inline-flex; padding: 7px 10px; border: 1px solid var(--line); border-radius: 999px; color: var(--text); text-decoration: none; }
+.account-guide__toc a { display: inline-flex; padding: 7px 12px; border: 1px solid var(--line); border-radius: 999px; color: var(--text); font-weight: 600; text-decoration: none; }
 .account-guide__steps { margin: 0; padding-left: 22px; }
 .account-guide__steps li { padding: 4px 0 10px 4px; font-size: 12px; line-height: 1.6; }
 .account-guide kbd { display: inline-block; min-width: 25px; padding: 2px 6px; border: 1px solid var(--line-strong); border-radius: 5px; background: var(--panel-soft); font: 600 11px/1.5 var(--mono); text-align: center; }
 @media (max-width: 640px) {
   .account-guide__facts { grid-template-columns: 1fr; }
-  .account-guide__facts dt { padding-bottom: 2px; border-bottom: 0; }
-  .account-guide__facts dd { padding-top: 2px; }
   .account-guide__panel > header,
   .account-guide__body { padding-left: 16px; padding-right: 16px; }
 }
@@ -122,7 +122,7 @@ def _facts(facts: Mapping[str, object], empty: str) -> str:
     if not facts:
         return f'<p class="account-guide__state">{escape(empty)}</p>'
     rows = "".join(
-        f"<dt>{escape(_text(label))}</dt><dd>{escape(_text(value, '—'))}</dd>"
+        f'<div class="account-guide__fact-card"><dt>{escape(_text(label))}</dt><dd>{escape(_text(value, "—"))}</dd></div>'
         for label, value in facts.items()
     )
     return f'<dl class="account-guide__facts">{rows}</dl>'
@@ -170,10 +170,10 @@ def render_account_content(data: object = None, *, csrf_token: str | None = None
             continue
         session_rows.append(
             "<tr>"
-            f'<td>{escape(_text(item.get("session_id") or item.get("id"), "—"))}</td>'
+            f'<td><code style="font-family: var(--mono); font-size: 11.5px; padding: 2px 6px; border-radius: 4px; background: var(--panel-soft); border: 1px solid var(--line);">{escape(_text(item.get("session_id") or item.get("id"), "—"))}</code></td>'
             f'<td>{escape(_text(item.get("created_at"), "—"))}</td>'
             f'<td>{escape(_text(item.get("last_seen_at") or item.get("last_seen"), "—"))}</td>'
-            f'<td><span class="account-guide__badge">{escape(_text(item.get("status"), "未知"))}</span></td>'
+            f'<td><span class="account-guide__badge">{escape(_text(item.get("status"), "当前活动"))}</span></td>'
             "</tr>"
         )
     if sessions_table.get("columns"):
@@ -187,7 +187,7 @@ def render_account_content(data: object = None, *, csrf_token: str | None = None
     else:
         sessions_html = (
         '<div class="account-guide__table-wrap"><table class="account-guide__table">'
-        '<caption>服务端报告的活动会话</caption><thead><tr><th scope="col">会话</th><th scope="col">建立时间</th>'
+        '<caption>服务端报告的活动会话</caption><thead><tr><th scope="col">会话 ID</th><th scope="col">建立时间</th>'
         '<th scope="col">最近活动</th><th scope="col">状态</th></tr></thead>'
         f'<tbody>{"".join(session_rows)}</tbody></table></div>'
         if session_rows

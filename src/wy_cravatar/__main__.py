@@ -28,7 +28,7 @@ def _endpoint(value: str) -> str:
     return value.rstrip("/") + "/v1/moderate/image"
 
 
-def _submitter(endpoint: str):
+def _submitter(endpoint: str, workspace: str):
     token = os.environ.get("WORDYEAH_API_KEY")
 
     def submit(record: CravatarBacklogRecord, payload: bytes) -> dict[str, object]:
@@ -42,7 +42,13 @@ def _submitter(endpoint: str):
             }.get(image.format)
         if content_type is None:
             raise ValueError("unsupported image format")
-        headers = {"Content-Type": content_type, "Content-Length": str(len(payload))}
+        headers = {
+            "Content-Type": content_type,
+            "Content-Length": str(len(payload)),
+            "X-WordYeah-Workspace": workspace,
+            "X-WordYeah-Source-ID": urllib.parse.quote(record.source_id, safe=":._-"),
+            "X-WordYeah-Source-Ref": urllib.parse.quote(record.avatar_ref, safe=":._-"),
+        }
         if token:
             headers["Authorization"] = f"Bearer {token}"
         request = urllib.request.Request(endpoint, data=payload, headers=headers, method="POST")
@@ -123,7 +129,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 raise ValueError("poll-seconds must be positive")
             if args.max_cycles is not None and args.max_cycles < 1:
                 raise ValueError("max-cycles must be positive")
-            callback = _submitter(_endpoint(args.endpoint))
+            callback = _submitter(_endpoint(args.endpoint), args.workspace)
             if args.command == "watch":
                 cycles = 0
                 try:

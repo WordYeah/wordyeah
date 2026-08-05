@@ -31,6 +31,8 @@ def open_database(database: str) -> sqlite3.Connection:
         CREATE TABLE IF NOT EXISTS submissions (
             submission_id TEXT PRIMARY KEY,
             consumer_id TEXT NOT NULL,
+            source_id TEXT,
+            source_ref TEXT,
             content_sha256 TEXT NOT NULL,
             media_type TEXT NOT NULL,
             media_ref TEXT NOT NULL,
@@ -163,6 +165,18 @@ def open_database(database: str) -> sqlite3.Connection:
     )
     _ensure_columns(
         connection,
+        "submissions",
+        {
+            "source_id": "TEXT",
+            "source_ref": "TEXT",
+        },
+    )
+    connection.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_submissions_source "
+        "ON submissions(consumer_id, source_id) WHERE source_id IS NOT NULL"
+    )
+    _ensure_columns(
+        connection,
         "review_items",
         {
             "consumer_id": "TEXT NOT NULL DEFAULT 'default'",
@@ -182,6 +196,8 @@ def open_database(database: str) -> sqlite3.Connection:
             "arbitration_required": "INTEGER NOT NULL DEFAULT 0",
             "appealed": "INTEGER NOT NULL DEFAULT 0",
             "updated_at": "TEXT",
+            "source_id": "TEXT",
+            "source_ref": "TEXT",
         },
     )
     _ensure_columns(

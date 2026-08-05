@@ -51,11 +51,16 @@ python scripts/cravatar_backlog_import.py manifest.json \
   --root ./controlled-images --output ./normalized.jsonl
 python scripts/cravatar_backlog_submit.py manifest.json \
   --root ./controlled-images --endpoint http://127.0.0.1:18765 \
+  --workspace cravatar \
   --output ./shadow-results.json
 ```
 
 The submitter rechecks every content hash immediately before sending, accepts
-only loopback endpoints, and always reports `mutates_avatar=false`.
+only loopback endpoints, sends the Cravatar workspace plus local source/job
+identifiers, and always reports `mutates_avatar=false`. The API rejects the
+request unless that workspace was preconfigured. The cursor retains each
+source ID's request ID and decision, while SQLite keeps the same source mapping
+for review and later enforcement handoff.
 
 For larger read-only exports, `scripts/cravatar_cavalcade_export.php` performs a
 bounded Cavalcade `SELECT` and emits metadata-only JSONL. The separate

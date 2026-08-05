@@ -39,6 +39,7 @@ def main() -> int:
     parser.add_argument("manifest", type=Path)
     parser.add_argument("--root", type=Path, required=True, help="controlled local image root")
     parser.add_argument("--endpoint", default="http://127.0.0.1:18765")
+    parser.add_argument("--workspace", default="cravatar")
     parser.add_argument("--output", type=Path, help="metadata-only result report")
     args = parser.parse_args()
     try:
@@ -54,7 +55,13 @@ def main() -> int:
                 }.get(image.format)
             if content_type is None:
                 raise ValueError("unsupported image format")
-            headers = {"Content-Type": content_type, "Content-Length": str(len(payload))}
+            headers = {
+                "Content-Type": content_type,
+                "Content-Length": str(len(payload)),
+                "X-WordYeah-Workspace": args.workspace,
+                "X-WordYeah-Source-ID": urllib.parse.quote(record.source_id, safe=":._-"),
+                "X-WordYeah-Source-Ref": urllib.parse.quote(record.avatar_ref, safe=":._-"),
+            }
             if token:
                 headers["Authorization"] = f"Bearer {token}"
             request = urllib.request.Request(endpoint, data=payload, headers=headers, method="POST")

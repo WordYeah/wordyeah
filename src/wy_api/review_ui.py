@@ -471,9 +471,39 @@ button, a { -webkit-tap-highlight-color: transparent; }
   transition: all 140ms ease;
 }
 .usage-upgrade-btn:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+}
+.empty-state-icon {
+  display: grid;
+  width: 68px;
+  height: 68px;
+  place-items: center;
+  border-radius: 20px;
   background: var(--accent-soft);
+  color: var(--accent);
+  margin-bottom: 18px;
+  box-shadow: 0 0 20px rgba(99, 102, 241, 0.12);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+}
+.empty-state h3 { margin: 0 0 8px; font-size: 18px; font-weight: 700; color: var(--text); letter-spacing: -0.01em; }
+.empty-state p { margin: 0 0 18px; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.empty-state-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: var(--panel-soft);
+  border: 1px solid var(--line);
+  font-size: 11.5px;
+  color: var(--quiet);
+  font-weight: 600;
+}
+.empty-state-badge .status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green);
 }
 
 /* Consumer Dropdown Popover (Windsor Multi-Account) */
@@ -490,14 +520,14 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 .consumer-popover-menu {
   position: absolute;
-  bottom: calc(100% + 8px);
+  bottom: calc(100% + 10px);
   left: 0;
-  width: 240px;
+  width: 250px;
   padding: 8px;
-  border-radius: var(--radius-panel);
+  border-radius: 12px;
   background: var(--panel);
   border: 1px solid var(--line);
-  box-shadow: var(--shadow-overlay);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16);
   z-index: 100;
   display: grid;
   gap: 6px;
@@ -508,27 +538,35 @@ button, a { -webkit-tap-highlight-color: transparent; }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 .consumer-popover-header {
-  padding: 6px 8px 6px;
+  padding: 8px 10px;
   border-bottom: 1px solid var(--line);
   font-size: 11.5px;
   color: var(--muted);
-  font-weight: 500;
+  font-weight: 650;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .consumer-popover-list {
-  display: grid;
-  gap: 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
-.workspace-select-form { margin: 0; }
-.workspace-select-form > button {
+.workspace-select-form {
+  margin: 0;
+  padding: 0;
+  border: 0;
   width: 100%;
+}
+.workspace-select-form button {
+  width: 100%;
+  margin: 0;
+  outline: none;
   border: 0;
   background: transparent;
-  font: inherit;
-  text-align: left;
+  padding: 0;
 }
+
 .mobile-workspace-switcher { display: none; position: relative; }
 .mobile-workspace-switcher summary {
   list-style: none;
@@ -544,69 +582,130 @@ button, a { -webkit-tap-highlight-color: transparent; }
   bottom: auto;
   left: auto;
 }
+
 .consumer-popover-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 8px;
-  border-radius: var(--radius-control);
-  font-size: 12px;
-  color: var(--text);
-  cursor: pointer;
-  transition: background 120ms ease;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  width: 100% !important;
+  padding: 8px 10px !important;
+  border: 1px solid transparent !important;
+  border-radius: 8px !important;
+  background: transparent !important;
+  color: var(--text) !important;
+  font: inherit !important;
+  font-size: 12px !important;
+  text-align: left !important;
+  cursor: pointer !important;
+  box-sizing: border-box !important;
+  outline: none !important;
+  box-shadow: none !important;
+  transition: all 140ms ease !important;
 }
 .consumer-popover-item:hover {
-  background: var(--panel-soft);
+  background: var(--panel-soft) !important;
+  border-color: var(--line) !important;
 }
 .consumer-popover-item.is-active {
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-weight: 600;
+  background: var(--accent-soft) !important;
+  border-color: rgba(99, 102, 241, 0.25) !important;
+  color: var(--accent) !important;
 }
-.consumer-popover-item .drag-dots {
-  color: var(--quiet);
-  font-size: 11px;
-  letter-spacing: -2px;
+.consumer-popover-item .consumer-avatar {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 6px;
+  background: var(--panel-soft);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-weight: 700;
+  border: 1px solid var(--line);
+  flex-shrink: 0;
+}
+.consumer-popover-item.is-active .consumer-avatar {
+  background: var(--panel);
+  color: var(--accent);
+  border-color: rgba(99, 102, 241, 0.3);
 }
 .consumer-popover-item .item-info {
-  display: grid;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
   min-width: 0;
+  flex: 1;
+}
+.consumer-popover-item .item-info strong {
+  font-size: 12.5px;
+  font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .consumer-popover-item .item-info small {
-  color: var(--quiet);
   font-size: 10.5px;
-  font-weight: 400;
+  color: var(--muted);
 }
 .consumer-popover-item .check-icon {
   margin-left: auto;
   color: var(--accent);
-  font-weight: 700;
-}
-.consumer-popover-actions {
-  display: grid;
-  gap: 2px;
-  padding-top: 6px;
-  border-top: 1px solid var(--line);
-}
-.popover-action-btn {
   display: flex;
   align-items: center;
-  gap: 6px;
-  width: 100%;
-  padding: 6px 8px;
-  border: 0;
-  border-radius: var(--radius-control);
-  background: transparent;
-  color: var(--text);
-  font-size: 12px;
-  font-weight: 500;
-  text-decoration: none;
-  cursor: pointer;
-  transition: background 120ms ease;
+  justify-content: center;
 }
-.popover-action-btn:hover { background: var(--panel-soft); }
-.popover-action-btn.logout-btn { color: var(--red); }
-.popover-action-btn.logout-btn:hover { background: var(--red-soft); }
+.consumer-popover-item .check-icon svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2.5;
+}
+
+.consumer-popover-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 8px;
+  margin-top: 4px;
+  border-top: 1px solid var(--line);
+}
+.consumer-popover-actions form {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  width: 100%;
+}
+.popover-action-btn {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  width: 100% !important;
+  padding: 8px 10px !important;
+  border: 1px solid transparent !important;
+  border-radius: 8px !important;
+  background: transparent !important;
+  color: var(--text) !important;
+  font: inherit !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  text-decoration: none !important;
+  cursor: pointer !important;
+  box-sizing: border-box !important;
+  outline: none !important;
+  box-shadow: none !important;
+  transition: all 140ms ease !important;
+}
+.popover-action-btn:hover {
+  background: var(--panel-soft) !important;
+  border-color: var(--line) !important;
+}
+.popover-action-btn.logout-btn {
+  color: var(--red) !important;
+}
+.popover-action-btn.logout-btn:hover {
+  background: rgba(239, 68, 68, 0.08) !important;
+  border-color: rgba(239, 68, 68, 0.2) !important;
+}
 
 /* Floating Bottom-Right Notification Toast (Windsor Toast) */
 .floating-task-toast {
@@ -2830,9 +2929,19 @@ def render_review_workbench(
     if not queue_cards:
         queue_cards = (
             '<div class="empty-state">'
-            "<strong>当前没有需要人工接手的例外项</strong>"
-            "AI Agent 已自动处理常规项目；新的异常、低置信度或分歧内容会出现在这里。"
-            "</div>"
+            '<div class="empty-state-icon">'
+            '<svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">'
+            '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>'
+            '<path d="M9 12l2 2 4-4"/>'
+            '</svg>'
+            '</div>'
+            '<h3>当前队列已被清空</h3>'
+            '<p>AI Agent 自动化规则引擎正在后台稳定运行，常规审核项目已实时放行。<br>任何低置信度、存在模型分歧或需要人工决断的例外项将出现在这里。</p>'
+            '<div class="empty-state-badge">'
+            '<span class="status-dot"></span>'
+            '<span>AI 规则与 Vision 引擎就绪 · 无滞留异常</span>'
+            '</div>'
+            '</div>'
         )
 
     detail_html = ""
@@ -3159,6 +3268,8 @@ def _filter_items(
                     item.item_id,
                     item.content_sha256,
                     item.media_ref,
+                    item.source_id or "",
+                    item.source_ref or "",
                     item.decision_hint,
                     item.policy_version,
                     *item.reasons,
@@ -3434,6 +3545,8 @@ def _detail_panel(
               <div class="detail-fact"><div class="label">媒体类型</div><div class="value">{escape(item.media_type)}</div></div>
               <div class="detail-fact"><div class="label">创建时间</div><div class="value">{escape(_time_text(item.created_at, current_ts))}</div></div>
               <div class="detail-fact"><div class="label">记录版本</div><div class="value">{item.version}</div></div>
+              <div class="detail-fact"><div class="label">来源记录</div><div class="value mono">{escape(item.source_id or "—")}</div></div>
+              <div class="detail-fact"><div class="label">来源引用</div><div class="value mono">{escape(item.source_ref or "—")}</div></div>
               <div class="detail-fact"><div class="label">SHA-256</div><div class="value mono">{escape(item.content_sha256[:20])}…</div></div>
               <div class="detail-fact"><div class="label">参与模型</div><div class="value">{_render_model_versions(item)}</div></div>
             </div>

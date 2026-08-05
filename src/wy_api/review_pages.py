@@ -995,8 +995,8 @@ def _render_dashboard_charts(data: Mapping[str, object]) -> str:
             decided_height = plot_height * decided / scale_max
             day_label = escape(_text(item.get("label")))
             bars.append(
-                f'<rect fill="var(--accent)" opacity="0.85" x="{center - bar_width - 1:.1f}" y="{plot_top + plot_height - incoming_height:.1f}" width="{bar_width:.1f}" height="{incoming_height:.1f}" rx="2"><title>{day_label} 入队：{incoming}</title></rect>'
-                f'<rect fill="var(--green)" opacity="0.75" x="{center + 1:.1f}" y="{plot_top + plot_height - decided_height:.1f}" width="{bar_width:.1f}" height="{decided_height:.1f}" rx="2"><title>{day_label} 完成：{decided}</title></rect>'
+                f'<rect fill="var(--accent)" opacity="0.85" x="{center - bar_width - 1:.1f}" y="{plot_top + plot_height - incoming_height:.1f}" width="{bar_width:.1f}" height="{incoming_height:.1f}" rx="2"><title>{day_label} 模型处理：{incoming}</title></rect>'
+                f'<rect fill="var(--green)" opacity="0.75" x="{center + 1:.1f}" y="{plot_top + plot_height - decided_height:.1f}" width="{bar_width:.1f}" height="{decided_height:.1f}" rx="2"><title>{day_label} 人工结论：{decided}</title></rect>'
             )
             if index % 2 == 0 or index == len(series) - 1:
                 labels.append(
@@ -1005,9 +1005,9 @@ def _render_dashboard_charts(data: Mapping[str, object]) -> str:
         incoming_total = sum(_dashboard_integer(item.get("incoming")) for item in series)
         charts.append(
             '<section class="chart-card">'
-            '<header class="chart-card-header"><div><h4>处理趋势</h4><p>最近 14 天入队与完成量</p></div>'
-            f'<span>{incoming_total} 条入队</span></header>'
-            '<div class="chart-legend"><span><i data-tone="incoming"></i>入队</span><span><i data-tone="decided"></i>完成</span></div>'
+            '<header class="chart-card-header"><div><h4>处理趋势</h4><p>最近 14 天模型处理与人工结论量</p></div>'
+            f'<span>{incoming_total} 条模型处理</span></header>'
+            '<div class="chart-legend"><span><i data-tone="incoming"></i>模型处理</span><span><i data-tone="decided"></i>人工结论</span></div>'
             '<svg class="svg-bar-chart" viewBox="0 0 530 150" role="img" aria-label="最近十四天审核处理趋势">'
             + "".join(grid + bars + labels)
             + '</svg></section>'
@@ -1017,9 +1017,13 @@ def _render_dashboard_charts(data: Mapping[str, object]) -> str:
         total = sum(_dashboard_integer(item.get("value")) for item in distribution)
         color_by_label = {
             "已通过": "var(--accent)",
+            "模型通过": "var(--accent)",
             "待处理": "var(--amber)",
+            "进入复核": "var(--amber)",
             "已拒绝": "var(--red)",
+            "模型拒绝": "var(--red)",
             "留置": "var(--quiet)",
+            "处理错误": "var(--quiet)",
         }
         circumference = 276.46
         offset = 0.0
@@ -1148,18 +1152,21 @@ def render_review_page(
     workspace_choices = ctx.workspaces or ((ctx.consumer_id, ctx.consumer_id),)
     workspace_items = "".join(
         (
-            '<div class="consumer-popover-item is-active"><div class="item-info">'
-            f'<strong>{escape(name)}</strong><small>当前审核工作区</small></div>'
-            '<span class="check-icon">✓</span></div>'
+            '<div class="consumer-popover-item is-active">'
+            f'<span class="consumer-avatar">{escape(name[:1].upper())}</span>'
+            f'<div class="item-info"><strong>{escape(name)}</strong><small>当前审核工作区</small></div>'
+            f'<span class="check-icon">{_top_icon("check")}</span></div>'
             if workspace_id == ctx.consumer_id
-            else '<form method="post" action="/review/workspaces/'
+            else '<form class="workspace-select-form" method="post" action="/review/workspaces/'
             + escape(workspace_id, quote=True)
             + '/select"><input type="hidden" name="csrf_token" value="'
             + escape(ctx.csrf_token or "", quote=True)
             + '"><input type="hidden" name="return_to" value="/review/'
             + escape(page, quote=True)
-            + '"><button class="consumer-popover-item" type="submit"><span class="item-info">'
-            + f'<strong>{escape(name)}</strong><small>{escape(workspace_id)}</small></span></button></form>'
+            + '"><button class="consumer-popover-item" type="submit">'
+            + f'<span class="consumer-avatar">{escape(name[:1].upper())}</span>'
+            + f'<span class="item-info"><strong>{escape(name)}</strong><small>{escape(workspace_id)}</small></span>'
+            + '</button></form>'
         )
         for workspace_id, name in workspace_choices
     )

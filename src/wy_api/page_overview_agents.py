@@ -245,7 +245,7 @@ def _overview_charts(data: Mapping[str, object]) -> str:
             decided_height = plot_height * decided / scale_max
             bars.append(
                 f'<rect class="oa-bar-incoming" x="{center - bar_width - 1:.1f}" y="{plot_top + plot_height - incoming_height:.1f}" '
-                f'width="{bar_width:.1f}" height="{incoming_height:.1f}" rx="2"><title>{escape(_text(item.get("label")))}：进入队列 {incoming}</title></rect>'
+                f'width="{bar_width:.1f}" height="{incoming_height:.1f}" rx="2"><title>{escape(_text(item.get("label")))}：模型处理 {incoming}</title></rect>'
                 f'<rect class="oa-bar-decided" x="{center + 1:.1f}" y="{plot_top + plot_height - decided_height:.1f}" '
                 f'width="{bar_width:.1f}" height="{decided_height:.1f}" rx="2"><title>{escape(_text(item.get("label")))}：完成判定 {decided}</title></rect>'
             )
@@ -258,11 +258,11 @@ def _overview_charts(data: Mapping[str, object]) -> str:
         chart_cards.append(
             '<section class="oa-chart-card" aria-labelledby="oa-volume-title">'
             '<header class="oa-chart-head"><div><h2 id="oa-volume-title">Daily Processing Volume <span lang="zh-CN">（每日处理趋势）</span></h2>'
-            '<p>数据库记录的 AI 分流入队与人工完成量（最近 14 天）。</p></div>'
-            f'<span class="oa-chart-total">进入 {total_incoming} · 完成 {total_decided}</span></header>'
+            '<p>数据库记录的模型处理量与人工最终结论量（最近 14 天）。</p></div>'
+            f'<span class="oa-chart-total">模型 {total_incoming} · 人工 {total_decided}</span></header>'
             '<svg class="oa-bar-chart" viewBox="0 0 560 178" role="img" aria-label="最近十四天审核处理趋势">'
             + "".join(grid + bars + labels)
-            + '</svg><ul class="oa-chart-legend" hidden><li>进入队列</li><li>完成判定</li></ul></section>'
+            + '</svg><ul class="oa-chart-legend" hidden><li>模型处理</li><li>人工结论</li></ul></section>'
         )
 
     if distribution:
