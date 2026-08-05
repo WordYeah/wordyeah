@@ -1362,6 +1362,8 @@ def create_app(
         csrf_token: str | None = None,
         quality_offset: int = 0,
         quality_batch_id: str | None = None,
+        history_offset: int = 0,
+        history_filters: dict[str, str] | None = None,
     ) -> dict[str, object]:
         items = _consumer_items(consumer_id)
         consumer_item_ids = {item.item_id for item in items}
@@ -1666,11 +1668,90 @@ def create_app(
                 },
             }
         if page == "history":
+            active_filters = history_filters or {}
+            query = active_filters.get("q", "").strip().lower()
+            actor_filter = active_filters.get("actor", "").strip()
+            action_filter = active_filters.get("action", "").strip()
+            stage_filter = active_filters.get("stage", "").strip()
+            history_events = review_store.list_all_events(consumer_id, limit=5000)
+
+            def event_actor(event: object) -> str:
+                return str(getattr(event, "actor_id", None) or getattr(event, "reviewer", None) or "system")
+
+            def event_stage(event: object) -> str:
+                return str(getattr(event, "after_stage", None) or "")
+
+            filtered_events = []
+            for event in history_events:
+                actor_value = event_actor(event)
+                stage_value = event_stage(event)
+                if actor_filter and actor_value != actor_filter:
+                    continue
+                if action_filter and event.action != action_filter:
+                    continue
+                if stage_filter and stage_value != stage_filter:
+                    continue
+                searchable = " ".join(
+                    str(value or "")
+                    for value in (
+                        event.item_id,
+                        event.action,
+                        actor_value,
+                        stage_value,
+                        event.reason_code,
+                        event.note,
+                    )
+                ).lower()
+                if query and query not in searchable:
+                    continue
+                filtered_events.append(event)
+
+            page_size = 50
+            total_events = len(filtered_events)
+            safe_offset = max(0, history_offset)
+            if safe_offset >= total_events and total_events:
+                safe_offset = ((total_events - 1) // page_size) * page_size
+            visible_events = filtered_events[safe_offset : safe_offset + page_size]
+
+            def history_url(offset: int) -> str:
+                parameters = {
+                    key: value
+                    for key, value in active_filters.items()
+                    if key in {"q", "actor", "action", "stage"} and value
+                }
+                if offset:
+                    parameters["offset"] = str(offset)
+                return "/review/history" + ("?" + urlencode(parameters) if parameters else "")
+
             return {
                 "exceptions": common_exceptions,
-                "events": {"columns": ("时间", "对象", "actor", "动作", "阶段", "原因"), "rows": [
-                    (event.created_at, event.item_id, event.actor_id or event.reviewer, event.action, event.after_stage or "—", event.reason_code or event.note or "—") for event in events
-                ]},
+                "filters": active_filters,
+                "actors": sorted({event_actor(event) for event in history_events}),
+                "actions": sorted({event.action for event in history_events}),
+                "stages": sorted({event_stage(event) for event in history_events if event_stage(event)}),
+                "events": {
+                    "columns": ("时间", "对象", "actor", "动作", "阶段", "原因"),
+                    "rows": [
+                        (
+                            event.created_at,
+                            event.item_id,
+                            event_actor(event),
+                            event.action,
+                            event_stage(event),
+                            event.reason_code or event.note or "—",
+                        )
+                        for event in visible_events
+                    ],
+                },
+                "total": total_events,
+                "start": safe_offset + 1 if visible_events else 0,
+                "end": safe_offset + len(visible_events),
+                "pagination": {
+                    "page": safe_offset // page_size + 1,
+                    "total_pages": max(1, (total_events + page_size - 1) // page_size),
+                    "previous_url": history_url(max(0, safe_offset - page_size)) if safe_offset else None,
+                    "next_url": history_url(safe_offset + page_size) if safe_offset + page_size < total_events else None,
+                },
             }
         if page == "health":
             return {
@@ -1713,6 +1794,14 @@ def create_app(
         except ValueError:
             quality_offset = 0
         quality_batch_id = request.query_params.get("batch") or None
+        try:
+            history_offset = int(request.query_params.get("offset", "0"))
+        except ValueError:
+            history_offset = 0
+        history_filters = {
+            key: request.query_params.get(key, "").strip()
+            for key in ("q", "actor", "action", "stage")
+        }
         return HTMLResponse(
             render_review_page(
                 page,
@@ -1723,6 +1812,8 @@ def create_app(
                     csrf_token,
                     quality_offset=quality_offset,
                     quality_batch_id=quality_batch_id,
+                    history_offset=history_offset,
+                    history_filters=history_filters,
                 ),
                 context=ReviewPageContext(
                     consumer_id=workspace.workspace_id,

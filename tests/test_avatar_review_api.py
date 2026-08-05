@@ -32,7 +32,9 @@ class HighRiskClassifier(BlockClassifier):
 
 
 class AvatarReviewApiTest(unittest.TestCase):
-    def test_fast_scan_automatically_enqueues_vision_and_hides_ai_work_from_humans(self) -> None:
+    def test_fast_scan_automatically_enqueues_vision_and_hides_ai_work_from_humans(
+        self,
+    ) -> None:
         from fastapi.testclient import TestClient
 
         with tempfile.TemporaryDirectory() as directory:
@@ -41,7 +43,9 @@ class AvatarReviewApiTest(unittest.TestCase):
                 media_root=Path(directory) / "media",
                 local_review_no_auth=True,
             )
-            app = create_app(settings=settings, service=MediaModerationService(BlockClassifier()))
+            app = create_app(
+                settings=settings, service=MediaModerationService(BlockClassifier())
+            )
             with TestClient(app) as client:
                 self._moderate_png(client, (20, 30, 40))
                 queued = app.state.job_store.connection.execute(
@@ -63,7 +67,9 @@ class AvatarReviewApiTest(unittest.TestCase):
                 media_root=Path(directory) / "media",
                 local_review_no_auth=True,
             )
-            app = create_app(settings=settings, service=MediaModerationService(BlockClassifier()))
+            app = create_app(
+                settings=settings, service=MediaModerationService(BlockClassifier())
+            )
             with TestClient(app) as client:
                 self._moderate_png(client, (20, 30, 40))
                 item = client.get("/review/items?status=all").json()["items"][0]
@@ -97,7 +103,9 @@ class AvatarReviewApiTest(unittest.TestCase):
                 self.assertEqual(len(jobs), 2)
                 import json
 
-                self.assertEqual(json.loads(jobs[-1]["payload_json"])["attempt_number"], 4)
+                self.assertEqual(
+                    json.loads(jobs[-1]["payload_json"])["attempt_number"], 4
+                )
 
     def test_avatar_state_uses_cravatar_default_and_blocked_semantics(self) -> None:
         default_url = _default_avatar_url(size=160)
@@ -115,8 +123,14 @@ class AvatarReviewApiTest(unittest.TestCase):
         from fastapi.testclient import TestClient
 
         with tempfile.TemporaryDirectory() as temporary_dir:
-            settings = ApiSettings(database_path=str(Path(temporary_dir) / "review.sqlite3"))
-            with TestClient(create_app(settings=settings, service=MediaModerationService(BlockClassifier()))) as client:
+            settings = ApiSettings(
+                database_path=str(Path(temporary_dir) / "review.sqlite3")
+            )
+            with TestClient(
+                create_app(
+                    settings=settings, service=MediaModerationService(BlockClassifier())
+                )
+            ) as client:
                 response = client.get(_blocked_avatar_url())
                 self.assertEqual(response.status_code, 200)
                 self.assertEqual(response.headers["content-type"], "image/png")
@@ -141,7 +155,9 @@ class AvatarReviewApiTest(unittest.TestCase):
         evidence: bool = True,
         category: str = "adult_nudity",
     ) -> dict[str, object]:
-        evidence_rows = [{"kind": "crop", "ref": "media://review/evidence.png"}] if evidence else []
+        evidence_rows = (
+            [{"kind": "crop", "ref": "media://review/evidence.png"}] if evidence else []
+        )
         first = client.post(
             f"/v1/review/items/{item_id}/attempts",
             json={
@@ -153,7 +169,14 @@ class AvatarReviewApiTest(unittest.TestCase):
                 "prompt_version": "avatar-v1",
                 "decision": "review",
                 "confidence": 0.60,
-                "findings": [{"category": category, "label": "nsfw", "score": 0.60, "source": "vision-a"}],
+                "findings": [
+                    {
+                        "category": category,
+                        "label": "nsfw",
+                        "score": 0.60,
+                        "source": "vision-a",
+                    }
+                ],
                 "evidence": evidence_rows,
             },
         )
@@ -170,7 +193,14 @@ class AvatarReviewApiTest(unittest.TestCase):
                 "prompt_version": "avatar-v1",
                 "decision": "review",
                 "confidence": 0.58,
-                "findings": [{"category": category, "label": "nsfw", "score": 0.58, "source": "vision-b"}],
+                "findings": [
+                    {
+                        "category": category,
+                        "label": "nsfw",
+                        "score": 0.58,
+                        "source": "vision-b",
+                    }
+                ],
                 "evidence": evidence_rows,
             },
         )
@@ -223,7 +253,10 @@ class AvatarReviewApiTest(unittest.TestCase):
                     f"https://cn.cravatar.com/avatar/{avatar_hash}?s=160&amp;d=404",
                     page.text,
                 )
-                self.assertIn("img-src 'self' https://cn.cravatar.com", page.headers["Content-Security-Policy"])
+                self.assertIn(
+                    "img-src 'self' https://cn.cravatar.com",
+                    page.headers["Content-Security-Policy"],
+                )
 
     def test_cravatar_sha256_refs_render_as_allowlisted_api_previews(self) -> None:
         try:
@@ -234,7 +267,9 @@ class AvatarReviewApiTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             database = str(Path(directory) / "wordyeah.sqlite3")
             store = ReviewStore(database)
-            avatar_hash = "0d8a67708287f0fed005312e85d66d6d8e965adec4b0e6055db632b5f2af2ca6"
+            avatar_hash = (
+                "0d8a67708287f0fed005312e85d66d6d8e965adec4b0e6055db632b5f2af2ca6"
+            )
             item = store.enqueue(
                 ModerationResult(
                     request_id="cravatar-sha256-preview",
@@ -285,7 +320,9 @@ class AvatarReviewApiTest(unittest.TestCase):
                 review_session_secret="session-secret",
                 reviewer_id="alice",
             )
-            app = create_app(settings=settings, service=MediaModerationService(BlockClassifier()))
+            app = create_app(
+                settings=settings, service=MediaModerationService(BlockClassifier())
+            )
             with TestClient(app) as client:
                 for color in ((120, 80, 40), (40, 80, 120)):
                     self._moderate_png(client, color)
@@ -308,7 +345,7 @@ class AvatarReviewApiTest(unittest.TestCase):
                 grid = client.get("/review?view=grid&batch=1")
                 self.assertEqual(grid.status_code, 200)
                 self.assertIn('data-view="grid"', grid.text)
-                self.assertIn('data-batch-form', grid.text)
+                self.assertIn("data-batch-form", grid.text)
                 self.assertEqual(grid.text.count('name="selected"'), 2)
 
                 focus = client.get("/review?view=focus")
@@ -326,7 +363,14 @@ class AvatarReviewApiTest(unittest.TestCase):
                 self.assertEqual(batch.status_code, 200)
                 self.assertEqual(len(batch.json()["processed"]), 2)
                 self.assertEqual(batch.json()["failures"], [])
-                self.assertTrue(all(item["status"] == "held" for item in client.get("/review/items?status=held").json()["items"]))
+                self.assertTrue(
+                    all(
+                        item["status"] == "held"
+                        for item in client.get("/review/items?status=held").json()[
+                            "items"
+                        ]
+                    )
+                )
 
     def test_login_review_and_optimistic_action(self) -> None:
         try:
@@ -343,7 +387,9 @@ class AvatarReviewApiTest(unittest.TestCase):
                 review_session_secret="session-secret",
                 reviewer_id="alice",
             )
-            app = create_app(settings=settings, service=MediaModerationService(BlockClassifier()))
+            app = create_app(
+                settings=settings, service=MediaModerationService(BlockClassifier())
+            )
             with TestClient(app) as client:
                 self.assertEqual(client.get("/review").status_code, 401)
                 browser_unauthenticated = client.get(
@@ -352,7 +398,10 @@ class AvatarReviewApiTest(unittest.TestCase):
                     follow_redirects=False,
                 )
                 self.assertEqual(browser_unauthenticated.status_code, 303)
-                self.assertEqual(browser_unauthenticated.headers["location"], "/review/login?expired=1")
+                self.assertEqual(
+                    browser_unauthenticated.headers["location"],
+                    "/review/login?expired=1",
+                )
                 moderation = self._moderate_png(client, (120, 80, 40))
                 self.assertEqual(moderation["decision"], "review")
 
@@ -362,11 +411,26 @@ class AvatarReviewApiTest(unittest.TestCase):
                 pending_item = client.get("/review/items?status=all").json()["items"][0]
                 self._route_item_to_human_required(client, pending_item["item_id"])
                 for route in (
-                    "overview", "agents", "policies", "quality", "history", "health", "account", "guide"
+                    "overview",
+                    "agents",
+                    "policies",
+                    "quality",
+                    "history",
+                    "health",
+                    "account",
+                    "guide",
                 ):
                     support_page = client.get(f"/review/{route}")
                     self.assertEqual(support_page.status_code, 200, route)
                     self.assertIn('class="side-nav"', support_page.text)
+
+                filtered_history = client.get("/review/history?action=route")
+                self.assertEqual(filtered_history.status_code, 200)
+                self.assertIn('<option value="route" selected>', filtered_history.text)
+                self.assertIn("自动路由", filtered_history.text)
+                empty_history = client.get("/review/history?q=definitely-not-an-event")
+                self.assertIn("共 0 条事件", empty_history.text)
+                self.assertIn("没有符合当前筛选条件", empty_history.text)
 
                 listing = client.get("/review/items")
                 self.assertEqual(listing.status_code, 200)
@@ -442,7 +506,14 @@ class AvatarReviewApiTest(unittest.TestCase):
 
                 detail = client.get(f"/review/items/{item['item_id']}")
                 self.assertEqual(detail.status_code, 200)
-                self.assertEqual([event for event in detail.json()["events"] if event["action"] == "approve"][0]["request_id"], "review-action-1")
+                self.assertEqual(
+                    [
+                        event
+                        for event in detail.json()["events"]
+                        if event["action"] == "approve"
+                    ][0]["request_id"],
+                    "review-action-1",
+                )
                 page = client.get("/review")
                 self.assertEqual(page.status_code, 200)
                 self.assertIn("Content-Security-Policy", page.headers)
@@ -451,7 +522,9 @@ class AvatarReviewApiTest(unittest.TestCase):
             self.assertEqual(result_store.count_runs("default"), 1)
             result_store.close()
 
-    def test_blacklist_endpoint_persists_ban_action_and_hides_original_preview(self) -> None:
+    def test_blacklist_endpoint_persists_ban_action_and_hides_original_preview(
+        self,
+    ) -> None:
         try:
             from fastapi.testclient import TestClient
         except ImportError as exc:  # pragma: no cover - optional api extra
@@ -493,8 +566,14 @@ class AvatarReviewApiTest(unittest.TestCase):
                 csrf = login.json()["csrf_token"]
                 response = client.post(
                     f"/review/items/{item.item_id}/blacklist",
-                    json={"version": item.version, "note": "malicious network-wide block"},
-                    headers={"X-CSRF-Token": csrf, "X-Request-ID": "blacklist-action-1"},
+                    json={
+                        "version": item.version,
+                        "note": "malicious network-wide block",
+                    },
+                    headers={
+                        "X-CSRF-Token": csrf,
+                        "X-Request-ID": "blacklist-action-1",
+                    },
                 )
                 self.assertEqual(response.status_code, 200)
                 self.assertEqual(response.json()["status"], "rejected")
@@ -502,7 +581,11 @@ class AvatarReviewApiTest(unittest.TestCase):
                 self.assertEqual(response.json()["avatar_action"], "blacklist")
 
                 detail = client.get(f"/review/items/{item.item_id}").json()
-                blacklist_event = [event for event in detail["events"] if event["action"] == "blacklist"][0]
+                blacklist_event = [
+                    event
+                    for event in detail["events"]
+                    if event["action"] == "blacklist"
+                ][0]
                 self.assertEqual(blacklist_event["after_avatar_action"], "blacklist")
                 self.assertEqual(blacklist_event["request_id"], "blacklist-action-1")
 
@@ -524,7 +607,9 @@ class AvatarReviewApiTest(unittest.TestCase):
                 media_root=Path(directory) / "media",
                 reviewer_token="review-secret",
             )
-            app = create_app(settings=settings, service=MediaModerationService(HighRiskClassifier()))
+            app = create_app(
+                settings=settings, service=MediaModerationService(HighRiskClassifier())
+            )
             with TestClient(app) as client:
                 image = io.BytesIO()
                 Image.new("RGB", (8, 8), (180, 30, 30)).save(image, format="PNG")
@@ -542,7 +627,9 @@ class AvatarReviewApiTest(unittest.TestCase):
                 self.assertEqual(item["stage"], "auto_rejected")
                 self.assertEqual(item["final_decision"], "block")
                 self.assertEqual(item["avatar_action"], "replace_default")
-                attempts = client.get(f"/review/items/{item['item_id']}/attempts").json()
+                attempts = client.get(
+                    f"/review/items/{item['item_id']}/attempts"
+                ).json()
                 self.assertEqual(attempts["count"], 1)
                 self.assertEqual(attempts["attempts"][0]["stage"], "fast_scan")
 
@@ -558,7 +645,9 @@ class AvatarReviewApiTest(unittest.TestCase):
                 media_root=Path(directory) / "media",
                 reviewer_token="review-secret",
             )
-            app = create_app(settings=settings, service=MediaModerationService(BlockClassifier()))
+            app = create_app(
+                settings=settings, service=MediaModerationService(BlockClassifier())
+            )
             with TestClient(app) as client:
                 self._moderate_png(client, (80, 80, 80))
                 client.post("/review/login", json={"token": "review-secret"})
@@ -566,9 +655,14 @@ class AvatarReviewApiTest(unittest.TestCase):
                 first = client.post(
                     f"/v1/review/items/{item['item_id']}/attempts",
                     json={
-                        "stage": "vision_review_1", "attempt_number": 1,
-                        "provider": "test", "model_id": "vision-a", "model_version": "1",
-                        "prompt_version": "avatar-v1", "decision": "review", "confidence": 0.60,
+                        "stage": "vision_review_1",
+                        "attempt_number": 1,
+                        "provider": "test",
+                        "model_id": "vision-a",
+                        "model_version": "1",
+                        "prompt_version": "avatar-v1",
+                        "decision": "review",
+                        "confidence": 0.60,
                     },
                 )
                 self.assertEqual(first.status_code, 201)
@@ -576,9 +670,14 @@ class AvatarReviewApiTest(unittest.TestCase):
                 second = client.post(
                     f"/v1/review/items/{item['item_id']}/attempts",
                     json={
-                        "stage": "vision_review_2", "attempt_number": 1,
-                        "provider": "test", "model_id": "vision-b", "model_version": "1",
-                        "prompt_version": "avatar-v1", "decision": "allow", "confidence": 0.97,
+                        "stage": "vision_review_2",
+                        "attempt_number": 1,
+                        "provider": "test",
+                        "model_id": "vision-b",
+                        "model_version": "1",
+                        "prompt_version": "avatar-v1",
+                        "decision": "allow",
+                        "confidence": 0.97,
                     },
                 )
                 self.assertEqual(second.status_code, 201)
@@ -623,14 +722,16 @@ class AvatarReviewApiTest(unittest.TestCase):
                 media_root=root,
                 reviewer_token="review-secret",
             )
-            app = create_app(settings=settings, service=MediaModerationService(BlockClassifier()))
+            app = create_app(
+                settings=settings, service=MediaModerationService(BlockClassifier())
+            )
             with TestClient(app) as client:
                 login = client.post("/review/login", json={"token": "review-secret"})
                 self.assertEqual(login.status_code, 200)
                 page = client.get(f"/review?focus={item.item_id}")
                 self.assertEqual(page.status_code, 200)
                 self.assertIn("Controlled media preview", page.text)
-                self.assertIn(f'/review/items/{item.item_id}/media', page.text)
+                self.assertIn(f"/review/items/{item.item_id}/media", page.text)
                 media = client.get(f"/review/items/{item.item_id}/media")
                 self.assertEqual(media.status_code, 200)
                 self.assertEqual(media.headers["content-type"], "image/png")
@@ -638,7 +739,9 @@ class AvatarReviewApiTest(unittest.TestCase):
                 unsafe = client.get("/review/items/not-an-item/media")
                 self.assertEqual(unsafe.status_code, 404)
 
-    def test_focus_html_action_preserves_safe_return_to_and_advances_to_next_item(self) -> None:
+    def test_focus_html_action_preserves_safe_return_to_and_advances_to_next_item(
+        self,
+    ) -> None:
         try:
             from fastapi.testclient import TestClient
         except ImportError as exc:  # pragma: no cover
@@ -652,7 +755,9 @@ class AvatarReviewApiTest(unittest.TestCase):
                 review_session_secret="session-secret",
                 reviewer_id="alice",
             )
-            app = create_app(settings=settings, service=MediaModerationService(BlockClassifier()))
+            app = create_app(
+                settings=settings, service=MediaModerationService(BlockClassifier())
+            )
             with TestClient(app) as client:
                 self._moderate_png(client, (20, 40, 60))
                 self._moderate_png(client, (60, 40, 20))
@@ -663,9 +768,7 @@ class AvatarReviewApiTest(unittest.TestCase):
                 items = client.get("/review/items").json()["items"]
                 current = items[0]
                 next_item = items[1]
-                return_to = (
-                    f"/review?status=pending&risk=guarded&q=nsfw&view=focus&focus={current['item_id']}"
-                )
+                return_to = f"/review?status=pending&risk=guarded&q=nsfw&view=focus&focus={current['item_id']}"
                 moved = client.post(
                     f"/review/items/{current['item_id']}/approve",
                     content=urlencode(
@@ -707,7 +810,9 @@ class AvatarReviewApiTest(unittest.TestCase):
                 self.assertEqual(unsafe.status_code, 303)
                 self.assertEqual(unsafe.headers["location"], "/review")
 
-    def test_batch_review_rejects_special_cases_and_reports_partial_failures(self) -> None:
+    def test_batch_review_rejects_special_cases_and_reports_partial_failures(
+        self,
+    ) -> None:
         try:
             from fastapi.testclient import TestClient
         except ImportError as exc:  # pragma: no cover
@@ -740,15 +845,21 @@ class AvatarReviewApiTest(unittest.TestCase):
                 login = client.post("/review/login", json={"token": "review-secret"})
                 csrf = login.json()["csrf_token"]
                 staged_items = client.get("/review/items?status=all").json()["items"]
-                ok_item = self._route_item_to_human_required(client, staged_items[0]["item_id"])
-                appealed_item = self._route_item_to_human_required(client, staged_items[1]["item_id"])
+                ok_item = self._route_item_to_human_required(
+                    client, staged_items[0]["item_id"]
+                )
+                appealed_item = self._route_item_to_human_required(
+                    client, staged_items[1]["item_id"]
+                )
                 minor_item = self._route_item_to_human_required(
                     client, staged_items[2]["item_id"], category="minor_identity"
                 )
                 missing_evidence_item = self._route_item_to_human_required(
                     client, staged_items[3]["item_id"], evidence=False
                 )
-                non_human_item = client.get(f"/review/items/{staged_items[4]['item_id']}").json()["item"]
+                non_human_item = client.get(
+                    f"/review/items/{staged_items[4]['item_id']}"
+                ).json()["item"]
 
                 review_store.connection.execute(
                     "UPDATE review_items SET appealed = 1 WHERE item_id = ?",
@@ -766,7 +877,9 @@ class AvatarReviewApiTest(unittest.TestCase):
 
                 missing_csrf = client.post(
                     "/review/batch",
-                    content=urlencode({"action": "reject", "selected": selected}, doseq=True),
+                    content=urlencode(
+                        {"action": "reject", "selected": selected}, doseq=True
+                    ),
                     headers={"Content-Type": "application/x-www-form-urlencoded"},
                 )
                 self.assertEqual(missing_csrf.status_code, 403)
@@ -774,7 +887,11 @@ class AvatarReviewApiTest(unittest.TestCase):
                 over_limit = client.post(
                     "/review/batch",
                     content=urlencode(
-                        {"csrf_token": csrf, "action": "reject", "selected": [selected[0]] * 51},
+                        {
+                            "csrf_token": csrf,
+                            "action": "reject",
+                            "selected": [selected[0]] * 51,
+                        },
                         doseq=True,
                     ),
                     headers={"Content-Type": "application/x-www-form-urlencoded"},
@@ -792,9 +909,14 @@ class AvatarReviewApiTest(unittest.TestCase):
                 )
                 self.assertEqual(batch.status_code, 200)
                 self.assertEqual(batch.json()["processed"], [ok_item["item_id"]])
-                failures = {entry["item"]: entry["error"] for entry in batch.json()["failures"]}
+                failures = {
+                    entry["item"]: entry["error"] for entry in batch.json()["failures"]
+                }
                 self.assertEqual(len(failures), 4)
-                self.assertIn("appealed item cannot use ordinary batch review", failures[appealed_item["item_id"]])
+                self.assertIn(
+                    "appealed item cannot use ordinary batch review",
+                    failures[appealed_item["item_id"]],
+                )
                 self.assertIn(
                     "political or minor-sensitive item cannot use ordinary batch review",
                     failures[minor_item["item_id"]],

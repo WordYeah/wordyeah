@@ -16,7 +16,11 @@ class PageHistoryHealthTest(unittest.TestCase):
     def test_history_is_a_filtered_event_stream_not_a_table(self) -> None:
         page = render_history_content(
             {
-                "filters": {"q": "avatar", "actor": "agent-a", "actors": ["agent-a", "reviewer"]},
+                "filters": {
+                    "q": "avatar",
+                    "actor": "agent-a",
+                    "actors": ["agent-a", "reviewer"],
+                },
                 "actions": ["attempt.created", "decision.changed"],
                 "stages": ["vision_review_1", "human_required"],
                 "events": [
@@ -30,6 +34,14 @@ class PageHistoryHealthTest(unittest.TestCase):
                         "status": "running",
                     }
                 ],
+                "total": 51,
+                "start": 1,
+                "end": 50,
+                "pagination": {
+                    "page": 1,
+                    "total_pages": 2,
+                    "next_url": "/review/history?offset=50",
+                },
             }
         )
         self.assertIn('role="search"', page)
@@ -38,6 +50,10 @@ class PageHistoryHealthTest(unittest.TestCase):
         self.assertIn('<time class="audit-time"', page)
         self.assertIn('value="avatar"', page)
         self.assertIn('<option value="agent-a" selected>', page)
+        self.assertIn('class="audit-list-head"', page)
+        self.assertIn("1 / 2", page)
+        self.assertIn("显示 1–50", page)
+        self.assertIn("2026-08-05 02:00:00", page)
         self.assertNotIn("<table", page)
 
     def test_history_accepts_legacy_mapping_rows_and_escapes_every_value(self) -> None:
@@ -62,7 +78,11 @@ class PageHistoryHealthTest(unittest.TestCase):
                     "summary": "二审延迟，不影响快速扫描",
                     "stages": (
                         {"name": "fast_scan", "status": "ready", "detail": "p95 18 ms"},
-                        {"name": "vision_review_2", "status": "delayed", "detail": "积压 7"},
+                        {
+                            "name": "vision_review_2",
+                            "status": "delayed",
+                            "detail": "积压 7",
+                        },
                     ),
                 },
                 "components": (
