@@ -1129,6 +1129,77 @@ button, a { -webkit-tap-highlight-color: transparent; }
   color: var(--text);
 }
 
+.tabs-header {
+  display: flex;
+  min-width: 0;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 28px;
+  border-bottom: 1px solid var(--line);
+}
+
+.tabs-header .page-tabs {
+  min-width: 0;
+  flex: 1 1 auto;
+  margin: 0;
+  border-bottom: 0;
+}
+
+.toolbar-right {
+  flex: 0 0 auto;
+  padding-bottom: 8px;
+}
+
+.filter-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.search-form,
+.risk-filter-form {
+  margin: 0;
+}
+
+.risk-filter-form {
+  position: relative;
+}
+
+.risk-filter-form::after {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid var(--quiet);
+  border-bottom: 1.5px solid var(--quiet);
+  content: "";
+  pointer-events: none;
+  transform: translateY(-70%) rotate(45deg);
+}
+
+.risk-select {
+  min-height: 40px;
+  min-width: 132px;
+  padding: 0 34px 0 12px;
+  appearance: none;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  outline: 0;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 140ms ease, background-color 140ms ease;
+}
+
+.risk-select:hover { border-color: var(--line-strong); }
+.risk-select:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
 .filter-bar {
   display: flex;
   align-items: center;
@@ -2560,6 +2631,20 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .nav-item { flex: 0 0 auto; }
   .nav-count { display: none; }
   .shell { padding-inline: 24px; }
+  .tabs-header {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+    padding-bottom: 10px;
+  }
+  .tabs-header .page-tabs { width: 100%; }
+  .toolbar-right { width: 100%; padding-bottom: 0; }
+  .filter-controls { width: 100%; }
+  .search-form { min-width: 0; flex: 1 1 auto; }
+  .search-form .search-box,
+  .search-form .search-box input { width: 100%; min-width: 0; }
+  .search-box input:focus { width: 100%; }
+  .risk-select { min-width: 124px; }
   .control-row { align-items: flex-start; flex-direction: column; }
   .control-actions { width: 100%; justify-content: space-between; }
 }
