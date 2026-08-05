@@ -2796,6 +2796,21 @@ details[open] > .dropdown-trigger > .icon:last-child {
   .control-actions { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 6px; }
   .control-actions > .view-switch { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .control-actions > .view-switch a { justify-content: center; padding-inline: 7px; }
+  .pagination-bar {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .pagination-controls {
+    width: 100%;
+    min-width: 0;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .per-page-form {
+    flex: 0 0 78px;
+    width: 78px;
+  }
   .keyboard-help-btn span { display: none; }
   .queue-tool-note { display: none; }
   .queue-list { overflow: visible; }
