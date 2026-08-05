@@ -172,6 +172,7 @@ Cravatar 增量 shadow 输入
 - 全量测试：259 passed，12 subtests passed；Ruff、compileall 和 diff check 同步通过。覆盖 Cravatar TSV 转换、并发采集、shadow 证据审计、真实视觉 canary 默认关闭边界、慢推理 lease 续租、有界视觉 worker 批次和三角色 reviewer runtime 私密配置校验。仅有 Starlette/httpx 弃用警告。
 - 质量双审：人工标签结论已扩展为 `allow/review/block`，两名独立 reviewer 可把边界样本收敛为 `review`；旧 `allow/block` 文件库迁移在提交前执行外键校验，失败会完整回滚。
 - 浏览器：真实 reviewer session 下验证 1440×900 三种队列视图、显式批量模式与最多 50 项提示、快速标记四种动作且零弹窗；1280×800 验证紧凑列表；390×844 验证质量页与工作区菜单且无横向溢出。证据保存在本地忽略文件 `artifacts/browser-acceptance-mvp.json`。
+- 浏览器隔离：默认验收运行器以 SQLite `mode=ro + query_only` 备份源库，仅在 0600 一次性副本中构造人工审核项；九个页面和七种宽度的全部下拉、1,100 条质量分页与审核主路径均 PASS。浏览器没有提交决定，临时审核状态与事件计数未变化，源数据库和生产头像均未写入。
 - 下拉框专项：审核队列和八个支持页的原生筛选、分页、工作区与账户菜单已在 1440/1180/1024/900/760/640/390px 的适用断点复核；原生控件与箭头中心偏差为 0，9 个页面的账户菜单在 1440/1024/760/390px 下全部位于视口内且无遮挡。
 - 持久队列负载：50 jobs/s 连续 900 秒，完成 45,000 项、零 active 残留、49.9998 jobs/s、cycle p95 1.02ms；时长与速率门槛均 `PASS`。结果保存在本地忽略文件 `artifacts/review-queue-load-15m.json`。
 - G2A canary：网关可达；Web 池模型 `grok-chat-fast` 对两张合成图片返回真实、可解析的结构化视觉结论，延迟约 5.6–5.9 秒。`grok-4.5` 与 `grok-4.3` 因 Build 池可用账号为 0 继续返回 HTTP 429；这两类池的状态不得混写。

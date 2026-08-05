@@ -64,20 +64,26 @@ shadow 规模门槛默认至少 1,100 条，与代表性 corpus 五个分层的�
 ## 聚合验收
 
 浏览器证据必须由真实 Chromium 和独立 reviewer session 重跑生成，不能手写 PASS JSON。
-运行实例需至少包含一条 `human_required` 项和分页质量样本；脚本会阻止动作表单提交，
-不会改变审核结论：
+默认使用隔离运行器：它用 SQLite `mode=ro + query_only` 读取源库并备份到 0700 临时目录，
+只在 0600 临时副本中放置一条 `human_required` 项。浏览器脚本会阻止动作表单提交；
+结束后还会比对临时审核项、事件数和质量决定数，并删除临时数据库：
 
 ```bash
 python -m pip install -e '.[api,browser]'
 python -m playwright install chromium
-python scripts/audit_browser_acceptance.py \
-  --base-url http://127.0.0.1:18765 \
+python scripts/run_isolated_browser_acceptance.py \
+  --source-database /path/to/private/wordyeah.sqlite3 \
+  --media-root /path/to/private/media \
   --runtime /path/to/private/reviewer-runtime.json \
-  --output artifacts/browser-acceptance-mvp.json
+  --output artifacts/browser-acceptance-mvp.json \
+  --screenshot-dir output/playwright/browser-acceptance-mvp
 ```
 
 `reviewer-runtime.json` 必须为 0600，固定包含 `reviewer-a`、`reviewer-b`、
 `arbitrator` 和独立 session secret；报告和截图均以私有权限原子写入，不输出凭据。
+只有已经明确属于一次性测试的数据实例，才直接运行底层 `audit_browser_acceptance.py`。
+聚合验收要求浏览器报告同时证明 `isolated_fixture=true`、源库只读、审核决定未变化、
+生产头像未写入，以及全部页面下拉框和 1,100 条质量分页路径通过。
 
 所有门槛统一由一个只读聚合器核对：
 

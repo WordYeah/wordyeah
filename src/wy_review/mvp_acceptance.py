@@ -157,14 +157,22 @@ def _browser_pass(value: Evidence) -> tuple[bool, str]:
         "batch_mode_server_contract",
         "focus_actions_no_modal",
         "desktop_list_1280",
+        "all_dropdowns_share_alignment_contract",
         "mobile_quality_workspace",
         "mobile_no_horizontal_overflow",
+        "corpus_quality_1100_paginated_thumbnails",
+        "isolated_fixture_non_mutation",
     }
     rows = value.get("checks")
     checks = _unique_named_checks(rows)
     passed = (
         value.get("status") == "PASS"
         and value.get("reviewer_session") is True
+        and value.get("mutates_review_decisions") is False
+        and value.get("isolated_fixture") is True
+        and value.get("source_database_mode") == "read_only_backup"
+        and value.get("source_database_mutated") is False
+        and value.get("production_avatar_write") is False
         and checks is not None
         and required.issubset(checks)
         and all(checks[name].get("status") == "PASS" for name in required)

@@ -37,8 +37,11 @@ def _passing_evidence(tmp_path: Path) -> dict[str, Path]:
         "batch_mode_server_contract",
         "focus_actions_no_modal",
         "desktop_list_1280",
+        "all_dropdowns_share_alignment_contract",
         "mobile_quality_workspace",
         "mobile_no_horizontal_overflow",
+        "corpus_quality_1100_paginated_thumbnails",
+        "isolated_fixture_non_mutation",
     )
     return {
         "corpus": _write(
@@ -75,6 +78,11 @@ def _passing_evidence(tmp_path: Path) -> dict[str, Path]:
             {
                 "status": "PASS",
                 "reviewer_session": True,
+                "mutates_review_decisions": False,
+                "isolated_fixture": True,
+                "source_database_mode": "read_only_backup",
+                "source_database_mutated": False,
+                "production_avatar_write": False,
                 "checks": [
                     {"name": name, "status": "PASS"} for name in browser_names
                 ],
@@ -171,6 +179,18 @@ def test_malformed_check_row_cannot_be_ignored(tmp_path: Path) -> None:
     evidence = _passing_evidence(tmp_path)
     payload = json.loads(evidence["browser"].read_text(encoding="utf-8"))
     payload["checks"].append({"status": "PASS"})
+    evidence["browser"] = _write(tmp_path / "browser.json", payload)
+    report = audit_avatar_mvp(**evidence)
+    checks = {check["name"]: check for check in report["checks"]}
+    assert report["status"] == "FAIL"
+    assert checks["browser_acceptance"]["status"] == "FAIL"
+
+
+def test_browser_evidence_requires_isolated_non_mutating_source(tmp_path: Path) -> None:
+    evidence = _passing_evidence(tmp_path)
+    payload = json.loads(evidence["browser"].read_text(encoding="utf-8"))
+    payload.pop("isolated_fixture")
+    payload["source_database_mutated"] = True
     evidence["browser"] = _write(tmp_path / "browser.json", payload)
     report = audit_avatar_mvp(**evidence)
     checks = {check["name"]: check for check in report["checks"]}

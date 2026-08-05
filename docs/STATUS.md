@@ -68,6 +68,9 @@
 - [CX] 已验证：最新完整测试为 259 个 pytest、12 个 subtest，Ruff、compileall 和 diff check 全部通过；唯一警告为 Starlette/httpx 弃用提示
 - [CX] 已验证：最新真实 Chromium reviewer session 验收覆盖审核队列与八个支持页，原生风险/分页/审计筛选在 7 个宽度下共 35 次几何检查，工作区菜单覆盖桌面与移动端，账户菜单在 9 个页面 × 4 个宽度共 36 次展开检查；全部位于视口内且中心无遮挡，未写审核决定
 - [CX] 2026-08-05 19:54 Asia/Shanghai 只读质量快照：`corpus-primary-v1` 仍选择 1,100 条，真人收敛 0、AI 建议 16、可评测人机配对 0；报告为 `INCOMPLETE`，`mutates_quality_decisions=false`、`mutates_avatar=false`
+- [CX] 已固化并验证：浏览器验收默认从源 SQLite 的 `mode=ro + query_only` 连接创建 0600 一次性副本，只在副本中放置一条人工审核项；真实 Chromium 覆盖九个页面、全部下拉、三种队列视图、批量上限、质量分页和移动端，报告为 PASS。源库未交给 Web 进程、临时审核状态与事件数未变化，`source_database_mutated=false`、`production_avatar_write=false`
+- [CX] 已加固：头像 MVP 聚合器不再接受缺少隔离来源、未声明审核决定非写入、未覆盖全部下拉或未覆盖 1,100 条质量分页的旧浏览器报告；当前除代表性 corpus 真人标签外其余证据仍为 PASS，整体继续为 `INCOMPLETE`
+- [CX] 已验证：最新完整测试为 265 个 pytest、12 个 subtest；Ruff、compileall 和 diff check 全部通过。唯一警告为 Starlette/httpx 弃用提示
 - [CX] 未完成：代表性头像 corpus 的真人全量主审 0/1100、固定 10% 独立双审 0/110 和可能产生的分歧仲裁；目标主机持续调度部署仍未批准
 - 生产接入：只读 canary 已完成；未写回 WordPress/头像/队列
 - 外部审查 API：生产默认关闭；仅做过受控 G2A canary
