@@ -160,3 +160,19 @@ though it remains open for the independent second label. Primary completion is
 not ground truth; only a fully resolved dual-review batch reports
 `ground_truth=true`. The second reviewer cannot see the first decision before
 submitting their own.
+
+Generate aggregate corpus evidence directly from the frozen batch after
+reviewing. This command opens SQLite in read-only mode and evaluates only pairs
+that have both a resolved human decision and a separately stored successful AI
+proposal. Candidate routing hints and strata are never converted into truth:
+
+```bash
+python3 scripts/evaluate_quality_corpus.py \
+  --database /private/wordyeah/avatar-review/wordyeah.sqlite3 \
+  --consumer-id corpus-avatar --batch-id corpus-primary-v1 \
+  --output artifacts/avatar-corpus-evaluation-mvp.json
+```
+
+Until all 1,100 human decisions, 1,100 AI proposals, the frozen 10% independent
+double review, and any required arbitration are complete, the report remains
+`INCOMPLETE`. It never modifies quality decisions, review items, or avatars.
