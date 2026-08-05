@@ -125,7 +125,68 @@ class VisionWorkerCliTests(unittest.TestCase):
             worker_cli.main(["--vision-stage", "vision_review_2", "--once"])
 
         self.assertEqual(raised.exception.code, 2)
-        self.assertIn("--vision-stage require --vision", stderr.getvalue())
+        self.assertIn("--vision-stage", stderr.getvalue())
+        self.assertIn("require --vision", stderr.getvalue())
+
+    def test_bounded_vision_worker_stops_at_requested_job_count(self) -> None:
+        job_store = MagicMock()
+        attempt_store = MagicMock()
+        review_store = MagicMock()
+        vision_worker = MagicMock()
+        vision_worker.run_once.side_effect = [MagicMock(), MagicMock()]
+        primary_provider = MagicMock(enabled=True)
+
+        with (
+            patch.object(
+                worker_cli,
+                "build_primary_vision_provider",
+                return_value=primary_provider,
+            ),
+            patch.object(worker_cli, "G2AVisionProvider", return_value=MagicMock()),
+            patch.object(worker_cli, "JobStore", return_value=job_store),
+            patch.object(worker_cli, "ReviewAttemptStore", return_value=attempt_store),
+            patch.object(worker_cli, "ReviewStore", return_value=review_store),
+            patch.object(worker_cli, "VisionReviewWorker", return_value=vision_worker),
+        ):
+            worker_cli.main(["--vision", "--vision-max-jobs", "2"])
+
+        self.assertEqual(vision_worker.run_once.call_count, 2)
+
+    def test_bounded_vision_worker_exits_when_queue_is_empty(self) -> None:
+        job_store = MagicMock()
+        attempt_store = MagicMock()
+        review_store = MagicMock()
+        vision_worker = MagicMock()
+        vision_worker.run_once.return_value = None
+        primary_provider = MagicMock(enabled=True)
+
+        with (
+            patch.object(
+                worker_cli,
+                "build_primary_vision_provider",
+                return_value=primary_provider,
+            ),
+            patch.object(worker_cli, "G2AVisionProvider", return_value=MagicMock()),
+            patch.object(worker_cli, "JobStore", return_value=job_store),
+            patch.object(worker_cli, "ReviewAttemptStore", return_value=attempt_store),
+            patch.object(worker_cli, "ReviewStore", return_value=review_store),
+            patch.object(worker_cli, "VisionReviewWorker", return_value=vision_worker),
+            patch.object(worker_cli.time, "sleep") as sleep,
+        ):
+            worker_cli.main(["--vision", "--vision-max-jobs", "5"])
+
+        vision_worker.run_once.assert_called_once_with()
+        sleep.assert_not_called()
+
+    def test_vision_max_jobs_rejects_invalid_combinations(self) -> None:
+        for args in (
+            ["--vision", "--vision-max-jobs", "0"],
+            ["--vision", "--once", "--vision-max-jobs", "1"],
+            ["--vision-max-jobs", "1"],
+        ):
+            with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as raised:
+                worker_cli.main(args)
+            self.assertEqual(raised.exception.code, 2)
 
     def test_default_worker_waits_when_queue_is_temporarily_empty(self) -> None:
         job_store = MagicMock()

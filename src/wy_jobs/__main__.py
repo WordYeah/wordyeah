@@ -110,10 +110,17 @@ def _run_vision(args: argparse.Namespace) -> None:
             context_marker=args.vision_context_marker,
             job_kinds=(args.vision_stage,) if args.vision_stage else VISION_JOB_KINDS,
         )
+        processed = 0
         while True:
             job = worker.run_once()
+            if job is not None:
+                processed += 1
             if args.once:
                 return
+            if args.vision_max_jobs is not None:
+                if job is None or processed >= args.vision_max_jobs:
+                    return
+                continue
             if job is None:
                 time.sleep(max(args.poll_interval, 0.05))
     finally:
@@ -146,6 +153,11 @@ def main(argv: Sequence[str] | None = None) -> None:
         help="claim only one advanced-vision stage (requires --vision)",
     )
     parser.add_argument(
+        "--vision-max-jobs",
+        type=int,
+        help="process at most this many currently available vision jobs, then exit",
+    )
+    parser.add_argument(
         "--vision",
         action="store_true",
         help="process queued advanced-vision review jobs instead of fast-scan jobs",
@@ -154,6 +166,11 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument("--poll-interval", type=float, default=1.0)
     args = parser.parse_args(argv)
 
+    if args.vision_max_jobs is not None and args.vision_max_jobs < 1:
+        parser.error("--vision-max-jobs must be at least 1")
+    if args.once and args.vision_max_jobs is not None:
+        parser.error("--once and --vision-max-jobs cannot be combined")
+
     if args.vision:
         try:
             _run_vision(args)
@@ -161,9 +178,15 @@ def main(argv: Sequence[str] | None = None) -> None:
             parser.error(str(exc))
         return
 
-    if args.consumer_id or args.vision_context_marker or args.vision_stage:
+    if (
+        args.consumer_id
+        or args.vision_context_marker
+        or args.vision_stage
+        or args.vision_max_jobs is not None
+    ):
         parser.error(
-            "--consumer-id, --vision-context-marker, and --vision-stage require --vision"
+            "--consumer-id, --vision-context-marker, --vision-stage, and "
+            "--vision-max-jobs require --vision"
         )
 
     policy_config = load_policy_config(args.policy_path)

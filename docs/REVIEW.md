@@ -92,6 +92,9 @@ python scripts/enqueue_corpus_ai_prelabels.py \
   --worker-id corpus-prelabel-1
 ```
 
+本地批处理可用 `--vision-max-jobs N` 限制单个进程本次最多领取的任务数；达到上限或当前
+队列为空即退出。它不能与 `--once` 同时使用，常驻服务仍不设置该参数。
+
 二审使用同样的 consumer/context 约束，并将 `--vision-stage` 改为
 `vision_review_2`；worker 会继续执行独立 provider/model/prompt 检查。G2A 或 Ollama
 的超时、限流和无效响应仍按原有 lease/backoff/dead-letter 规则处理；筛选器不会跳过
