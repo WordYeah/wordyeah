@@ -471,7 +471,10 @@ class AvatarReviewApiTest(unittest.TestCase):
 
                 filtered_history = client.get("/review/history?action=route")
                 self.assertEqual(filtered_history.status_code, 200)
-                self.assertIn('<span class="menu-select__label">route</span>', filtered_history.text)
+                self.assertIn(
+                    '<span class="menu-select__label dropdown-trigger__label">route</span>',
+                    filtered_history.text,
+                )
                 self.assertIn("自动路由", filtered_history.text)
                 empty_history = client.get("/review/history?q=definitely-not-an-event")
                 self.assertIn("共 0 条事件", empty_history.text)

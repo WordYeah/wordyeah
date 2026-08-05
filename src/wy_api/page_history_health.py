@@ -349,7 +349,8 @@ def _history_filter_menu(
     return (
         f'<details class="audit-filter audit-filter-menu menu-select" name="review-dropdown">'
         f'<summary class="dropdown-trigger" aria-label="{escape(label)}">'
-        f'<span class="menu-select__label">{escape(current_label)}</span>{icon("chevron-down")}</summary>'
+        f'<span class="menu-select__label dropdown-trigger__label">{escape(current_label)}</span>'
+        f'<span class="dropdown-trigger__chevron">{icon("chevron-down")}</span></summary>'
         f'<div class="menu-select__menu" role="menu">{"".join(rendered)}</div></details>'
     )
 

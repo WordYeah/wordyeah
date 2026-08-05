@@ -294,10 +294,13 @@ def main() -> int:
                                     + ':scope > .account-popover'
                                   );
                                   const icon = trigger?.querySelector(
-                                    ':scope > .icon, :scope > .chevron > .icon'
+                                    ':scope > .icon, '
+                                    + ':scope > .chevron > .icon, '
+                                    + ':scope > .dropdown-trigger__chevron > .icon'
                                   );
                                   const label = trigger?.querySelector(
                                     ':scope > .menu-select__label, '
+                                    + ':scope > .dropdown-trigger__label, '
                                     + ':scope > .consumer-copy, '
                                     + ':scope > span:not(.reviewer-avatar):not(.chevron)'
                                   );

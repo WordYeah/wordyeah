@@ -300,7 +300,7 @@ code,
 }
 .support-mobile-workspace { display: none; position: relative; z-index: 1; }
 .support-mobile-workspace[open] { z-index: 120; }
-.support-mobile-workspace > summary { display: grid; grid-template-columns: minmax(0, 1fr) 14px; min-height: 34px; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); font-size: 11px; font-weight: 700; line-height: 1; cursor: pointer; }
+.support-mobile-workspace > summary { display: grid; grid-template-columns: minmax(0, 1fr) 16px; min-height: 34px; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); font-size: 11px; font-weight: 700; line-height: 1; cursor: pointer; }
 .support-mobile-workspace .consumer-popover-menu {
   right: auto;
   left: 0;
@@ -1319,7 +1319,7 @@ def render_review_page(
   <summary class="consumer-switcher dropdown-trigger">
     <span class="consumer-avatar">{escape(ctx.consumer_id[:1].upper() or "W")}</span>
     <span class="consumer-copy"><strong>{escape(ctx.consumer_id)}</strong><small>Consumer workspace</small></span>
-    <span class="chevron">{icon("chevron-down")}</span>
+    <span class="chevron dropdown-trigger__chevron">{icon("chevron-down")}</span>
   </summary>
   <div class="consumer-popover-menu">
     <div class="consumer-popover-header">Reviewer: {escape(ctx.reviewer_id)}</div>
@@ -1335,12 +1335,12 @@ def render_review_page(
 </aside>
 <div class="app-main"><header class="topbar"><div class="toolbar-title"><nav class="topbar-breadcrumbs" aria-label="面包屑"><a href="/review/overview">WordYeah</a><span class="divider" aria-hidden="true">/</span><span class="current-crumb">{escape(nav_label)}</span></nav></div>
 <div class="toolbar-actions">
-<details class="support-mobile-workspace" name="review-dropdown"><summary class="dropdown-trigger" aria-label="切换工作区">{escape(ctx.consumer_id)}{icon("chevron-down")}</summary><div class="consumer-popover-menu"><div class="consumer-popover-header">切换工作区</div><div class="consumer-popover-list">{workspace_items}</div></div></details>
+<details class="support-mobile-workspace" name="review-dropdown"><summary class="dropdown-trigger" aria-label="切换工作区"><span class="dropdown-trigger__label">{escape(ctx.consumer_id)}</span><span class="dropdown-trigger__chevron">{icon("chevron-down")}</span></summary><div class="consumer-popover-menu"><div class="consumer-popover-header">切换工作区</div><div class="consumer-popover-list">{workspace_items}</div></div></details>
 <button class="theme-toggle-btn" type="button" data-action="toggle-layout" title="切换全宽/盒装居中" aria-label="切换全宽/盒装居中">{icon("layout")}</button>
 <button class="theme-toggle-btn" type="button" data-action="toggle-theme" title="切换深色/浅色模式" aria-label="切换深色/浅色模式"><span class="theme-icon-sun">{icon("sun")}</span><span class="theme-icon-moon">{icon("moon")}</span></button>
 <span class="topbar-icon service-status" data-tone="{service_tone}" role="status" title="{service_label}" aria-label="{service_label}">{service_icon}</span>
 <a class="topbar-icon" href="/review/guide" title="审核说明" aria-label="审核说明">{help_icon}</a>
-<details class="account-menu" name="review-dropdown"><summary class="dropdown-trigger"><span class="reviewer-avatar">{escape(ctx.reviewer_id[:1].upper() or "R")}</span><span>{escape(ctx.reviewer_id)}</span><span class="chevron">{icon("chevron-down")}</span></summary>
+<details class="account-menu" name="review-dropdown"><summary class="dropdown-trigger"><span class="reviewer-avatar">{escape(ctx.reviewer_id[:1].upper() or "R")}</span><span class="dropdown-trigger__label">{escape(ctx.reviewer_id)}</span><span class="chevron dropdown-trigger__chevron">{icon("chevron-down")}</span></summary>
 <div class="account-popover"><p>{escape(ctx.consumer_id)} · 受限审核会话</p>{'<form class="logout" method="post" action="/review/logout"><input type="hidden" name="csrf_token" value="' + escape(ctx.csrf_token) + '"><button type="submit">安全退出</button></form>' if ctx.csrf_token else '<a class="toolbar-link" href="/review/account">账户与会话</a>'}</div></details></div></header>
 <main class="shell" id="main-content"><header class="support-hero"><div class="support-hero-copy"><h1>{escape(title)}</h1><p>{escape(subtitle)}</p></div>
 <div class="hero-meta"><span class="status-pill" data-tone="{service_tone}">{service_icon}{service_label}</span><span class="intent-note">{help_icon}{escape(intent)}</span></div></header>

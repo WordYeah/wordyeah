@@ -50,7 +50,10 @@ class PageHistoryHealthTest(unittest.TestCase):
         self.assertIn('<ol class="audit-timeline"', page)
         self.assertIn('<time class="audit-time"', page)
         self.assertIn('value="avatar"', page)
-        self.assertIn('<span class="menu-select__label">agent-a</span>', page)
+        self.assertIn(
+            '<span class="menu-select__label dropdown-trigger__label">agent-a</span>',
+            page,
+        )
         self.assertIn('href="/review/history?q=avatar&amp;actor=agent-a"', page)
         self.assertEqual(
             page.count('class="audit-filter audit-filter-menu menu-select"'), 3
@@ -149,8 +152,9 @@ class PageHistoryHealthTest(unittest.TestCase):
         )
         self.assertIn(".menu-select > summary", REVIEW_CSS)
         self.assertIn(
-            "grid-template-columns: minmax(0, 1fr) 14px", REVIEW_CSS
+            "grid-template-columns: minmax(0, 1fr) 16px", REVIEW_CSS
         )
+        self.assertIn(".dropdown-trigger__chevron", REVIEW_CSS)
         self.assertIn(".menu-select__menu", REVIEW_CSS)
         self.assertIn("top: calc(100% + 6px)", REVIEW_CSS)
         self.assertIn("line-height: 18px", REVIEW_CSS)

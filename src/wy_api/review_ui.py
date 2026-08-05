@@ -116,11 +116,37 @@ code, .mono { font-family: var(--mono); }
 button, a { -webkit-tap-highlight-color: transparent; }
 
 .dropdown-trigger {
-  display: inline-flex;
+  display: grid;
   align-items: center;
   box-sizing: border-box;
   list-style: none;
   line-height: 1;
+}
+.dropdown-trigger__label {
+  display: flex;
+  min-width: 0;
+  height: 100%;
+  align-items: center;
+  overflow: hidden;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dropdown-trigger__chevron {
+  display: grid;
+  width: 16px;
+  height: 16px;
+  align-self: center;
+  justify-self: end;
+  place-items: center;
+  color: var(--quiet);
+  line-height: 0;
+}
+.dropdown-trigger__chevron > .icon {
+  display: block;
+  width: 14px;
+  height: 14px;
+  transition: transform 140ms ease;
 }
 .menu-select {
   --dropdown-height: 36px;
@@ -130,7 +156,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .menu-select[open] { z-index: 140; }
 .menu-select > summary {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 14px;
+  grid-template-columns: minmax(0, 1fr) 16px;
   align-items: center;
   box-sizing: border-box;
   width: 100%;
@@ -156,23 +182,14 @@ button, a { -webkit-tap-highlight-color: transparent; }
   outline-offset: 2px;
 }
 .menu-select > summary > .menu-select__label {
-  display: block;
   min-width: 0;
   overflow: hidden;
-  line-height: 18px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.menu-select > summary > .icon {
-  display: block;
-  width: 14px;
-  height: 14px;
-  align-self: center;
-  justify-self: center;
-  color: var(--quiet);
-  transition: transform 140ms ease;
+.menu-select[open] > summary > .dropdown-trigger__chevron > .icon {
+  transform: rotate(180deg);
 }
-.menu-select[open] > summary > .icon { transform: rotate(180deg); }
 .menu-select__menu {
   position: absolute;
   z-index: 30;
@@ -237,7 +254,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 .dropdown-trigger::-webkit-details-marker { display: none; }
 .dropdown-trigger > .icon,
-.dropdown-trigger > .chevron > .icon {
+.dropdown-trigger > .chevron > .icon,
+.dropdown-trigger > .dropdown-trigger__chevron > .icon {
   display: block;
   flex: 0 0 auto;
   width: 14px;
@@ -253,7 +271,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
   line-height: 0;
 }
 details[open] > .dropdown-trigger > .chevron > .icon,
-details[open] > .dropdown-trigger > .icon:last-child {
+details[open] > .dropdown-trigger > .icon:last-child,
+details[open] > .dropdown-trigger > .dropdown-trigger__chevron > .icon {
   transform: rotate(180deg);
 }
 
@@ -737,7 +756,7 @@ details[open] > .dropdown-trigger > .icon:last-child {
 .mobile-workspace-switcher { display: none; position: relative; }
 .mobile-workspace-switcher summary {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 14px;
+  grid-template-columns: minmax(0, 1fr) 16px;
   min-height: 34px;
   align-items: center;
   gap: 6px;
@@ -1641,6 +1660,7 @@ details[open] > .dropdown-trigger > .icon:last-child {
   outline: none;
 }
 .per-page-dropdown > summary > .icon { width: 12px; height: 12px; flex-basis: 12px; }
+.per-page-dropdown > summary .dropdown-trigger__chevron > .icon { width: 12px; height: 12px; }
 .per-page-dropdown > .menu-select__menu {
   top: auto;
   right: 0;
@@ -3560,7 +3580,7 @@ def render_review_workbench(
         <summary class="consumer-switcher dropdown-trigger">
           <span class="consumer-avatar">{escape(consumer_id[:1].upper() or 'W')}</span>
           <span class="consumer-copy"><strong>{escape(consumer_id)}</strong><small>Consumer workspace</small></span>
-          <span class="chevron">{icon('chevron-down')}</span>
+          <span class="chevron dropdown-trigger__chevron">{icon('chevron-down')}</span>
         </summary>
         <div class="consumer-popover-menu">
           <div class="consumer-popover-header">Reviewer: {escape(reviewer_id)}</div>
@@ -3589,7 +3609,7 @@ def render_review_workbench(
         </div>
         <div class="toolbar-actions">
           <details class="mobile-workspace-switcher" name="review-dropdown">
-            <summary class="dropdown-trigger" aria-label="切换工作区">{escape(consumer_id)}{icon('chevron-down')}</summary>
+            <summary class="dropdown-trigger" aria-label="切换工作区"><span class="dropdown-trigger__label">{escape(consumer_id)}</span><span class="dropdown-trigger__chevron">{icon('chevron-down')}</span></summary>
             <div class="consumer-popover-menu">
               <div class="consumer-popover-header">切换工作区</div>
               <div class="consumer-popover-list">{workspace_menu}</div>
@@ -3611,8 +3631,8 @@ def render_review_workbench(
           <details class="account-menu" name="review-dropdown">
             <summary class="dropdown-trigger">
               <span class="reviewer-avatar">{escape(reviewer_id[:1].upper() or 'R')}</span>
-              <span>{escape(reviewer_id)}</span>
-              <span class="chevron">{icon('chevron-down')}</span>
+              <span class="dropdown-trigger__label">{escape(reviewer_id)}</span>
+              <span class="chevron dropdown-trigger__chevron">{icon('chevron-down')}</span>
             </summary>
             <div class="account-popover">
               <p>{escape(consumer_id)} · 受限审核会话</p>
@@ -3656,7 +3676,7 @@ def render_review_workbench(
 
               <details class="risk-filter-dropdown menu-select" name="review-dropdown">
                 <summary class="dropdown-trigger" aria-label="按风险等级筛选">
-                  <span class="menu-select__label">{escape(risk_label)}</span>{icon('chevron-down')}
+                  <span class="menu-select__label dropdown-trigger__label">{escape(risk_label)}</span><span class="dropdown-trigger__chevron">{icon('chevron-down')}</span>
                 </summary>
                 <div class="menu-select__menu" role="menu">{risk_options}</div>
               </details>
@@ -3786,7 +3806,7 @@ def _render_pagination(
     per_page_select = f'''
     <details class="per-page-dropdown menu-select" name="review-dropdown">
       <summary class="dropdown-trigger" aria-label="每页显示数量">
-        <span class="menu-select__label">{per_page} 条/页</span>{icon('chevron-down')}
+        <span class="menu-select__label dropdown-trigger__label">{per_page} 条/页</span><span class="dropdown-trigger__chevron">{icon('chevron-down')}</span>
       </summary>
       <div class="menu-select__menu" role="menu">{page_size_options}</div>
     </details>
