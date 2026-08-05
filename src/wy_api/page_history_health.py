@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import datetime
 from html import escape
 from typing import Mapping, Sequence
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 
 from wy_api.icons import icon
 
@@ -30,7 +30,9 @@ CSS = """
   background: var(--panel-soft);
 }
 .audit-filter { position: relative; display: flex; min-width: 0; align-items: center; }
-.audit-filter-select { display: grid; }
+.audit-filter-menu { width: 100%; }
+.audit-filter-menu > summary { height: 36px; min-height: 36px; }
+.audit-filter-menu > .menu-select__menu { min-width: max(100%, 176px); }
 .audit-filter-search .icon {
   position: absolute;
   left: 11px;
@@ -39,8 +41,7 @@ CSS = """
   color: var(--quiet);
   pointer-events: none;
 }
-.audit-filter input,
-.audit-filter select {
+.audit-filter input {
   width: 100%;
   height: 36px;
   min-height: 36px;
@@ -53,13 +54,7 @@ CSS = """
   line-height: 1.2;
 }
 .audit-filter-search input { padding-left: 34px; }
-.audit-filter-select select {
-  padding-right: 34px;
-  appearance: none;
-  -webkit-appearance: none;
-}
 .audit-filter input:focus-visible,
-.audit-filter select:focus-visible,
 .audit-apply:focus-visible,
 .audit-reset:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .audit-apply,
@@ -255,7 +250,7 @@ CSS = """
 @media (max-width: 760px) {
   .audit-filters { grid-template-columns: 1fr 1fr; }
   .audit-filter-search { grid-column: 1 / -1; }
-  .audit-filter-select:last-of-type { grid-column: 1 / -1; }
+  .audit-filter-menu:last-of-type { grid-column: 1 / -1; }
   .audit-list-meta { align-items: flex-start; flex-direction: column; }
   .audit-list-head { display: none; }
   .audit-event { grid-template-columns: 1fr auto; gap: 6px 10px; }
@@ -319,16 +314,43 @@ def _tone(value: object) -> str:
     return "quiet"
 
 
-def _options(values: object, selected: object, all_label: str) -> str:
+def _history_filter_menu(
+    *,
+    name: str,
+    label: str,
+    values: object,
+    selected: object,
+    filters: Mapping[str, str],
+) -> str:
     selected_text = _text(selected)
-    rendered = [f'<option value="">{escape(all_label)}</option>']
-    for raw in _sequence(values):
-        value = _text(raw)
-        chosen = " selected" if value == selected_text else ""
+    choices = [("", label)] + [(_text(raw), _text(raw)) for raw in _sequence(values)]
+    current_label = next(
+        (choice_label for value, choice_label in choices if value == selected_text),
+        label,
+    )
+    rendered: list[str] = []
+    for value, choice_label in choices:
+        query = {key: item for key, item in filters.items() if item}
+        if value:
+            query[name] = value
+        else:
+            query.pop(name, None)
+        href = "/review/history"
+        if query:
+            href += "?" + urlencode(query)
+        selected_class = " is-selected" if value == selected_text else ""
+        current = ' aria-current="true"' if value == selected_text else ""
+        check = icon("check") if value == selected_text else ""
         rendered.append(
-            f'<option value="{escape(value)}"{chosen}>{escape(value)}</option>'
+            f'<a class="menu-select__option{selected_class}" role="menuitem" '
+            f'href="{escape(href)}"{current}><span>{escape(choice_label)}</span>{check}</a>'
         )
-    return "".join(rendered)
+    return (
+        f'<details class="audit-filter audit-filter-menu menu-select" name="review-dropdown">'
+        f'<summary class="dropdown-trigger" aria-label="{escape(label)}">'
+        f'<span class="menu-select__label">{escape(current_label)}</span>{icon("chevron-down")}</summary>'
+        f'<div class="menu-select__menu" role="menu">{"".join(rendered)}</div></details>'
+    )
 
 
 _ACTION_LABELS = {
@@ -429,18 +451,43 @@ def render_history_content(data: Mapping[str, object]) -> str:
     total = int(page.get("total", len(events)) or 0)
     start = int(page.get("start", 1 if events else 0) or 0)
     end = int(page.get("end", start + len(events) - 1 if events else 0) or 0)
+    active_filters = {
+        "q": query,
+        "actor": _text(actor),
+        "action": _text(action),
+        "stage": _text(stage),
+    }
+    actor_menu = _history_filter_menu(
+        name="actor",
+        label="全部执行者",
+        values=actors,
+        selected=actor,
+        filters=active_filters,
+    )
+    action_menu = _history_filter_menu(
+        name="action",
+        label="全部事件",
+        values=actions,
+        selected=action,
+        filters=active_filters,
+    )
+    stage_menu = _history_filter_menu(
+        name="stage",
+        label="全部阶段",
+        values=stages,
+        selected=stage,
+        filters=active_filters,
+    )
 
     filter_html = (
         '<form class="audit-filters" role="search" method="get" aria-label="筛选审计历史">'
         '<label class="audit-filter audit-filter-search">'
         f'{icon("search")}<span class="sr-only">搜索对象、原因或事件</span>'
         f'<input type="search" name="q" value="{escape(query)}" autocomplete="off" placeholder="搜索对象、原因或事件"></label>'
-        '<label class="audit-filter audit-filter-select select-control"><span class="sr-only">执行者</span><select name="actor" aria-label="执行者">'
-        f"{_options(actors, actor, '全部执行者')}</select><span class=\"select-control__icon\" aria-hidden=\"true\">{icon('chevron-down')}</span></label>"
-        '<label class="audit-filter audit-filter-select select-control"><span class="sr-only">事件类型</span><select name="action" aria-label="事件类型">'
-        f"{_options(actions, action, '全部事件')}</select><span class=\"select-control__icon\" aria-hidden=\"true\">{icon('chevron-down')}</span></label>"
-        '<label class="audit-filter audit-filter-select select-control"><span class="sr-only">流水线阶段</span><select name="stage" aria-label="流水线阶段">'
-        f"{_options(stages, stage, '全部阶段')}</select><span class=\"select-control__icon\" aria-hidden=\"true\">{icon('chevron-down')}</span></label>"
+        f'<input type="hidden" name="actor" value="{escape(_text(actor))}">'
+        f'<input type="hidden" name="action" value="{escape(_text(action))}">'
+        f'<input type="hidden" name="stage" value="{escape(_text(stage))}">'
+        f"{actor_menu}{action_menu}{stage_menu}"
         f'<button class="audit-apply" type="submit">{icon("search")}筛选</button>'
         f'<a class="audit-reset" href="/review/history">{icon("x")}清除</a></form>'
     )

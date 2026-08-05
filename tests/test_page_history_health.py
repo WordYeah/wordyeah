@@ -50,11 +50,12 @@ class PageHistoryHealthTest(unittest.TestCase):
         self.assertIn('<ol class="audit-timeline"', page)
         self.assertIn('<time class="audit-time"', page)
         self.assertIn('value="avatar"', page)
-        self.assertIn('<option value="agent-a" selected>', page)
+        self.assertIn('<span class="menu-select__label">agent-a</span>', page)
+        self.assertIn('href="/review/history?q=avatar&amp;actor=agent-a"', page)
         self.assertEqual(
-            page.count('class="audit-filter audit-filter-select select-control"'), 3
+            page.count('class="audit-filter audit-filter-menu menu-select"'), 3
         )
-        self.assertEqual(page.count('class="select-control__icon"'), 3)
+        self.assertEqual(page.count('class="menu-select__menu"'), 3)
         self.assertEqual(page.count('<path d="M6 9l6 6l6 -6"/>'), 3)
         self.assertIn(
             "@media (min-width: 761px) and (max-width: 1180px)",
@@ -142,13 +143,11 @@ class PageHistoryHealthTest(unittest.TestCase):
         self.assertIn(".audit-timeline", CSS)
         self.assertIn(".health-pipeline", CSS)
         self.assertIn(":focus-visible", CSS)
-        self.assertIn("appearance: none", CSS)
-        self.assertIn(".select-control > .select-control__icon", REVIEW_CSS)
-        self.assertIn("grid-template-rows: var(--select-height)", REVIEW_CSS)
-        self.assertIn("grid-column: 1", REVIEW_CSS)
-        self.assertIn("justify-self: end", REVIEW_CSS)
-        self.assertIn("align-self: center", REVIEW_CSS)
-        self.assertNotIn("transform: translateY(-50%)", REVIEW_CSS)
+        self.assertIn(".audit-filter-menu > .menu-select__menu", CSS)
+        self.assertIn(".menu-select > summary", REVIEW_CSS)
+        self.assertIn(".menu-select__menu", REVIEW_CSS)
+        self.assertIn("top: calc(100% + 6px)", REVIEW_CSS)
+        self.assertIn(".menu-select__option.is-selected", REVIEW_CSS)
         self.assertIs(PAGE_HISTORY_HEALTH_CSS, CSS)
         self.assertIs(render_history_body, render_history_content)
         self.assertIs(render_health_body, render_health_content)

@@ -262,40 +262,59 @@ def main() -> int:
                         response = page.goto(base + path, wait_until="networkidle")
                         if response is None or response.status != 200:
                             raise RuntimeError(f"dropdown page failed: {path}")
-                        controls = page.locator("select")
+                        controls = page.locator(".menu-select")
                         page_measurements: list[dict[str, object]] = []
                         for control in controls.all():
+                            control.scroll_into_view_if_needed()
+                            trigger = control.locator(":scope > summary")
+                            trigger.click()
+                            page.wait_for_timeout(40)
                             measurement = control.evaluate(
-                                """select => {
-                                  const wrapper = select.closest('.select-control');
-                                  const icon = wrapper?.querySelector('.select-control__icon');
-                                  const selectBox = select.getBoundingClientRect();
-                                  const wrapperBox = wrapper?.getBoundingClientRect();
+                                """dropdown => {
+                                  const trigger = dropdown.querySelector(':scope > summary');
+                                  const menu = dropdown.querySelector(':scope > .menu-select__menu');
+                                  const icon = trigger?.querySelector(':scope > .icon');
+                                  const triggerBox = trigger?.getBoundingClientRect();
+                                  const menuBox = menu?.getBoundingClientRect();
                                   const iconBox = icon?.getBoundingClientRect();
-                                  const style = getComputedStyle(select);
+                                  const centerHit = menuBox
+                                    ? document.elementFromPoint(
+                                        menuBox.left + menuBox.width / 2,
+                                        menuBox.top + Math.min(menuBox.height / 2, 18)
+                                      )
+                                    : null;
+                                  const verticalGap = triggerBox && menuBox
+                                    ? Math.min(
+                                        Math.abs(menuBox.top - triggerBox.bottom),
+                                        Math.abs(triggerBox.top - menuBox.bottom)
+                                      )
+                                    : null;
                                   return {
-                                    name: select.getAttribute('name'),
-                                    wrapped: Boolean(wrapper),
+                                    className: dropdown.className,
+                                    triggerHeight: triggerBox?.height ?? null,
                                     icon: Boolean(icon),
-                                    appearance: style.appearance,
-                                    selectHeight: selectBox.height,
-                                    wrapperMatches: wrapperBox
-                                      ? Math.abs(selectBox.left - wrapperBox.left) <= .5
-                                        && Math.abs(selectBox.top - wrapperBox.top) <= .5
-                                        && Math.abs(selectBox.width - wrapperBox.width) <= .5
-                                        && Math.abs(selectBox.height - wrapperBox.height) <= .5
+                                    menu: Boolean(menu),
+                                    triggerInsideViewport: triggerBox
+                                      ? triggerBox.left >= 0 && triggerBox.right <= innerWidth
                                       : false,
-                                    insideViewport: selectBox.left >= 0
-                                      && selectBox.right <= innerWidth,
+                                    menuInsideViewport: menuBox
+                                      ? menuBox.left >= 0 && menuBox.right <= innerWidth
+                                        && menuBox.top >= 0 && menuBox.bottom <= innerHeight
+                                      : false,
                                     centerDelta: iconBox
                                       ? Math.abs(
-                                          (selectBox.top + selectBox.height / 2)
+                                          (triggerBox.top + triggerBox.height / 2)
                                           - (iconBox.top + iconBox.height / 2)
                                         )
                                       : null,
+                                    verticalGap,
+                                    menuVisibleAtAnchor: Boolean(
+                                      centerHit && menu && menu.contains(centerHit)
+                                    ),
                                   };
                                 }"""
                             )
+                            trigger.click()
                             measurement.update({"path": path, "viewport": width})
                             measurements.append(measurement)
                             page_measurements.append(measurement)
@@ -307,7 +326,9 @@ def main() -> int:
                             filter_children_inside = page.locator(".audit-filters").evaluate(
                                 """form => {
                                   const box = form.getBoundingClientRect();
-                                  return [...form.children].every(child => {
+                                  return [...form.children]
+                                    .filter(child => getComputedStyle(child).display !== 'none')
+                                    .every(child => {
                                     const childBox = child.getBoundingClientRect();
                                     return childBox.left >= box.left - .5
                                       && childBox.right <= box.right + .5;
@@ -325,18 +346,76 @@ def main() -> int:
                             }
                         )
                 aligned = all(
-                    row["wrapped"]
-                    and row["icon"]
-                    and row["appearance"] == "none"
-                    and row["wrapperMatches"]
-                    and row["insideViewport"]
+                    row["icon"]
+                    and row["menu"]
+                    and row["triggerInsideViewport"]
+                    and row["menuInsideViewport"]
+                    and row["menuVisibleAtAnchor"]
                     and row["centerDelta"] is not None
                     and row["centerDelta"] <= 0.5
+                    and row["verticalGap"] is not None
+                    and 5.5 <= row["verticalGap"] <= 6.5
                     for row in measurements
                 ) and all(
                     row["noHorizontalOverflow"] and row["filterChildrenInside"]
                     for row in layouts
                 )
+                interactions: list[dict[str, object]] = []
+                page.set_viewport_size({"width": 1440, "height": 900})
+                page.goto(
+                    base + "/review?status=all&view=list&per_page=20",
+                    wait_until="networkidle",
+                )
+                page.locator(".risk-filter-dropdown > summary").click()
+                page.locator(
+                    '.risk-filter-dropdown .menu-select__option[href*="risk=critical"]'
+                ).click()
+                page.wait_for_load_state("networkidle")
+                interactions.append(
+                    {
+                        "name": "risk",
+                        "passed": "risk=critical" in page.url
+                        and page.locator(
+                            ".risk-filter-dropdown .menu-select__label"
+                        ).inner_text()
+                        == "严重风险",
+                    }
+                )
+                page.goto(
+                    base + "/review?status=all&view=list&per_page=20",
+                    wait_until="networkidle",
+                )
+                page.locator(".per-page-dropdown > summary").click()
+                page.locator(
+                    '.per-page-dropdown .menu-select__option[href*="per_page=50"]'
+                ).click()
+                page.wait_for_load_state("networkidle")
+                interactions.append(
+                    {
+                        "name": "per_page",
+                        "passed": "per_page=50" in page.url
+                        and page.locator(
+                            ".per-page-dropdown .menu-select__label"
+                        ).inner_text()
+                        == "50 条/页",
+                    }
+                )
+                page.goto(base + "/review/history", wait_until="networkidle")
+                actor_options = page.locator(
+                    ".audit-filter-menu:first-of-type .menu-select__option"
+                )
+                actor_interaction = actor_options.count() > 1
+                if actor_interaction:
+                    page.locator(
+                        ".audit-filter-menu:first-of-type > summary"
+                    ).click()
+                    actor_options.nth(1).click()
+                    page.wait_for_load_state("networkidle")
+                    actor_interaction = "actor=" in page.url
+                interactions.append(
+                    {"name": "history_actor", "passed": actor_interaction}
+                )
+                interactions_aligned = all(row["passed"] for row in interactions)
                 mobile_triggers: list[dict[str, object]] = []
                 for width in (900, 390):
                     page.set_viewport_size({"width": width, "height": 900})
@@ -537,6 +616,7 @@ def main() -> int:
                     "passed": (
                         aligned
                         and len(measurements) >= 28
+                        and interactions_aligned
                         and triggers_aligned
                         and len(mobile_triggers) == 4
                         and desktop_popovers_aligned
@@ -547,6 +627,7 @@ def main() -> int:
                     ),
                     "controls": measurements,
                     "layouts": layouts,
+                    "interactions": interactions,
                     "mobile_triggers": mobile_triggers,
                     "desktop_popovers": desktop_popovers,
                     "responsive_account_popovers": responsive_account_popovers,

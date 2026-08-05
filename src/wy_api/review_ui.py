@@ -115,62 +115,6 @@ code, .mono { font-family: var(--mono); }
 .brand, h1, h2, h3, button, .page-tabs, .view-switch { font-family: var(--font-display); }
 button, a { -webkit-tap-highlight-color: transparent; }
 
-/* One geometry contract for every native select in the reviewer UI. */
-.select-control {
-  --select-height: 36px;
-  --select-chevron-size: 14px;
-  position: relative;
-  display: inline-grid;
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: var(--select-height);
-  min-width: 0;
-  align-items: center;
-  vertical-align: middle;
-}
-:where(.select-control) > select {
-  grid-column: 1;
-  grid-row: 1;
-  align-self: stretch;
-  box-sizing: border-box;
-  display: block;
-  width: 100%;
-  height: var(--select-height);
-  min-height: var(--select-height);
-  padding: 0 34px 0 11px;
-  appearance: none;
-  -webkit-appearance: none;
-  border: 1px solid var(--line-strong);
-  border-radius: 8px;
-  outline: 0;
-  background: var(--panel);
-  background-image: none;
-  color: var(--text);
-  line-height: normal;
-  text-align: left;
-  text-align-last: left;
-  cursor: pointer;
-}
-.select-control > .select-control__icon {
-  position: relative;
-  z-index: 1;
-  grid-column: 1;
-  grid-row: 1;
-  display: grid;
-  width: var(--select-chevron-size);
-  height: var(--select-chevron-size);
-  margin-right: 11px;
-  align-self: center;
-  place-items: center;
-  justify-self: end;
-  color: var(--quiet);
-  line-height: 0;
-  pointer-events: none;
-}
-.select-control > .select-control__icon > .icon {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
 .dropdown-trigger {
   display: inline-flex;
   align-items: center;
@@ -178,6 +122,97 @@ button, a { -webkit-tap-highlight-color: transparent; }
   list-style: none;
   line-height: 1.2;
 }
+.menu-select {
+  --dropdown-height: 36px;
+  position: relative;
+  min-width: 0;
+}
+.menu-select[open] { z-index: 140; }
+.menu-select > summary {
+  box-sizing: border-box;
+  width: 100%;
+  height: var(--dropdown-height);
+  min-height: var(--dropdown-height);
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 10px 0 11px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  user-select: none;
+}
+.menu-select > summary::marker { content: ""; }
+.menu-select > summary::-webkit-details-marker { display: none; }
+.menu-select > summary:hover { border-color: var(--line-strong); color: var(--text); }
+.menu-select > summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.menu-select > summary > .menu-select__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.menu-select > summary > .icon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  color: var(--quiet);
+  transition: transform 140ms ease;
+}
+.menu-select[open] > summary > .icon { transform: rotate(180deg); }
+.menu-select__menu {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  left: 0;
+  box-sizing: border-box;
+  display: grid;
+  width: max-content;
+  min-width: 100%;
+  max-width: min(280px, calc(100vw - 32px));
+  max-height: min(280px, calc(100vh - 96px));
+  gap: 2px;
+  padding: 6px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  box-shadow: var(--shadow-floating);
+}
+.menu-select__option {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 9px;
+  border-radius: 7px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 550;
+  line-height: 1.25;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.menu-select__option:hover,
+.menu-select__option:focus-visible {
+  background: var(--panel-soft);
+  color: var(--text);
+  outline: none;
+}
+.menu-select__option.is-selected {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 700;
+}
+.menu-select__option > .icon { width: 14px; height: 14px; flex: 0 0 14px; }
 .dropdown-trigger::-webkit-details-marker { display: none; }
 .dropdown-trigger > .icon,
 .dropdown-trigger > .chevron > .icon {
@@ -1261,27 +1296,13 @@ details[open] > .dropdown-trigger > .icon:last-child {
   gap: 8px;
 }
 
-.search-form,
-.risk-filter-form {
-  margin: 0;
-}
-.risk-filter-form { --select-height: 40px; }
-
-.risk-select {
+.search-form { margin: 0; }
+.risk-filter-dropdown {
+  --dropdown-height: 40px;
   min-width: 132px;
-  padding: 0 34px 0 12px;
-  border: 1px solid var(--line);
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 600;
-  transition: border-color 140ms ease, background-color 140ms ease;
 }
-
-.risk-select:hover { border-color: var(--line-strong); }
-.risk-select:focus-visible {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
-}
+.risk-filter-dropdown > summary { border-color: var(--line); padding-left: 12px; }
+.risk-filter-dropdown > .menu-select__menu { right: 0; left: auto; min-width: 172px; }
 
 .filter-bar {
   display: flex;
@@ -1574,14 +1595,12 @@ details[open] > .dropdown-trigger > .icon:last-child {
   color: var(--quiet);
   padding: 0 4px;
 }
-.per-page-form {
-  --select-height: 30px;
-  --select-chevron-size: 12px;
+.per-page-dropdown {
+  --dropdown-height: 30px;
   margin: 0;
 }
-.per-page-form > .select-control__icon { margin-right: 9px; }
-.per-page-select {
-  padding: 0 28px 0 9px;
+.per-page-dropdown > summary {
+  padding: 0 8px 0 9px;
   border: 1px solid var(--line);
   border-radius: 7px;
   background: var(--panel-soft);
@@ -1591,8 +1610,13 @@ details[open] > .dropdown-trigger > .icon:last-child {
   cursor: pointer;
   outline: none;
 }
-.per-page-select:hover {
-  border-color: var(--accent);
+.per-page-dropdown > summary > .icon { width: 12px; height: 12px; flex-basis: 12px; }
+.per-page-dropdown > .menu-select__menu {
+  top: auto;
+  right: 0;
+  bottom: calc(100% + 6px);
+  left: auto;
+  min-width: 104px;
 }
 
 .batch-result {
@@ -2751,7 +2775,7 @@ details[open] > .dropdown-trigger > .icon:last-child {
   .search-form .search-box,
   .search-form .search-box input { width: 100%; min-width: 0; }
   .search-box input:focus { width: 100%; }
-  .risk-select { min-width: 124px; }
+  .risk-filter-dropdown { min-width: 124px; }
   .control-row { align-items: flex-start; flex-direction: column; }
   .control-actions { width: 100%; justify-content: space-between; }
 }
@@ -2825,7 +2849,7 @@ details[open] > .dropdown-trigger > .icon:last-child {
     justify-content: space-between;
     gap: 8px;
   }
-  .per-page-form {
+  .per-page-dropdown {
     flex: 0 0 78px;
     width: 78px;
   }
@@ -3311,6 +3335,30 @@ def render_review_workbench(
     ready_tone = "ready" if service_ready else "danger"
     status_value = _status_filter_value(status_filter)
     risk_value = _risk_filter_value(risk_filter)
+    risk_choices = (
+        ("all", "所有风险等级"),
+        ("low", "低风险"),
+        ("guarded", "需确认"),
+        ("elevated", "高风险"),
+        ("critical", "严重风险"),
+    )
+    risk_label = dict(risk_choices)[risk_value]
+    risk_options = "".join(
+        _menu_link(
+            href=_review_href(
+                status=status_value,
+                risk=value,
+                query=search_query,
+                view=view_value,
+                batch=batch_mode,
+                page=1,
+                per_page=per_page,
+            ),
+            label=label,
+            selected=value == risk_value,
+        )
+        for value, label in risk_choices
+    )
     queue_cards = "".join(
         _review_card(
             view,
@@ -3576,20 +3624,12 @@ def render_review_workbench(
                 </div>
               </form>
 
-              <form class="risk-filter-form select-control" method="get" action="/review">
-                <input type="hidden" name="status" value="{escape(status_value)}">
-                <input type="hidden" name="view" value="{escape(view_value)}">
-                {f'<input type="hidden" name="q" value="{escape(search_query)}">' if search_query else ''}
-                {'<input type="hidden" name="batch" value="1">' if batch_mode else ''}
-                <select name="risk" class="risk-select" onchange="this.form.submit()" aria-label="按风险等级筛选">
-                  {_filter_option("all", "所有风险等级", risk_value)}
-                  {_filter_option("low", "低风险", risk_value)}
-                  {_filter_option("guarded", "需确认", risk_value)}
-                  {_filter_option("elevated", "高风险", risk_value)}
-                  {_filter_option("critical", "严重风险", risk_value)}
-                </select>
-                <span class="select-control__icon" aria-hidden="true">{icon('chevron-down')}</span>
-              </form>
+              <details class="risk-filter-dropdown menu-select" name="review-dropdown">
+                <summary class="dropdown-trigger" aria-label="按风险等级筛选">
+                  <span class="menu-select__label">{escape(risk_label)}</span>{icon('chevron-down')}
+                </summary>
+                <div class="menu-select__menu" role="menu">{risk_options}</div>
+              </details>
               </div>
             </div>
           </div>
@@ -3697,22 +3737,29 @@ def _render_pagination(
             page_numbers.append('<span class="page-ellipsis">…</span>')
 
     page_size_options = "".join(
-        f'<option value="{size}"{" selected" if size == per_page else ""}>{size} 条/页</option>'
+        _menu_link(
+            href=_review_href(
+                status=status,
+                risk=risk,
+                query=query,
+                view=view,
+                batch=batch,
+                page=1,
+                per_page=size,
+            ),
+            label=f"{size} 条/页",
+            selected=size == per_page,
+        )
         for size in (10, 20, 50, 100)
     )
 
     per_page_select = f'''
-    <form class="per-page-form select-control" method="get" action="/review">
-      <input type="hidden" name="status" value="{escape(status)}">
-      <input type="hidden" name="risk" value="{escape(risk)}">
-      <input type="hidden" name="view" value="{escape(view)}">
-      {f'<input type="hidden" name="q" value="{escape(query)}">' if query else ''}
-      {'<input type="hidden" name="batch" value="1">' if batch else ''}
-      <select name="per_page" class="per-page-select" onchange="this.form.submit()">
-        {page_size_options}
-      </select>
-      <span class="select-control__icon" aria-hidden="true">{icon('chevron-down')}</span>
-    </form>
+    <details class="per-page-dropdown menu-select" name="review-dropdown">
+      <summary class="dropdown-trigger" aria-label="每页显示数量">
+        <span class="menu-select__label">{per_page} 条/页</span>{icon('chevron-down')}
+      </summary>
+      <div class="menu-select__menu" role="menu">{page_size_options}</div>
+    </details>
     '''
 
     return f'''
@@ -4436,6 +4483,11 @@ def _risk_filter_value(value: str) -> str:
     return value if value in set(RISK_ORDER) | {"all"} else "all"
 
 
-def _filter_option(value: str, label: str, selected: str) -> str:
-    mark = " selected" if value == selected else ""
-    return f'<option value="{escape(value)}"{mark}>{escape(label)}</option>'
+def _menu_link(*, href: str, label: str, selected: bool) -> str:
+    selected_class = " is-selected" if selected else ""
+    current = ' aria-current="true"' if selected else ""
+    check = icon("check") if selected else ""
+    return (
+        f'<a class="menu-select__option{selected_class}" role="menuitem" '
+        f'href="{escape(href)}"{current}><span>{escape(label)}</span>{check}</a>'
+    )
