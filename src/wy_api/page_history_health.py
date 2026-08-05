@@ -242,6 +242,15 @@ CSS = """
 .component-impact-copy dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; margin: 0; }
 .component-impact-copy dt { color: var(--quiet); font-size: 10px; font-weight: 700; }
 .component-impact-copy dd { margin: 0; color: var(--text); font-size: 11px; overflow-wrap: anywhere; }
+/* Above the mobile breakpoint the shell can still reserve a 220px rail.
+   Wrap the filter controls before that reduced content width clips the
+   selects or pushes the reset action outside the workspace. */
+@media (min-width: 761px) and (max-width: 1180px) {
+  .audit-filters {
+    grid-template-columns: repeat(3, minmax(132px, 1fr)) auto auto;
+  }
+  .audit-filter-search { grid-column: 1 / -1; }
+}
 @media (max-width: 760px) {
   .audit-filters { grid-template-columns: 1fr 1fr; }
   .audit-filter-search { grid-column: 1 / -1; }

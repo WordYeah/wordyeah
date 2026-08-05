@@ -56,6 +56,14 @@ class PageHistoryHealthTest(unittest.TestCase):
         )
         self.assertEqual(page.count('class="select-control__icon"'), 3)
         self.assertEqual(page.count('<path d="M6 9l6 6l6 -6"/>'), 3)
+        self.assertIn(
+            "@media (min-width: 761px) and (max-width: 1180px)",
+            PAGE_HISTORY_HEALTH_CSS,
+        )
+        self.assertIn(
+            "grid-template-columns: repeat(3, minmax(132px, 1fr)) auto auto",
+            PAGE_HISTORY_HEALTH_CSS,
+        )
         self.assertIn('class="audit-list-head"', page)
         self.assertIn("1 / 2", page)
         self.assertIn("显示 1–50", page)

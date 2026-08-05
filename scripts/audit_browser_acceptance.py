@@ -238,84 +238,129 @@ def main() -> int:
             )
 
             def dropdown_alignment() -> dict[str, object]:
-                page.set_viewport_size({"width": 1440, "height": 900})
                 measurements: list[dict[str, object]] = []
-                for path in (
-                    "/review?status=all&view=list&per_page=20",
-                    "/review/history",
-                ):
-                    response = page.goto(base + path, wait_until="networkidle")
-                    if response is None or response.status != 200:
-                        raise RuntimeError(f"dropdown page failed: {path}")
-                    for control in page.locator("select").all():
-                        measurement = control.evaluate(
-                            """select => {
-                              const wrapper = select.closest('.select-control');
-                              const icon = wrapper?.querySelector('.select-control__icon');
-                              const selectBox = select.getBoundingClientRect();
-                              const iconBox = icon?.getBoundingClientRect();
-                              const style = getComputedStyle(select);
-                              return {
-                                name: select.getAttribute('name'),
-                                wrapped: Boolean(wrapper),
-                                icon: Boolean(icon),
-                                appearance: style.appearance,
-                                selectHeight: selectBox.height,
-                                centerDelta: iconBox
-                                  ? Math.abs(
-                                      (selectBox.top + selectBox.height / 2)
-                                      - (iconBox.top + iconBox.height / 2)
-                                    )
-                                  : null,
-                              };
-                            }"""
+                layouts: list[dict[str, object]] = []
+                for width in (1440, 1180, 1024, 900, 760, 640, 390):
+                    page.set_viewport_size({"width": width, "height": 900})
+                    for path in (
+                        "/review?status=all&view=list&per_page=20",
+                        "/review/history",
+                    ):
+                        response = page.goto(base + path, wait_until="networkidle")
+                        if response is None or response.status != 200:
+                            raise RuntimeError(f"dropdown page failed: {path}")
+                        controls = page.locator("select")
+                        page_measurements: list[dict[str, object]] = []
+                        for control in controls.all():
+                            measurement = control.evaluate(
+                                """select => {
+                                  const wrapper = select.closest('.select-control');
+                                  const icon = wrapper?.querySelector('.select-control__icon');
+                                  const selectBox = select.getBoundingClientRect();
+                                  const wrapperBox = wrapper?.getBoundingClientRect();
+                                  const iconBox = icon?.getBoundingClientRect();
+                                  const style = getComputedStyle(select);
+                                  return {
+                                    name: select.getAttribute('name'),
+                                    wrapped: Boolean(wrapper),
+                                    icon: Boolean(icon),
+                                    appearance: style.appearance,
+                                    selectHeight: selectBox.height,
+                                    wrapperMatches: wrapperBox
+                                      ? Math.abs(selectBox.left - wrapperBox.left) <= .5
+                                        && Math.abs(selectBox.top - wrapperBox.top) <= .5
+                                        && Math.abs(selectBox.width - wrapperBox.width) <= .5
+                                        && Math.abs(selectBox.height - wrapperBox.height) <= .5
+                                      : false,
+                                    insideViewport: selectBox.left >= 0
+                                      && selectBox.right <= innerWidth,
+                                    centerDelta: iconBox
+                                      ? Math.abs(
+                                          (selectBox.top + selectBox.height / 2)
+                                          - (iconBox.top + iconBox.height / 2)
+                                        )
+                                      : null,
+                                  };
+                                }"""
+                            )
+                            measurement.update({"path": path, "viewport": width})
+                            measurements.append(measurement)
+                            page_measurements.append(measurement)
+                        root_widths = page.evaluate(
+                            "() => ({scroll: document.documentElement.scrollWidth, viewport: innerWidth})"
                         )
-                        measurement["path"] = path
-                        measurements.append(measurement)
+                        filter_children_inside = True
+                        if path == "/review/history":
+                            filter_children_inside = page.locator(".audit-filters").evaluate(
+                                """form => {
+                                  const box = form.getBoundingClientRect();
+                                  return [...form.children].every(child => {
+                                    const childBox = child.getBoundingClientRect();
+                                    return childBox.left >= box.left - .5
+                                      && childBox.right <= box.right + .5;
+                                  });
+                                }"""
+                            )
+                        layouts.append(
+                            {
+                                "path": path,
+                                "viewport": width,
+                                "controls": len(page_measurements),
+                                "noHorizontalOverflow": root_widths["scroll"]
+                                <= root_widths["viewport"],
+                                "filterChildrenInside": filter_children_inside,
+                            }
+                        )
                 aligned = all(
                     row["wrapped"]
                     and row["icon"]
                     and row["appearance"] == "none"
+                    and row["wrapperMatches"]
+                    and row["insideViewport"]
                     and row["centerDelta"] is not None
                     and row["centerDelta"] <= 0.5
                     for row in measurements
+                ) and all(
+                    row["noHorizontalOverflow"] and row["filterChildrenInside"]
+                    for row in layouts
                 )
                 mobile_triggers: list[dict[str, object]] = []
-                page.set_viewport_size({"width": 390, "height": 844})
-                for path, selector in (
-                    (
-                        "/review?status=all&view=list&per_page=20",
-                        ".mobile-workspace-switcher > summary",
-                    ),
-                    ("/review/history", ".support-mobile-workspace > summary"),
-                ):
-                    page.goto(base + path, wait_until="networkidle")
-                    trigger = page.locator(selector)
-                    trigger_measurement = trigger.evaluate(
-                        """summary => {
-                          const triggerBox = summary.getBoundingClientRect();
-                          const iconBox = summary.querySelector('.icon').getBoundingClientRect();
-                          return {
-                            height: triggerBox.height,
-                            iconSize: [iconBox.width, iconBox.height],
-                            centerDelta: Math.abs(
-                              (triggerBox.top + triggerBox.height / 2)
-                              - (iconBox.top + iconBox.height / 2)
-                            ),
-                          };
-                        }"""
-                    )
-                    trigger.click()
-                    menu_box = page.locator(
-                        selector.replace("> summary", ".consumer-popover-menu")
-                    ).bounding_box()
-                    trigger_measurement["menuWithinViewport"] = bool(
-                        menu_box
-                        and menu_box["x"] >= 0
-                        and menu_box["x"] + menu_box["width"] <= 390
-                    )
-                    trigger_measurement["path"] = path
-                    mobile_triggers.append(trigger_measurement)
+                for width in (900, 390):
+                    page.set_viewport_size({"width": width, "height": 900})
+                    for path, selector in (
+                        (
+                            "/review?status=all&view=list&per_page=20",
+                            ".mobile-workspace-switcher > summary",
+                        ),
+                        ("/review/history", ".support-mobile-workspace > summary"),
+                    ):
+                        page.goto(base + path, wait_until="networkidle")
+                        trigger = page.locator(selector)
+                        trigger_measurement = trigger.evaluate(
+                            """summary => {
+                              const triggerBox = summary.getBoundingClientRect();
+                              const iconBox = summary.querySelector('.icon').getBoundingClientRect();
+                              return {
+                                height: triggerBox.height,
+                                iconSize: [iconBox.width, iconBox.height],
+                                centerDelta: Math.abs(
+                                  (triggerBox.top + triggerBox.height / 2)
+                                  - (iconBox.top + iconBox.height / 2)
+                                ),
+                              };
+                            }"""
+                        )
+                        trigger.click()
+                        menu_box = page.locator(
+                            selector.replace("> summary", ".consumer-popover-menu")
+                        ).bounding_box()
+                        trigger_measurement["menuWithinViewport"] = bool(
+                            menu_box
+                            and menu_box["x"] >= 0
+                            and menu_box["x"] + menu_box["width"] <= width
+                        )
+                        trigger_measurement.update({"path": path, "viewport": width})
+                        mobile_triggers.append(trigger_measurement)
                 triggers_aligned = all(
                     row["height"] <= 42
                     and row["iconSize"] == [14, 14]
@@ -323,18 +368,73 @@ def main() -> int:
                     and row["menuWithinViewport"]
                     for row in mobile_triggers
                 )
+                desktop_popovers: list[dict[str, object]] = []
+                page.set_viewport_size({"width": 1440, "height": 900})
+                for path, trigger_selector, menu_selector, max_height in (
+                    (
+                        "/review?status=all&view=list&per_page=20",
+                        ".consumer-popover-wrapper > summary",
+                        ".consumer-popover-wrapper > .consumer-popover-menu",
+                        280,
+                    ),
+                    (
+                        "/review/history",
+                        ".account-menu > summary",
+                        ".account-menu > .account-popover",
+                        180,
+                    ),
+                ):
+                    page.goto(base + path, wait_until="networkidle")
+                    page.locator(trigger_selector).click()
+                    page.wait_for_timeout(200)
+                    popover = page.locator(menu_selector)
+                    menu_box = popover.bounding_box()
+                    icon_sizes = popover.locator(".popover-action-btn > .icon").evaluate_all(
+                        "icons => icons.map(icon => { const box = icon.getBoundingClientRect(); return [box.width, box.height]; })"
+                    )
+                    desktop_popovers.append(
+                        {
+                            "path": path,
+                            "menu": menu_box,
+                            "icons": icon_sizes,
+                            "heightWithinContract": bool(
+                                menu_box and menu_box["height"] <= max_height
+                            ),
+                            "insideViewport": bool(
+                                menu_box
+                                and menu_box["x"] >= 0
+                                and menu_box["x"] + menu_box["width"] <= 1440
+                                and menu_box["y"] >= 0
+                                and menu_box["y"] + menu_box["height"] <= 900
+                            ),
+                            "iconsWithinContract": all(
+                                width <= 16 and height <= 16
+                                for width, height in icon_sizes
+                            ),
+                        }
+                    )
+                desktop_popovers_aligned = all(
+                    row["heightWithinContract"]
+                    and row["insideViewport"]
+                    and row["iconsWithinContract"]
+                    for row in desktop_popovers
+                )
                 page.set_viewport_size({"width": 1440, "height": 900})
                 page.goto(base + "/review/history", wait_until="networkidle")
                 shot = screenshot("dropdowns-1440x900.png")
                 return {
                     "passed": (
                         aligned
-                        and len(measurements) == 5
+                        and len(measurements) >= 28
                         and triggers_aligned
-                        and len(mobile_triggers) == 2
+                        and len(mobile_triggers) == 4
+                        and desktop_popovers_aligned
+                        and len(desktop_popovers) == 2
                     ),
                     "controls": measurements,
+                    "layouts": layouts,
                     "mobile_triggers": mobile_triggers,
+                    "desktop_popovers": desktop_popovers,
                     "screenshot": shot,
                 }
 

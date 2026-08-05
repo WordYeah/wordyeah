@@ -139,6 +139,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
   background: var(--panel);
   color: var(--text);
   line-height: normal;
+  text-align: left;
+  text-align-last: left;
   cursor: pointer;
 }
 .select-control > .select-control__icon {
@@ -788,6 +790,13 @@ button, a { -webkit-tap-highlight-color: transparent; }
   background: rgba(239, 68, 68, 0.08) !important;
   border-color: rgba(239, 68, 68, 0.2) !important;
 }
+.popover-action-btn > .icon {
+  display: block;
+  flex: 0 0 15px;
+  width: 15px;
+  height: 15px;
+}
+.popover-action-btn > span { min-width: 0; }
 
 /* Floating Bottom-Right Notification Toast (Windsor Toast) */
 .floating-task-toast {
@@ -2668,7 +2677,10 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .detail-audit .event-item:last-child { border-bottom: 0; }
 
 @media (max-width: 980px) {
-  .app-frame { grid-template-columns: 1fr; }
+  .app-frame {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
   .side-nav {
     position: sticky;
     z-index: 12;
@@ -2688,7 +2700,9 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .brand { flex: 0 0 auto; }
   .nav-scroll { display: flex; flex: 1 1 0; width: 0; min-width: 0; gap: 8px; overflow-x: auto; }
   .nav-scroll .nav-section { display: flex; gap: 4px; }
-  .nav-label, .nav-spacer, .consumer-switcher { display: none; }
+  .nav-label, .nav-spacer, .consumer-popover-wrapper { display: none; }
+  .usage-widget { display: none; }
+  .mobile-workspace-switcher { display: block; margin-left: auto; }
   .nav-item { flex: 0 0 auto; }
   .nav-count { display: none; }
   .shell { padding-inline: 24px; }
@@ -3404,7 +3418,7 @@ def render_review_workbench(
       </div>
 
       <div class="nav-spacer"></div>
-      <details class="consumer-popover-wrapper">
+      <details class="consumer-popover-wrapper" name="review-dropdown">
         <summary class="consumer-switcher dropdown-trigger">
           <span class="consumer-avatar">{escape(consumer_id[:1].upper() or 'W')}</span>
           <span class="consumer-copy"><strong>{escape(consumer_id)}</strong><small>Consumer workspace</small></span>
@@ -3436,7 +3450,7 @@ def render_review_workbench(
           </nav>
         </div>
         <div class="toolbar-actions">
-          <details class="mobile-workspace-switcher">
+          <details class="mobile-workspace-switcher" name="review-dropdown">
             <summary class="dropdown-trigger" aria-label="切换工作区">{escape(consumer_id)}{icon('chevron-down')}</summary>
             <div class="consumer-popover-menu">
               <div class="consumer-popover-header">切换工作区</div>
