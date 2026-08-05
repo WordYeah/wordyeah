@@ -108,8 +108,26 @@ class JobsAndApiTest(unittest.TestCase):
             self.assertIsNotNone(claimed)
             self.assertEqual(claimed.job_id, selected.job_id)
             self.assertEqual(store.get(ordinary.job_id).status, "queued")
+
+            normal_claim = store.claim(
+                "normal-worker",
+                kinds=("vision_review_1",),
+                consumer_id="corpus-avatar",
+                exclude_context_marker="quality_ai_prelabel=true",
+            )
+
+            self.assertIsNotNone(normal_claim)
+            self.assertEqual(normal_claim.job_id, ordinary.job_id)
             with self.assertRaisesRegex(ValueError, "context_marker"):
                 store.claim("quality-worker", context_marker="")
+            with self.assertRaisesRegex(ValueError, "exclude_context_marker"):
+                store.claim("normal-worker", exclude_context_marker="")
+            with self.assertRaisesRegex(ValueError, "include and exclude"):
+                store.claim(
+                    "impossible-worker",
+                    context_marker="quality_ai_prelabel=true",
+                    exclude_context_marker="quality_ai_prelabel=true",
+                )
             store.close()
 
     def test_worker_completes_claimed_job_with_result(self) -> None:

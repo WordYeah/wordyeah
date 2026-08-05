@@ -89,6 +89,7 @@ class VisionReviewWorker:
     lease_seconds: int = 120
     consumer_id: str | None = None
     context_marker: str | None = None
+    exclude_context_marker: str | None = None
     job_kinds: tuple[VisionJobKind, ...] = VISION_JOB_KINDS
     backoff_base_seconds: float = 1.0
     backoff_cap_seconds: float = 300.0
@@ -110,6 +111,7 @@ class VisionReviewWorker:
             kinds=self.job_kinds,
             consumer_id=self.consumer_id,
             context_marker=self.context_marker,
+            exclude_context_marker=self.exclude_context_marker,
         )
         if job is None:
             return None

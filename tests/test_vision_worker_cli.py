@@ -47,6 +47,8 @@ class VisionWorkerCliTests(unittest.TestCase):
                     "fixture-worker",
                     "--vision-stage",
                     "vision_review_1",
+                    "--vision-exclude-context-marker",
+                    "quality_ai_prelabel=true",
                 ]
             )
 
@@ -62,6 +64,9 @@ class VisionWorkerCliTests(unittest.TestCase):
         self.assertEqual(kwargs["worker_id"], "fixture-worker")
         self.assertEqual(str(kwargs["media_root"]), "fixture-media")
         self.assertEqual(kwargs["job_kinds"], ("vision_review_1",))
+        self.assertEqual(
+            kwargs["exclude_context_marker"], "quality_ai_prelabel=true"
+        )
         vision_worker.run_once.assert_called_once_with()
         review_store.close.assert_called_once_with()
         attempt_store.close.assert_called_once_with()
@@ -183,6 +188,7 @@ class VisionWorkerCliTests(unittest.TestCase):
             ["--vision", "--vision-max-jobs", "0"],
             ["--vision", "--once", "--vision-max-jobs", "1"],
             ["--vision-max-jobs", "1"],
+            ["--vision-exclude-context-marker", "quality_ai_prelabel=true"],
         ):
             with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as raised:
                 worker_cli.main(args)

@@ -206,6 +206,7 @@ class JobStore:
         kinds: Iterable[str] | None = None,
         consumer_id: str | None = None,
         context_marker: str | None = None,
+        exclude_context_marker: str | None = None,
     ) -> Job | None:
         if not worker_id:
             raise ValueError("worker_id is required")
@@ -216,14 +217,20 @@ class JobStore:
             raise ValueError("job kinds must not be empty")
         if consumer_id is not None and (not consumer_id or len(consumer_id) > 128):
             raise ValueError("consumer_id must be between 1 and 128 characters")
-        if context_marker is not None and (
-            not context_marker
-            or len(context_marker) > 256
-            or any(ord(char) < 32 for char in context_marker)
+        for marker_name, marker in (
+            ("context_marker", context_marker),
+            ("exclude_context_marker", exclude_context_marker),
         ):
-            raise ValueError(
-                "context_marker must be printable and between 1 and 256 characters"
-            )
+            if marker is not None and (
+                not marker
+                or len(marker) > 256
+                or any(ord(char) < 32 for char in marker)
+            ):
+                raise ValueError(
+                    f"{marker_name} must be printable and between 1 and 256 characters"
+                )
+        if context_marker is not None and context_marker == exclude_context_marker:
+            raise ValueError("context markers cannot include and exclude the same value")
         now = _now()
         now_text = _stamp(now)
         lease_text = _stamp(now + timedelta(seconds=lease_seconds))
@@ -256,6 +263,11 @@ class JobStore:
                     " AND instr(COALESCE(json_extract(payload_json, '$.context'), ''), ?) > 0"
                 )
                 parameters.append(context_marker)
+            if exclude_context_marker is not None:
+                where += (
+                    " AND instr(COALESCE(json_extract(payload_json, '$.context'), ''), ?) = 0"
+                )
+                parameters.append(exclude_context_marker)
             row = cursor.execute(
                 f"SELECT * FROM jobs WHERE {where} ORDER BY COALESCE(available_at, created_at), created_at LIMIT 1",
                 parameters,

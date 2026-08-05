@@ -45,6 +45,7 @@ def test_runtime_service_templates_share_the_real_api_port_and_private_state() -
     assert all("UMask=0077" in unit for unit in (api, worker, vision))
     assert "wordyeah-worker --database" in worker
     assert "wordyeah-worker --vision" in vision
+    assert "--vision-exclude-context-marker quality_ai_prelabel=true" in vision
     assert "systemctl enable" not in api + worker + vision
 
 

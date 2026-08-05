@@ -108,6 +108,7 @@ def _run_vision(args: argparse.Namespace) -> None:
             worker_id=args.worker_id,
             consumer_id=args.consumer_id,
             context_marker=args.vision_context_marker,
+            exclude_context_marker=args.vision_exclude_context_marker,
             job_kinds=(args.vision_stage,) if args.vision_stage else VISION_JOB_KINDS,
         )
         processed = 0
@@ -148,6 +149,10 @@ def main(argv: Sequence[str] | None = None) -> None:
         help="claim only vision jobs whose controlled context contains this marker",
     )
     parser.add_argument(
+        "--vision-exclude-context-marker",
+        help="claim only vision jobs whose controlled context does not contain this marker",
+    )
+    parser.add_argument(
         "--vision-stage",
         choices=VISION_JOB_KINDS,
         help="claim only one advanced-vision stage (requires --vision)",
@@ -181,12 +186,13 @@ def main(argv: Sequence[str] | None = None) -> None:
     if (
         args.consumer_id
         or args.vision_context_marker
+        or args.vision_exclude_context_marker
         or args.vision_stage
         or args.vision_max_jobs is not None
     ):
         parser.error(
-            "--consumer-id, --vision-context-marker, --vision-stage, and "
-            "--vision-max-jobs require --vision"
+            "--consumer-id, --vision-context-marker, --vision-exclude-context-marker, "
+            "--vision-stage, and --vision-max-jobs require --vision"
         )
 
     policy_config = load_policy_config(args.policy_path)

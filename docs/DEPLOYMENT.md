@@ -93,7 +93,10 @@ never download weights. Installing the units does not start them. Start the API
 and fast-scan worker only after the model, policy, database directory and
 loopback health checks are ready. Start the vision worker only after both its
 primary provider and an independent secondary provider have been configured;
-the example keeps both disabled.
+the example keeps both disabled. The long-running service explicitly excludes
+`quality_ai_prelabel=true`: frozen-corpus proposal jobs are consumed only by
+their bounded, batch-specific workers and must never be mixed into the normal
+review lane.
 
 Before enabling anything, run one bounded cycle and inspect the watermark:
 
