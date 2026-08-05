@@ -148,8 +148,12 @@ class PageHistoryHealthTest(unittest.TestCase):
             CSS,
         )
         self.assertIn(".menu-select > summary", REVIEW_CSS)
+        self.assertIn(
+            "grid-template-columns: minmax(0, 1fr) 14px", REVIEW_CSS
+        )
         self.assertIn(".menu-select__menu", REVIEW_CSS)
         self.assertIn("top: calc(100% + 6px)", REVIEW_CSS)
+        self.assertIn("line-height: 18px", REVIEW_CSS)
         self.assertIn(".menu-select__option.is-selected", REVIEW_CSS)
         self.assertIs(PAGE_HISTORY_HEALTH_CSS, CSS)
         self.assertIs(render_history_body, render_history_content)

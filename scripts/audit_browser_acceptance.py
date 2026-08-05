@@ -296,9 +296,51 @@ def main() -> int:
                                   const icon = trigger?.querySelector(
                                     ':scope > .icon, :scope > .chevron > .icon'
                                   );
+                                  const label = trigger?.querySelector(
+                                    ':scope > .menu-select__label, '
+                                    + ':scope > .consumer-copy, '
+                                    + ':scope > span:not(.reviewer-avatar):not(.chevron)'
+                                  );
                                   const triggerBox = trigger?.getBoundingClientRect();
                                   const menuBox = menu?.getBoundingClientRect();
                                   const iconBox = icon?.getBoundingClientRect();
+                                  const rawLabelBox = label?.getBoundingClientRect();
+                                  const labelBox = rawLabelBox
+                                    && rawLabelBox.width > 0
+                                    && rawLabelBox.height > 0
+                                    ? rawLabelBox
+                                    : null;
+                                  const options = menu
+                                    ? [...menu.querySelectorAll('.menu-select__option')]
+                                    : [];
+                                  const optionAlignment = options.map(option => {
+                                    const optionBox = option.getBoundingClientRect();
+                                    const textBox = option.querySelector(':scope > span')
+                                      ?.getBoundingClientRect();
+                                    const checkBox = option.querySelector(':scope > .icon')
+                                      ?.getBoundingClientRect();
+                                    return {
+                                      textCenterDelta: textBox
+                                        ? Math.abs(
+                                            optionBox.top + optionBox.height / 2
+                                            - (textBox.top + textBox.height / 2)
+                                          )
+                                        : null,
+                                      checkCenterDelta: checkBox
+                                        ? Math.abs(
+                                            optionBox.top + optionBox.height / 2
+                                            - (checkBox.top + checkBox.height / 2)
+                                          )
+                                        : null,
+                                      textLeftInset: textBox
+                                        ? textBox.left - optionBox.left
+                                        : null,
+                                      inside: textBox
+                                        ? textBox.left >= optionBox.left
+                                          && textBox.right <= optionBox.right
+                                        : false,
+                                    };
+                                  });
                                   const centerHit = menuBox
                                     ? document.elementFromPoint(
                                         menuBox.left + menuBox.width / 2,
@@ -342,6 +384,13 @@ def main() -> int:
                                           - (iconBox.top + iconBox.height / 2)
                                         )
                                       : null,
+                                    labelCenterDelta: labelBox
+                                      ? Math.abs(
+                                          (triggerBox.top + triggerBox.height / 2)
+                                          - (labelBox.top + labelBox.height / 2)
+                                        )
+                                      : null,
+                                    optionAlignment,
                                     inlineEdgeDelta,
                                     widthDelta: triggerBox && menuBox
                                       ? Math.abs(menuBox.width - triggerBox.width)
@@ -405,6 +454,22 @@ def main() -> int:
                         and row["menuVisibleAtAnchor"]
                         and row["centerDelta"] is not None
                         and row["centerDelta"] <= 0.5
+                        and (
+                            row["labelCenterDelta"] is None
+                            or row["labelCenterDelta"] <= 0.75
+                        )
+                        and all(
+                            option["inside"]
+                            and option["textCenterDelta"] is not None
+                            and option["textCenterDelta"] <= 0.75
+                            and option["textLeftInset"] is not None
+                            and abs(option["textLeftInset"] - 9.0) <= 0.75
+                            and (
+                                option["checkCenterDelta"] is None
+                                or option["checkCenterDelta"] <= 0.5
+                            )
+                            for option in row["optionAlignment"]
+                        )
                         and anchored
                         and (same_width if kind in {"select", "desktop-workspace"} else True)
                         and row["verticalGap"] is not None

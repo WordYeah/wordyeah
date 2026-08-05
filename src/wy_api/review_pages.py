@@ -300,7 +300,7 @@ code,
 }
 .support-mobile-workspace { display: none; position: relative; z-index: 1; }
 .support-mobile-workspace[open] { z-index: 120; }
-.support-mobile-workspace > summary { min-height: 34px; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); font-size: 11px; font-weight: 700; line-height: 1; cursor: pointer; }
+.support-mobile-workspace > summary { display: grid; grid-template-columns: minmax(0, 1fr) 14px; min-height: 34px; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); font-size: 11px; font-weight: 700; line-height: 1; cursor: pointer; }
 .support-mobile-workspace .consumer-popover-menu {
   right: auto;
   left: 0;

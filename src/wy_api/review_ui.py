@@ -120,7 +120,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   align-items: center;
   box-sizing: border-box;
   list-style: none;
-  line-height: 1.2;
+  line-height: 1;
 }
 .menu-select {
   --dropdown-height: 36px;
@@ -129,11 +129,13 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 .menu-select[open] { z-index: 140; }
 .menu-select > summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 14px;
+  align-items: center;
   box-sizing: border-box;
   width: 100%;
   height: var(--dropdown-height);
   min-height: var(--dropdown-height);
-  justify-content: space-between;
   gap: 10px;
   padding: 0 10px 0 11px;
   border: 1px solid var(--line-strong);
@@ -154,15 +156,19 @@ button, a { -webkit-tap-highlight-color: transparent; }
   outline-offset: 2px;
 }
 .menu-select > summary > .menu-select__label {
+  display: block;
   min-width: 0;
   overflow: hidden;
+  line-height: 18px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .menu-select > summary > .icon {
+  display: block;
   width: 14px;
   height: 14px;
-  flex: 0 0 14px;
+  align-self: center;
+  justify-self: center;
   color: var(--quiet);
   transition: transform 140ms ease;
 }
@@ -187,12 +193,12 @@ button, a { -webkit-tap-highlight-color: transparent; }
   box-shadow: var(--shadow-floating);
 }
 .menu-select__option {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 14px;
   width: 100%;
   min-width: 0;
   min-height: 34px;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
   padding: 0 9px;
   border-radius: 7px;
@@ -204,8 +210,10 @@ button, a { -webkit-tap-highlight-color: transparent; }
   white-space: nowrap;
 }
 .menu-select__option > span {
+  display: block;
   min-width: 0;
   overflow: hidden;
+  line-height: 18px;
   text-overflow: ellipsis;
 }
 .menu-select__option:hover,
@@ -219,7 +227,14 @@ button, a { -webkit-tap-highlight-color: transparent; }
   color: var(--accent);
   font-weight: 700;
 }
-.menu-select__option > .icon { width: 14px; height: 14px; flex: 0 0 14px; }
+.menu-select__option > .icon {
+  display: block;
+  grid-column: 2;
+  width: 14px;
+  height: 14px;
+  align-self: center;
+  justify-self: center;
+}
 .dropdown-trigger::-webkit-details-marker { display: none; }
 .dropdown-trigger > .icon,
 .dropdown-trigger > .chevron > .icon {
@@ -449,7 +464,8 @@ details[open] > .dropdown-trigger > .icon:last-child {
 :root:not([data-theme="dark"]) .theme-icon-moon { display: grid; }
 
 .consumer-switcher {
-  display: flex;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) 16px;
   align-items: center;
   gap: 10px;
   padding: 10px 8px;
@@ -477,6 +493,8 @@ details[open] > .dropdown-trigger > .icon:last-child {
 .consumer-copy {
   display: grid;
   min-width: 0;
+  align-content: center;
+  line-height: 1.35;
 }
 
 .consumer-copy strong {
@@ -718,6 +736,8 @@ details[open] > .dropdown-trigger > .icon:last-child {
 
 .mobile-workspace-switcher { display: none; position: relative; }
 .mobile-workspace-switcher summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 14px;
   min-height: 34px;
   align-items: center;
   gap: 6px;
@@ -1082,7 +1102,8 @@ details[open] > .dropdown-trigger > .icon:last-child {
 
 .account-menu { position: relative; z-index: 1; }
 .account-menu summary {
-  display: flex;
+  display: grid;
+  grid-template-columns: 34px minmax(0, auto) 16px;
   min-height: 42px;
   align-items: center;
   gap: 10px;
