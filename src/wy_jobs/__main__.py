@@ -9,8 +9,11 @@ from typing import Any, Mapping, Sequence
 from wy_core.config import load_policy_config
 from wy_core.result_store import ResultStore
 from wy_media.falconsai import FalconsaiClassifier
+from wy_media.failover import build_primary_vision_provider
 from wy_media.g2a import G2AConfig, G2AVisionProvider
+from wy_media.ollama import OllamaConfig, OllamaVisionProvider
 from wy_media.service import MediaModerationService
+from wy_media.vision_provider import AdvancedVisionProvider
 from wy_media.vision_worker import VisionReviewWorker
 from wy_review.attempt_store import ReviewAttemptStore
 from wy_review.store import ReviewStore
@@ -48,15 +51,27 @@ def _secondary_g2a_config(env: Mapping[str, str] | None = None) -> G2AConfig:
 
 def _vision_providers(
     env: Mapping[str, str] | None = None,
-) -> dict[str, G2AVisionProvider]:
-    primary_config = G2AConfig.from_env(env)
-    if not primary_config.enabled:
+) -> dict[str, AdvancedVisionProvider]:
+    primary = build_primary_vision_provider(env)
+    if not primary.enabled:
         raise VisionProviderDisabledError(
-            "advanced vision is disabled; set WORDYEAH_G2A_ENABLED=true"
+            "advanced vision is disabled; enable G2A Web or local Ollama"
+        )
+    secondary_g2a = G2AVisionProvider(_secondary_g2a_config(env))
+    if secondary_g2a.enabled:
+        secondary: AdvancedVisionProvider = secondary_g2a
+    else:
+        primary_ollama = OllamaConfig.from_env(env)
+        secondary = OllamaVisionProvider(
+            OllamaConfig.from_env(
+                env,
+                secondary=True,
+                inherit_enabled=primary_ollama.enabled,
+            )
         )
     return {
-        "primary": G2AVisionProvider(primary_config),
-        "secondary": G2AVisionProvider(_secondary_g2a_config(env)),
+        "primary": primary,
+        "secondary": secondary,
     }
 
 

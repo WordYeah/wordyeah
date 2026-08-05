@@ -17,16 +17,16 @@ CSS = r"""
 .pq-policy-ledger, .pq-quality-sheet { color: var(--text); }
 .pq-policy-ledger *, .pq-quality-sheet * { box-sizing: border-box; }
 .pq-ledger-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; padding: 4px 0 22px; border-bottom: 2px solid var(--line); }
-.pq-eyebrow { margin: 0 0 6px; color: var(--accent); font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
-.pq-ledger-head h2, .pq-quality-title h2 { margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.02em; }
-.pq-ledger-head p, .pq-quality-title p { max-width: 68ch; margin: 6px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.pq-eyebrow { margin: 0 0 6px; color: var(--accent); font-size: 11px; font-weight: 650; letter-spacing: 0.05em; text-transform: uppercase; }
+.pq-ledger-head h2, .pq-quality-title h2 { margin: 0; font-size: 22px; font-weight: 650; line-height: 1.35; letter-spacing: normal; }
+.pq-ledger-head p, .pq-quality-title p { max-width: 68ch; margin: 6px 0 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
 .pq-version-stamp { padding: 10px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-soft); text-align: right; }
 .pq-version-stamp span { display: block; color: var(--quiet); font-size: 11px; }
-.pq-version-stamp strong { font-family: var(--mono); font-size: 14px; font-weight: 700; color: var(--accent); }
+.pq-version-stamp strong { font-family: var(--mono); font-size: 14px; font-weight: 650; color: var(--accent); }
 .pq-policy-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; margin-top: 22px; }
 .pq-policy-grid > section { padding: 18px 20px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
 .pq-section-kicker { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
-.pq-section-kicker h3 { margin: 0; font-size: 14px; font-weight: 700; }
+.pq-section-kicker h3 { margin: 0; font-size: 14px; font-weight: 650; }
 .pq-section-kicker span { color: var(--quiet); font-size: 11px; background: var(--panel-soft); padding: 2px 8px; border-radius: 6px; }
 
 .pq-threshold-list { display: grid; gap: 10px; margin: 0; }

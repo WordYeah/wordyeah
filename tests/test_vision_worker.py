@@ -128,6 +128,25 @@ class VisionWorkerTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "different data"):
             enqueue_vision_review(self.jobs, repeated_payload, "consumer-a")
 
+    def test_normalized_media_can_have_a_distinct_integrity_hash(self) -> None:
+        connection = open_database(self.database)
+        connection.execute(
+            "UPDATE review_items SET content_sha256 = ? WHERE item_id = 'item-1'",
+            ("a" * 64,),
+        )
+        connection.commit()
+        connection.close()
+        payload = self.payload(
+            content_sha256="a" * 64,
+            media_sha256=self.digest,
+        )
+        enqueue_vision_review(self.jobs, payload, "consumer-a")
+
+        finished = self.worker(lambda _r, _t: response("allow", 0.98)).run_once()
+
+        self.assertEqual(finished.status, "succeeded", finished.error)
+        self.assertEqual(self.reviews.get("item-1").stage, "auto_approved")
+
     def test_allow_converges_without_network(self) -> None:
         job = enqueue_vision_review(self.jobs, self.payload(), "consumer-a")
         finished = self.worker(lambda _r, _t: response("allow", 0.98)).run_once()
@@ -191,15 +210,24 @@ class VisionWorkerTests(unittest.TestCase):
         delay = datetime.fromisoformat(failed.available_at) - datetime.fromisoformat(failed.updated_at)
         self.assertGreaterEqual(delay.total_seconds(), 6.9)
 
-    def test_invalid_response_is_dead_lettered_and_routed_to_model_error(self) -> None:
+    def test_invalid_response_retries_before_model_error(self) -> None:
         enqueue_vision_review(self.jobs, self.payload(), "consumer-a")
-        failed = self.worker(
-            lambda _r, _t: HttpResponse(200, b'{"decision":"allow","confidence":"certain"}')
-        ).run_once()
-        self.assertEqual(failed.status, "failed")
-        self.assertTrue(failed.dead_lettered)
-        self.assertFalse(failed.retryable)
-        self.assertEqual(failed.error_kind, "invalid_response")
+        worker = self.worker(
+            lambda _r, _t: HttpResponse(200, b'{"decision":"allow","confidence":"certain"}'),
+            backoff_base_seconds=0.001,
+            backoff_cap_seconds=0.001,
+        )
+
+        first = worker.run_once()
+        self.assertEqual(first.status, "queued")
+        self.assertTrue(first.retryable)
+        self.assertEqual(first.error_kind, "invalid_response")
+        for _ in range(2):
+            time.sleep(0.005)
+            exhausted = worker.run_once()
+
+        self.assertTrue(exhausted.dead_lettered)
+        self.assertEqual(exhausted.attempts, 3)
         self.assertEqual(self.reviews.get("item-1").stage, "model_error")
 
     def test_retryable_error_exhausts_max_attempts(self) -> None:

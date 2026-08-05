@@ -20,7 +20,7 @@ from wy_core.result_store import ResultStore
 from wy_jobs.store import JobStore
 from wy_jobs.vision import VISION_JOB_KINDS, VisionReviewJobPayload, enqueue_vision_review
 from wy_media.falconsai import FalconsaiClassifier
-from wy_media.g2a import G2AConfig, G2AVisionProvider
+from wy_media.failover import build_primary_vision_provider
 from wy_media.image_safety import ImageLimits, decode_image
 from wy_media.service import MediaModerationService
 from wy_media.vision_provider import AdvancedVisionProvider, VisionProviderError, VisionReviewRequest
@@ -297,7 +297,7 @@ def create_app(
                 policy_profile=policy_profile,
                 enabled=enabled,
             )
-    advanced_vision_provider = advanced_vision_provider or G2AVisionProvider(G2AConfig.from_env())
+    advanced_vision_provider = advanced_vision_provider or build_primary_vision_provider()
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -415,6 +415,14 @@ def create_app(
             finally:
                 temporary.unlink(missing_ok=True)
         return f"media://{relative.as_posix()}"
+
+    def _review_media_sha256(media_ref: str) -> str:
+        if not media_ref.startswith("media://"):
+            raise ValueError("advanced vision requires controlled review media")
+        relative = Path(media_ref.removeprefix("media://"))
+        if relative.is_absolute() or ".." in relative.parts:
+            raise ValueError("review media reference is outside the controlled root")
+        return hashlib.sha256((settings.media_root.expanduser() / relative).read_bytes()).hexdigest()
 
     def _client_ip(request: Request) -> str:
         return request.client.host if request.client else "unknown"
@@ -739,6 +747,7 @@ def create_app(
                 request_id=f"{item.item_id}:{stage}:{attempt_number}",
                 policy_version=item.policy_version,
                 content_sha256=item.content_sha256,
+                media_sha256=_review_media_sha256(item.media_ref),
                 categories=tuple(categories),
                 context=f"consumer={item.consumer_id}; policy={item.policy_version}",
                 parent_attempt_id=parent_attempt_id,
@@ -823,6 +832,7 @@ def create_app(
             request_id=f"{item.item_id}:{stage}:{attempt_number}:manual-retry",
             policy_version=item.policy_version,
             content_sha256=item.content_sha256,
+            media_sha256=_review_media_sha256(item.media_ref),
             categories=categories,
             context=f"consumer={item.consumer_id}; policy={item.policy_version}; manual_retry=true",
             parent_attempt_id=vision_attempts[-1].attempt_id if vision_attempts else None,

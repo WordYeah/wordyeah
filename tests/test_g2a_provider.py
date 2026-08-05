@@ -127,6 +127,33 @@ class G2AProviderTests(unittest.TestCase):
         provider = G2AVisionProvider(enabled_config(), transport=lambda _r, _t: HttpResponse(200, body))
         self.assertEqual(provider.review(request()).decision, "allow")
 
+    def test_string_region_label_is_normalized(self) -> None:
+        body = json.dumps(
+            {
+                "decision": "review",
+                "confidence": 0.7,
+                "reasons": ["ambiguous"],
+                "findings": [
+                    {
+                        "category": "other",
+                        "label": "ambiguous",
+                        "region": "full_image",
+                    }
+                ],
+                "evidence": [
+                    {"kind": "visual", "description": "whole avatar", "region": "full_image"}
+                ],
+            }
+        ).encode()
+        provider = G2AVisionProvider(
+            enabled_config(), transport=lambda _r, _t: HttpResponse(200, body)
+        )
+
+        result = provider.review(request())
+
+        self.assertEqual(result.findings[0].region, {"label": "full_image"})
+        self.assertEqual(result.evidence[0].region, {"label": "full_image"})
+
     def test_timeout_is_retryable_and_classified(self) -> None:
         def timeout(_request, _seconds):
             raise socket.timeout("fixture timeout")
@@ -167,7 +194,7 @@ class G2AProviderTests(unittest.TestCase):
         with self.assertRaises(VisionProviderError) as raised:
             provider.review(request())
         self.assertEqual(raised.exception.kind, VisionErrorKind.INVALID_RESPONSE)
-        self.assertFalse(raised.exception.retryable)
+        self.assertTrue(raised.exception.retryable)
 
     def test_image_limit_fails_before_transport(self) -> None:
         provider = G2AVisionProvider(

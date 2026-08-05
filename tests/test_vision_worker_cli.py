@@ -3,7 +3,7 @@ from __future__ import annotations
 import io
 import unittest
 from contextlib import redirect_stderr
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 from wy_jobs import __main__ as worker_cli
 from wy_media.g2a import G2AConfig
@@ -11,12 +11,6 @@ from wy_media.g2a import G2AConfig
 
 class VisionWorkerCliTests(unittest.TestCase):
     def test_vision_once_constructs_providers_stores_and_worker_without_network(self) -> None:
-        primary = G2AConfig(
-            enabled=True,
-            endpoint="https://primary.invalid/v1/chat/completions",
-            api_key="primary-secret",
-            model_id="primary-model",
-        )
         secondary = G2AConfig(
             enabled=True,
             endpoint="https://secondary.invalid/v1/chat/completions",
@@ -29,9 +23,13 @@ class VisionWorkerCliTests(unittest.TestCase):
         vision_worker = MagicMock()
         vision_worker.run_once.return_value = None
 
+        primary_provider = MagicMock(enabled=True)
+        secondary_provider = MagicMock(enabled=True)
+
         with (
-            patch.object(worker_cli.G2AConfig, "from_env", side_effect=[primary, secondary]) as config,
-            patch.object(worker_cli, "G2AVisionProvider", side_effect=["primary", "secondary"]) as provider,
+            patch.object(worker_cli, "build_primary_vision_provider", return_value=primary_provider),
+            patch.object(worker_cli, "_secondary_g2a_config", return_value=secondary),
+            patch.object(worker_cli, "G2AVisionProvider", return_value=secondary_provider),
             patch.object(worker_cli, "JobStore", return_value=job_store) as jobs,
             patch.object(worker_cli, "ReviewAttemptStore", return_value=attempt_store) as attempts,
             patch.object(worker_cli, "ReviewStore", return_value=review_store) as reviews,
@@ -50,14 +48,15 @@ class VisionWorkerCliTests(unittest.TestCase):
                 ]
             )
 
-        self.assertEqual(config.call_count, 2)
-        self.assertEqual(provider.call_args_list, [call(primary), call(secondary)])
         jobs.assert_called_once_with("fixture.sqlite3")
         attempts.assert_called_once_with("fixture.sqlite3")
         reviews.assert_called_once_with("fixture.sqlite3")
         worker.assert_called_once()
         kwargs = worker.call_args.kwargs
-        self.assertEqual(kwargs["providers"], {"primary": "primary", "secondary": "secondary"})
+        self.assertEqual(
+            kwargs["providers"],
+            {"primary": primary_provider, "secondary": secondary_provider},
+        )
         self.assertEqual(kwargs["worker_id"], "fixture-worker")
         self.assertEqual(str(kwargs["media_root"]), "fixture-media")
         vision_worker.run_once.assert_called_once_with()
@@ -66,16 +65,11 @@ class VisionWorkerCliTests(unittest.TestCase):
         job_store.close.assert_called_once_with()
 
     def test_disabled_vision_exits_before_stores_without_leaking_secret(self) -> None:
-        disabled = G2AConfig(
-            enabled=False,
-            api_key="must-not-appear",
-            endpoint="https://disabled.invalid/v1/chat/completions",
-            model_id="disabled-model",
-        )
         stderr = io.StringIO()
 
+        disabled_provider = MagicMock(enabled=False)
         with (
-            patch.object(worker_cli.G2AConfig, "from_env", return_value=disabled),
+            patch.object(worker_cli, "build_primary_vision_provider", return_value=disabled_provider),
             patch.object(worker_cli, "G2AVisionProvider") as provider,
             patch.object(worker_cli, "JobStore") as jobs,
             patch.object(worker_cli, "ReviewAttemptStore") as attempts,

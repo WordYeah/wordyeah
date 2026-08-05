@@ -1,15 +1,18 @@
 from __future__ import annotations
 
 import base64
+import io
 import json
 import os
-import socket
 import ipaddress
+import socket
 from dataclasses import dataclass
 from typing import Callable, Mapping
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
+
+from PIL import Image
 
 from .vision_provider import (
     VisionErrorKind,
@@ -23,6 +26,13 @@ from .vision_provider import (
 
 
 DEFAULT_PROMPT_VERSION = "wordyeah-avatar-review-v1"
+IMAGE_MEDIA_TYPES = {
+    "JPEG": "image/jpeg",
+    "PNG": "image/png",
+    "WEBP": "image/webp",
+    "GIF": "image/gif",
+    "BMP": "image/bmp",
+}
 
 
 @dataclass(frozen=True)
@@ -110,10 +120,11 @@ class G2AVisionProvider:
         self._transport = transport or _urlopen_transport
 
     def review(self, request: VisionReviewRequest) -> VisionReviewConclusion:
+        provider_label = self.provider_name.upper()
         if not self.enabled:
             raise VisionProviderError(
                 VisionErrorKind.DISABLED,
-                "G2A real calls are disabled",
+                f"{provider_label} real calls are disabled",
                 retryable=False,
             )
         if len(request.image_bytes) > self.config.max_image_bytes:
@@ -139,12 +150,14 @@ class G2AVisionProvider:
             response = self._transport(http_request, self.config.timeout_seconds)
         except (TimeoutError, socket.timeout) as exc:
             raise VisionProviderError(
-                VisionErrorKind.TIMEOUT, "G2A request timed out", retryable=True
+                VisionErrorKind.TIMEOUT, f"{provider_label} request timed out", retryable=True
             ) from exc
         except URLError as exc:
             if isinstance(exc.reason, (TimeoutError, socket.timeout)):
                 raise VisionProviderError(
-                    VisionErrorKind.TIMEOUT, "G2A request timed out", retryable=True
+                    VisionErrorKind.TIMEOUT,
+                    f"{provider_label} request timed out",
+                    retryable=True,
                 ) from exc
             raise VisionProviderError(
                 VisionErrorKind.NETWORK, "G2A network request failed", retryable=True
@@ -169,10 +182,30 @@ class G2AVisionProvider:
             "Review this avatar image for content moderation. Return JSON only with keys "
             "decision (allow, review, or block), confidence (0..1), reasons (string array), "
             "findings (array of category, label, optional score, explanation, region), and "
-            "evidence (array of kind, description, optional region). "
+            "evidence (array of kind, description, optional region). Every region must be null "
+            "or a JSON object; use {\"label\":\"full_image\"} for the entire image. You are "
+            "receiving the actual image bytes: inspect them directly, do not simulate a result "
+            "or claim that the image is unavailable. "
             f"Evaluate: {categories}.{context} When uncertain, use review."
         )
         encoded = base64.b64encode(request.image_bytes).decode("ascii")
+        media_type = request.media_type
+        if media_type not in IMAGE_MEDIA_TYPES.values():
+            try:
+                with Image.open(io.BytesIO(request.image_bytes)) as image:
+                    media_type = IMAGE_MEDIA_TYPES.get(image.format or "", "")
+            except Exception as exc:
+                raise VisionProviderError(
+                    VisionErrorKind.BAD_REQUEST,
+                    "G2A image media type could not be determined",
+                    retryable=False,
+                ) from exc
+            if not media_type:
+                raise VisionProviderError(
+                    VisionErrorKind.BAD_REQUEST,
+                    "G2A image format is unsupported",
+                    retryable=False,
+                )
         return {
             "model": self.config.model_id,
             "messages": [
@@ -187,7 +220,7 @@ class G2AVisionProvider:
                         {
                             "type": "image_url",
                             "image_url": {
-                                "url": f"data:{request.media_type};base64,{encoded}",
+                                "url": f"data:{media_type};base64,{encoded}",
                             },
                         },
                     ],
@@ -227,8 +260,8 @@ class G2AVisionProvider:
         except (KeyError, TypeError, ValueError, UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise VisionProviderError(
                 VisionErrorKind.INVALID_RESPONSE,
-                f"G2A returned an invalid structured response: {exc}",
-                retryable=False,
+                f"{self.provider_name.upper()} returned an invalid structured response: {exc}",
+                retryable=True,
             ) from exc
 
 
@@ -261,9 +294,7 @@ def _parse_findings(value: object) -> tuple[VisionFinding, ...]:
     for item in value:
         if not isinstance(item, dict):
             raise ValueError("each finding must be an object")
-        region = item.get("region")
-        if region is not None and not isinstance(region, dict):
-            raise ValueError("finding region must be an object")
+        region = _parse_region(item.get("region"), "finding")
         result.append(
             VisionFinding(
                 category=_required_string(item, "category"),
@@ -283,9 +314,7 @@ def _parse_evidence(value: object) -> tuple[VisionEvidence, ...]:
     for item in value:
         if not isinstance(item, dict):
             raise ValueError("each evidence item must be an object")
-        region = item.get("region")
-        if region is not None and not isinstance(region, dict):
-            raise ValueError("evidence region must be an object")
+        region = _parse_region(item.get("region"), "evidence")
         result.append(
             VisionEvidence(
                 kind=_required_string(item, "kind"),
@@ -294,6 +323,16 @@ def _parse_evidence(value: object) -> tuple[VisionEvidence, ...]:
             )
         )
     return tuple(result)
+
+
+def _parse_region(value: object, field: str) -> Mapping[str, object] | None:
+    if value is None:
+        return None
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str) and value.strip():
+        return {"label": value.strip()}
+    raise ValueError(f"{field} region must be an object or non-empty label")
 
 
 def _required_string(value: Mapping[str, object], field: str) -> str:

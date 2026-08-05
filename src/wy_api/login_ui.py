@@ -312,7 +312,7 @@ def render_login_page(
           </div>
           <button type="submit">登录工作台</button>
         </form>
-        <p class="security"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l7 3v5.2c0 4.2-2.8 7.5-7 8.8-4.2-1.3-7-4.6-7-8.8V6.5z"></path><path d="M9 12l2 2 4-4"></path></svg>会话受限，原始媒体不会写入浏览器存储。</p>
+        <p class="security"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l7 3v5.2c0 4.2-2.8 7.5-7 8.8-4.2-1.3-7-4.6-7-8.8V6.5z"></path><path d="M9 12l2 2 4-4"></path></svg>会话受限，原始媒体不会写入浏览器存储。</p>
         <div class="meta"><span>受控 reviewer session</span><code>/review/login</code></div>
       </div>
     </section>

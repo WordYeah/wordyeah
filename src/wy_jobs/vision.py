@@ -23,6 +23,7 @@ class VisionReviewJobPayload:
     request_id: str
     policy_version: str
     content_sha256: str
+    media_sha256: str | None = None
     categories: tuple[str, ...] = ()
     context: str = ""
     parent_attempt_id: str | None = None
@@ -48,6 +49,11 @@ class VisionReviewJobPayload:
             raise ValueError("policy_version must be between 1 and 128 characters")
         if len(self.content_sha256) != 64 or any(char not in "0123456789abcdef" for char in self.content_sha256):
             raise ValueError("content_sha256 must be a lowercase SHA-256 hex digest")
+        if self.media_sha256 is not None and (
+            len(self.media_sha256) != 64
+            or any(char not in "0123456789abcdef" for char in self.media_sha256)
+        ):
+            raise ValueError("media_sha256 must be a lowercase SHA-256 hex digest")
         if any(not value or len(value) > 128 for value in self.categories):
             raise ValueError("categories must contain non-empty values up to 128 characters")
         if len(self.context) > 4000:
@@ -67,6 +73,7 @@ class VisionReviewJobPayload:
             "provider_slot": self.provider_slot,
             "policy_version": self.policy_version,
             "content_sha256": self.content_sha256,
+            "media_sha256": self.media_sha256,
         }
         digest = hashlib.sha256(
             json.dumps(identity, sort_keys=True, separators=(",", ":")).encode("utf-8")
@@ -84,6 +91,7 @@ class VisionReviewJobPayload:
             "request_id": self.request_id,
             "policy_version": self.policy_version,
             "content_sha256": self.content_sha256,
+            "media_sha256": self.media_sha256,
             "categories": list(self.categories),
             "context": self.context,
             "parent_attempt_id": self.parent_attempt_id,
@@ -107,6 +115,7 @@ class VisionReviewJobPayload:
             request_id=_string(value, "request_id"),
             policy_version=_string(value, "policy_version"),
             content_sha256=_string(value, "content_sha256"),
+            media_sha256=_optional_string(value.get("media_sha256"), "media_sha256"),
             categories=tuple(categories),
             context=_optional_string(value.get("context"), "context") or "",
             parent_attempt_id=_optional_string(value.get("parent_attempt_id"), "parent_attempt_id"),

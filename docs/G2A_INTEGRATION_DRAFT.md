@@ -17,6 +17,11 @@
 | `WORDYEAH_G2A_TIMEOUT_SECONDS` | `20` | 单次 HTTP 超时，范围 `(0, 300]` |
 | `WORDYEAH_G2A_PROMPT_VERSION` | `wordyeah-avatar-review-v1` | 写入审核 attempt 的提示词版本 |
 | `WORDYEAH_G2A_MAX_IMAGE_BYTES` | `10485760` | 发送前的图片字节上限 |
+| `WORDYEAH_OLLAMA_ENABLED` | `false` | G2A Web 调用失败时启用本机视觉模型兜底 |
+| `WORDYEAH_OLLAMA_ENDPOINT` | `http://127.0.0.1:11434/v1/chat/completions` | Ollama OpenAI-compatible endpoint |
+| `WORDYEAH_OLLAMA_MODEL` | `qwen3-vl:8b` | 本机一审兜底模型 |
+| `WORDYEAH_OLLAMA_SECONDARY_ENABLED` | 继承本机一审开关 | 是否启用独立二审模型 |
+| `WORDYEAH_OLLAMA_SECONDARY_MODEL` | `gemma3:12b` | 低置信度或结论分歧时使用的本机二审模型 |
 
 启用时必须同时提供 endpoint、API key 和模型 ID。不要在 shell history、截图、工单或文档中粘贴真实 secret；部署系统应通过受限环境或 secret store 注入。
 
@@ -39,10 +44,11 @@ adapter 发送 OpenAI-compatible multimodal chat JSON，并要求模型只返回
 建议沿用现有链路，不改变生产判定：
 
 ```text
-fast_scan 边界/低置信度
-  -> vision_review_1：G2A 或其他高级视觉 provider
+Falconsai 本机 fast_scan 边界/低置信度
+  -> vision_review_1：G2A Web 号池 grok-chat-fast
+  -> G2A Web 超时、限流、网络/上游错误或无效结构：本机 Ollama qwen3-vl:8b 兜底
   -> 低置信度/与 fast_scan 分歧
-  -> vision_review_2：不同模型或不同模型家族的独立 provider，默认盲审
+  -> vision_review_2：本机 Ollama gemma3:12b 独立盲审
   -> 仍不确定、两次结论分歧、证据缺失或重试耗尽
   -> human_review
 ```
@@ -51,7 +57,9 @@ fast_scan 边界/低置信度
 
 API 接线位于 `POST /v1/review/items/{item_id}/advanced-vision`。接口只运行审核路由当前要求的 `vision_review_1` 或 `vision_review_2`，读取受控 `media://` 预览、校验图片、调用已启用 provider、追加 attempt，再重新计算路由。provider 未启用时返回 503，不创建伪 attempt。`/health/live` 与 `/health/ready` 只报告配置启用状态，不把未探测的上游写成健康。
 
-异步入口为 `wordyeah-worker --vision`；`--once` 用于单次验收。应用在 fast scan 路由到一审后自动入队，一审结果需要独立二审时自动创建二审任务。二审使用 `WORDYEAH_G2A_SECONDARY_*` 配置命名空间；未配置独立 provider 时不会把同模型重试伪装成二审。job 持久化记录可运行时间、lease、attempt、错误类别和死信状态。
+异步入口为 `wordyeah-worker --vision`；`--once` 用于单次验收。应用在 fast scan 路由到一审后自动入队，一审结果需要独立二审时自动创建二审任务。默认二审使用 `WORDYEAH_OLLAMA_SECONDARY_*`；显式配置 `WORDYEAH_G2A_SECONDARY_*` 时由该独立 provider 取代本机二审。未配置独立 provider 时不会把同模型重试伪装成二审。job 持久化记录可运行时间、lease、attempt、错误类别和死信状态。
+
+审核图片预览经过 JPEG 归一化后可能与原始内容哈希不同。队列同时保存原始 `content_sha256` 和受控预览 `media_sha256`：前者用于内容身份和幂等，后者用于 worker 读取前的文件完整性校验。
 
 ## Mock 与验证边界
 
@@ -60,14 +68,15 @@ API 接线位于 `POST /v1/review/items/{item_id}/advanced-vision`。接口只�
 2026-08-05 受控 canary 结果：
 
 - `grok-chat-fast` 通过现有 G2A 网关对两张合成图片返回可解析的结构化视觉结论，决定均为 `allow`，单次延迟约 5.6–5.9 秒；验收证据只保存图片哈希、模型、决定、置信度和计数，不保存 API key 或原始响应。
+- `grok-chat-fast` 对一张 Cravatar 受控头像预览返回 `allow`、置信度 `0.95`；同一队列任务在 G2A Web 未能给出可用结论时由本机 `qwen3-vl:8b` 成功兜底，attempt 保留实际 provider 和模型。
 - `grok-4.3`、`grok-4.5` 仍返回 HTTP 429，原因是现有 Build 池可用账号为 0；错误被正确分类为可重试限流。Web 池的 `grok-chat-fast` 可用不代表 Build 模型恢复。
 - 真实调用脚本为 `scripts/run_vision_canary.py`；仍需显式设置 `WORDYEAH_G2A_ENABLED=true`，默认不会访问网络。
 
 以下尚未验证：
 
-- 真实调用的延迟、限流、计费、图片尺寸/MIME 约束、内容保留政策和服务条款。
+- 持续负载下 G2A Web 的延迟、限流、图片尺寸/MIME 约束、内容保留政策和服务条款。
 - 定时上游健康探测和生产服务守护；worker 自动创建、异步退避、lease 回收、死信与 attempt 持久化已完成测试。
 - 代表性 Cravatar 头像上的准确率、误报率、召回率、分歧率和人工介入率。
 - 持续生产 shadow 服务的长期稳定性；本草案不授权 `enforce`，也不改变 Cravatar 头像。
 
-常驻服务仍保持 `WORDYEAH_G2A_ENABLED=false`；只有受控 canary 或经审批的 worker 环境显式启用。
+代码和 systemd 样例默认关闭外部调用。本机开发审核队列已显式启用 G2A Web 与 Ollama 兜底；Cravatar 仍为只读数据接入，未启用头像写回或 `enforce`。

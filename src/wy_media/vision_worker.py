@@ -90,7 +90,8 @@ class VisionReviewWorker:
                 "controlled media could not be read",
                 retryable=False,
             ) from exc
-        if hashlib.sha256(image_bytes).hexdigest() != payload.content_sha256:
+        expected_media_sha256 = payload.media_sha256 or payload.content_sha256
+        if hashlib.sha256(image_bytes).hexdigest() != expected_media_sha256:
             raise VisionProviderError(
                 VisionErrorKind.BAD_REQUEST,
                 "controlled media hash does not match the queued payload",
@@ -223,6 +224,7 @@ class VisionReviewWorker:
             request_id=f"{previous.item_id}:{route.next_stage}:1",
             policy_version=previous.policy_version,
             content_sha256=previous.content_sha256,
+            media_sha256=previous.media_sha256,
             categories=previous.categories,
             context=previous.context,
             parent_attempt_id=parent.attempt_id,

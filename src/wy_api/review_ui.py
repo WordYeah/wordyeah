@@ -54,9 +54,9 @@ CSS = """
   --space-lg: 24px;
   --space-xl: 32px;
   --space-2xl: 48px;
-  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-  --font-body: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, "Inter", "SF Pro Display", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --font: -apple-system, BlinkMacSystemFont, "Inter", "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --font-body: -apple-system, BlinkMacSystemFont, "Inter", "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   --mono: "SF Mono", "JetBrains Mono", "Fira Code", ui-monospace, Menlo, Monaco, Consolas, monospace;
 }
 
@@ -99,9 +99,11 @@ body {
   background: var(--page);
   color: var(--text);
   font-family: var(--font);
-  font-size: 14px;
-  line-height: 1.55;
+  font-size: 13.5px;
+  line-height: 1.6;
   font-feature-settings: "kern" 1, "liga" 1;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
 }
 
@@ -184,9 +186,9 @@ button, a { -webkit-tap-highlight-color: transparent; }
   padding: 0 6px;
   color: var(--text);
   text-decoration: none;
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: -0.035em;
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
 }
 
 .brand-mark {
@@ -198,8 +200,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
   background: var(--accent);
   color: #ffffff;
   font-size: 11px;
-  font-weight: 800;
-  letter-spacing: -0.06em;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 .nav-section {
@@ -470,7 +472,22 @@ button, a { -webkit-tap-highlight-color: transparent; }
   box-shadow: var(--shadow-sm);
   transition: all 140ms ease;
 }
-.usage-upgrade-btn:hover {
+.empty-state {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 56px 24px;
+  margin: 16px auto;
+  width: 100%;
+  max-width: 580px;
+  border: 1px dashed var(--line);
+  border-radius: 16px;
+  background: var(--panel);
+  box-shadow: var(--shadow-sm);
+  box-sizing: border-box;
 }
 .empty-state-icon {
   display: grid;
@@ -3963,7 +3980,7 @@ def _nav_icon(name: str) -> str:
         "health": '<path d="M3.5 12h4l1.8-4.5 3.2 9 2.1-4.5h5.9"></path>',
         "account": '<circle cx="12" cy="8" r="3.5"></circle><path d="M5.5 20c.7-4 3-6 6.5-6s5.8 2 6.5 6"></path>',
     }
-    return f'<svg viewBox="0 0 24 24" aria-hidden="true">{paths.get(name, paths["guide"])}</svg>'
+    return f'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{paths.get(name, paths["guide"])}</svg>'
 
 
 def _top_icon(name: str) -> str:

@@ -20,17 +20,17 @@ CSS = """
   border-radius: 12px;
   background: var(--panel);
 }
-.account-guide__heading { margin: 0; font-size: 18px; font-weight: 700; line-height: 1.35; letter-spacing: -0.01em; }
-.account-guide__copy { margin: 5px 0 0; color: var(--muted); font-size: 12.5px; line-height: 1.55; }
+.account-guide__heading { margin: 0; font-size: 18px; font-weight: 650; line-height: 1.4; letter-spacing: normal; }
+.account-guide__copy { margin: 5px 0 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
 .account-guide__panel > header { padding: 20px 24px 16px; border-bottom: 1px solid var(--line); }
 .account-guide__body { display: grid; gap: 22px; padding: 20px 24px 24px; }
 .account-guide__section { display: grid; gap: 12px; }
 .account-guide__section + .account-guide__section { padding-top: 20px; border-top: 1px solid var(--line); }
-.account-guide__section h3 { margin: 0; font-size: 14px; font-weight: 700; color: var(--text); }
+.account-guide__section h3 { margin: 0; font-size: 14px; font-weight: 650; color: var(--text); }
 .account-guide__facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin: 0; }
 .account-guide__fact-card { padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-soft); display: flex; flex-direction: column; gap: 4px; }
 .account-guide__facts dt { color: var(--muted); font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: 0.04em; }
-.account-guide__facts dd { margin: 0; font-size: 14px; font-weight: 700; font-family: var(--mono); color: var(--text); word-break: break-all; }
+.account-guide__facts dd { margin: 0; font-size: 14px; font-weight: 650; font-family: var(--mono); color: var(--text); word-break: break-all; }
 .account-guide__list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
 .account-guide__item { padding: 12px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-soft); display: flex; justify-content: space-between; align-items: center; }
 .account-guide__item strong { font-size: 13px; font-weight: 650; }

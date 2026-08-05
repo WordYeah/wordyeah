@@ -133,13 +133,13 @@ _NAV_ICONS = {
 
 
 def _icon(path: str) -> str:
-    return f'<svg viewBox="0 0 24 24" aria-hidden="true">{path}</svg>'
+    return f'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{path}</svg>'
 
 _CSS = REVIEW_CSS + OVERVIEW_AGENTS_CSS + POLICY_QUALITY_CSS + HISTORY_HEALTH_CSS + ACCOUNT_GUIDE_CSS + """
 /* Support pages reuse the queue shell but tighten typography, states, and spacing. */
 :root {
-  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-  --font-body: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, "Inter", "SF Pro Display", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --font-body: -apple-system, BlinkMacSystemFont, "Inter", "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   --font-mono: "SF Mono", "JetBrains Mono", "Fira Code", ui-monospace, Menlo, Monaco, Consolas, monospace;
   --font: var(--font-body);
   --mono: var(--font-mono);
@@ -314,10 +314,10 @@ code,
 }
 .support-hero h1 {
   margin: 0;
-  font-size: 30px;
-  font-weight: 620;
-  line-height: 1.14;
-  letter-spacing: -0.045em;
+  font-size: 24px;
+  font-weight: 650;
+  line-height: 1.35;
+  letter-spacing: normal;
 }
 .support-hero p {
   max-width: 720px;
@@ -965,7 +965,7 @@ def _render_dashboard_charts(data: Mapping[str, object]) -> str:
             f'<span class="label">{escape(_text(item.get("label"), "指标"))}</span>'
             f'<strong class="val">{escape(_text(item.get("value"), "—"))}</strong>'
             f'<small>{escape(_text(item.get("detail")))}</small></div>'
-            f'<span class="metric-card-icon"><svg viewBox="0 0 24 24">{card_icons[index]}</svg></span>'
+            f'<span class="metric-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{card_icons[index]}</svg></span>'
             '</article>'
         )
     metrics_html = f'<div class="dashboard-grid">{"".join(metric_cards)}</div>' if metric_cards else ""

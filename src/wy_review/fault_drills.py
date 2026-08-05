@@ -138,7 +138,7 @@ def _invalid_response_drill() -> dict[str, object]:
     passed = (
         error is not None
         and error.kind is VisionErrorKind.INVALID_RESPONSE
-        and not error.retryable
+        and error.retryable
     )
     return {
         "name": "provider_invalid_response",

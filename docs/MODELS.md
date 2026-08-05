@@ -29,3 +29,15 @@ part of the application artifact.
 
 The model remains a baseline. Real, manually reviewed Cravatar-like samples
 must be evaluated before `review` or `enforce` is enabled.
+
+## Advanced avatar review chain
+
+- Primary advanced review: G2A Web pool, model `grok-chat-fast`.
+- Local primary fallback: Ollama, model `qwen3-vl:8b`.
+- Independent low-confidence second review: Ollama, model `gemma3:12b`.
+- Human review is requested only after the two model stages remain uncertain,
+  disagree, require a human-only policy category, or exhaust retries.
+
+The local fallback is not recorded as G2A: every completed review attempt keeps
+the provider and model that actually produced the conclusion. External calls
+and Cravatar enforcement both remain disabled by default configuration.
