@@ -2786,6 +2786,19 @@ details[open] > .dropdown-trigger > .icon:last-child {
   .toolbar-actions { width: 100%; justify-content: flex-start; }
   .mobile-workspace-switcher { display: block; margin-left: auto; }
   .toolbar-actions .topbar-icon { display: none; }
+  .account-menu summary {
+    width: 58px;
+    min-height: 42px;
+    justify-content: center;
+    gap: 4px;
+    padding: 4px;
+  }
+  .account-menu summary > span:not(.reviewer-avatar):not(.chevron) { display: none; }
+  .account-popover {
+    right: 0;
+    left: auto;
+    width: min(210px, calc(100vw - 32px));
+  }
   .shell { padding: 18px 16px 28px; }
   .detail-header { align-items: flex-start; }
   .filter-bar { flex-wrap: wrap; align-items: stretch; }
@@ -3517,10 +3530,17 @@ def render_review_workbench(
           <a class="topbar-icon" href="/review/guide" title="查看审核系统使用指引" aria-label="查看审核系统使用指引">
             {icon('guide')}
           </a>
-          <div class="user-chip">
-            <span class="reviewer-avatar">{escape(reviewer_id[:1].upper() or 'R')}</span>
-            <span>{escape(reviewer_id)}</span>
-          </div>
+          <details class="account-menu" name="review-dropdown">
+            <summary class="dropdown-trigger">
+              <span class="reviewer-avatar">{escape(reviewer_id[:1].upper() or 'R')}</span>
+              <span>{escape(reviewer_id)}</span>
+              <span class="chevron">{icon('chevron-down')}</span>
+            </summary>
+            <div class="account-popover">
+              <p>{escape(consumer_id)} · 受限审核会话</p>
+              {'<form class="toolbar-logout" method="post" action="/review/logout"><input type="hidden" name="csrf_token" value="' + escape(csrf_token) + '"><button type="submit">安全退出</button></form>' if csrf_token else '<a class="toolbar-link" href="/review/account">账户与会话</a>'}
+            </div>
+          </details>
         </div>
       </header>
 

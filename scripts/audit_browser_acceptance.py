@@ -466,6 +466,49 @@ def main() -> int:
                     and row["visibleAtCenter"]
                     for row in desktop_popovers
                 )
+                responsive_account_popovers: list[dict[str, object]] = []
+                for width in (1440, 1024, 760, 390):
+                    page.set_viewport_size({"width": width, "height": 900})
+                    for path in (
+                        "/review?status=all&view=list&per_page=20",
+                        "/review/history",
+                    ):
+                        page.goto(base + path, wait_until="networkidle")
+                        trigger = page.locator(".account-menu > summary")
+                        trigger.click()
+                        page.wait_for_timeout(250)
+                        popover = page.locator(".account-menu > .account-popover")
+                        trigger_box = trigger.bounding_box()
+                        popover_box = popover.bounding_box()
+                        responsive_account_popovers.append(
+                            {
+                                "path": path,
+                                "viewport": width,
+                                "trigger": trigger_box,
+                                "popover": popover_box,
+                                "insideViewport": bool(
+                                    popover_box
+                                    and popover_box["x"] >= 0
+                                    and popover_box["x"] + popover_box["width"] <= width
+                                    and popover_box["y"] >= 0
+                                    and popover_box["y"] + popover_box["height"] <= 900
+                                ),
+                                "visibleAtCenter": popover.evaluate(
+                                    """menu => {
+                                      const box = menu.getBoundingClientRect();
+                                      const hit = document.elementFromPoint(
+                                        box.left + box.width / 2,
+                                        box.top + box.height / 2
+                                      );
+                                      return Boolean(hit && menu.contains(hit));
+                                    }"""
+                                ),
+                            }
+                        )
+                responsive_accounts_aligned = all(
+                    row["insideViewport"] and row["visibleAtCenter"]
+                    for row in responsive_account_popovers
+                )
                 page.set_viewport_size({"width": 1440, "height": 900})
                 page.goto(base + "/review/history", wait_until="networkidle")
                 shot = screenshot("dropdowns-1440x900.png")
@@ -477,11 +520,14 @@ def main() -> int:
                         and len(mobile_triggers) == 4
                         and desktop_popovers_aligned
                         and len(desktop_popovers) == 2
+                        and responsive_accounts_aligned
+                        and len(responsive_account_popovers) == 8
                     ),
                     "controls": measurements,
                     "layouts": layouts,
                     "mobile_triggers": mobile_triggers,
                     "desktop_popovers": desktop_popovers,
+                    "responsive_account_popovers": responsive_account_popovers,
                     "screenshot": shot,
                 }
 
