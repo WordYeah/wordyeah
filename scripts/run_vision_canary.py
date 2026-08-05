@@ -88,6 +88,11 @@ def main() -> int:
             "retryable": exc.retryable if isinstance(exc, VisionProviderError) else False,
             "error": str(exc),
         }
+        if isinstance(exc, VisionProviderError):
+            if exc.status_code is not None:
+                evidence["status_code"] = exc.status_code
+            if exc.retry_after_seconds is not None:
+                evidence["retry_after_seconds"] = exc.retry_after_seconds
         code = 1
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(evidence, ensure_ascii=False, indent=2) + "\n")

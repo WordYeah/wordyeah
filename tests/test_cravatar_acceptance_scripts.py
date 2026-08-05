@@ -11,6 +11,8 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
+from wy_media.vision_provider import VisionErrorKind
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -195,6 +197,40 @@ def test_vision_canary_is_disabled_without_explicit_provider_config(tmp_path: Pa
     assert evidence["status"] == "FAIL"
     assert evidence["actual_provider_response"] is False
     assert evidence["error_kind"] == "disabled"
+
+
+def test_vision_canary_failure_keeps_safe_upstream_status(monkeypatch, tmp_path: Path) -> None:
+    module = _load_script("run_vision_canary.py")
+    image = tmp_path / "canary.png"
+    Image.new("RGB", (8, 8), "white").save(image)
+    output = tmp_path / "vision.json"
+
+    class FailingProvider:
+        def __init__(self, _config: object) -> None:
+            pass
+
+        def review(self, _request: object) -> object:
+            raise module.VisionProviderError(
+                VisionErrorKind.UPSTREAM,
+                "G2A upstream service failed",
+                retryable=True,
+                status_code=503,
+                retry_after_seconds=7,
+            )
+
+    monkeypatch.setattr(module, "G2AVisionProvider", FailingProvider)
+    monkeypatch.setattr(module.G2AConfig, "from_env", lambda: object())
+    monkeypatch.setattr(
+        module.sys,
+        "argv",
+        ["run_vision_canary.py", str(image), "--output", str(output)],
+    )
+
+    assert module.main() == 1
+    evidence = json.loads(output.read_text())
+    assert evidence["status_code"] == 503
+    assert evidence["retry_after_seconds"] == 7
+    assert "api_key" not in evidence
 
 
 def test_reviewer_runtime_audit_rejects_non_loopback_url() -> None:
