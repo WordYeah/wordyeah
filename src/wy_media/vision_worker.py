@@ -33,6 +33,8 @@ class VisionReviewWorker:
     router: ReviewRouter = field(default_factory=ReviewRouter)
     worker_id: str = ""
     lease_seconds: int = 120
+    consumer_id: str | None = None
+    context_marker: str | None = None
     backoff_base_seconds: float = 1.0
     backoff_cap_seconds: float = 300.0
     stage_provider_slots: Mapping[str, str] = field(
@@ -48,6 +50,8 @@ class VisionReviewWorker:
             self.worker_id,
             self.lease_seconds,
             kinds=VISION_JOB_KINDS,
+            consumer_id=self.consumer_id,
+            context_marker=self.context_marker,
         )
         if job is None:
             return None

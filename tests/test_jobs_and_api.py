@@ -64,6 +64,44 @@ class JobsAndApiTest(unittest.TestCase):
             self.assertEqual(store.count_active("other"), 0)
             store.close()
 
+    def test_job_claim_can_isolate_consumer_and_controlled_context(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            store = JobStore(str(Path(directory) / "wordyeah.sqlite3"))
+            ordinary = store.enqueue(
+                "vision_review_1",
+                {"context": "consumer=corpus-avatar; ground_truth=false"},
+                "corpus-avatar",
+            )
+            selected = store.enqueue(
+                "vision_review_1",
+                {
+                    "context": (
+                        "consumer=corpus-avatar; quality_ai_prelabel=true; "
+                        "ground_truth=false"
+                    )
+                },
+                "corpus-avatar",
+            )
+            store.enqueue(
+                "vision_review_1",
+                {"context": "quality_ai_prelabel=true"},
+                "other",
+            )
+
+            claimed = store.claim(
+                "quality-worker",
+                kinds=("vision_review_1",),
+                consumer_id="corpus-avatar",
+                context_marker="quality_ai_prelabel=true",
+            )
+
+            self.assertIsNotNone(claimed)
+            self.assertEqual(claimed.job_id, selected.job_id)
+            self.assertEqual(store.get(ordinary.job_id).status, "queued")
+            with self.assertRaisesRegex(ValueError, "context_marker"):
+                store.claim("quality-worker", context_marker="")
+            store.close()
+
     def test_worker_completes_claimed_job_with_result(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             store = JobStore(str(Path(directory) / "wordyeah.sqlite3"))

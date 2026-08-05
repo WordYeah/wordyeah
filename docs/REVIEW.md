@@ -78,6 +78,21 @@ python scripts/enqueue_corpus_ai_prelabels.py \
 `counts_toward_ground_truth=false`，同时比较执行前后的样本数、人工决定数和已收敛数；任何
 变化都按错误处理。入队不等于模型已完成，只有 attempt 成功后质量页才显示实际 AI 建议。
 
+质量预标注可以使用受限 worker 独立消费，避免前面的普通视觉任务阻塞本批次；筛选条件
+同时约束 consumer、视觉任务种类和入队时写入的受控 context marker，默认 worker 行为不变：
+
+```bash
+.venv/bin/python -m wy_jobs --vision \
+  --database /private/wordyeah/avatar-corpus-review/wordyeah.sqlite3 \
+  --media-root /private/wordyeah/avatar-corpus-review/media \
+  --consumer-id corpus-avatar \
+  --vision-context-marker quality_ai_prelabel=true \
+  --worker-id corpus-prelabel-1
+```
+
+G2A 或 Ollama 的超时、限流和无效响应仍按原有 lease/backoff/dead-letter 规则处理；筛选器
+不会跳过同一预标注任务自身的失败重试，也不会把模型 attempt 写成人工决定。
+
 ## 安全边界
 
 - 只绑定 loopback/private network；不做公网匿名审核入口。

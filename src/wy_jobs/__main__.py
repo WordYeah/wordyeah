@@ -105,6 +105,8 @@ def _run_vision(args: argparse.Namespace) -> None:
             providers=providers,
             media_root=Path(args.media_root),
             worker_id=args.worker_id,
+            consumer_id=args.consumer_id,
+            context_marker=args.vision_context_marker,
         )
         while True:
             job = worker.run_once()
@@ -129,6 +131,14 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument("--policy-path", default="./config/policy.avatar.example.json")
     parser.add_argument("--worker-id", default="")
     parser.add_argument(
+        "--consumer-id",
+        help="claim only jobs for this consumer (vision worker only)",
+    )
+    parser.add_argument(
+        "--vision-context-marker",
+        help="claim only vision jobs whose controlled context contains this marker",
+    )
+    parser.add_argument(
         "--vision",
         action="store_true",
         help="process queued advanced-vision review jobs instead of fast-scan jobs",
@@ -143,6 +153,9 @@ def main(argv: Sequence[str] | None = None) -> None:
         except VisionProviderDisabledError as exc:
             parser.error(str(exc))
         return
+
+    if args.consumer_id or args.vision_context_marker:
+        parser.error("--consumer-id and --vision-context-marker require --vision")
 
     policy_config = load_policy_config(args.policy_path)
     store = JobStore(args.database)
