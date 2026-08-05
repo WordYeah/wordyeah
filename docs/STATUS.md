@@ -45,6 +45,7 @@
 - [CX] 已核对：2026-08-05 08:34 Asia/Shanghai，G2A healthz 为 200，但 `grok-4.5` 串行 3 次均为 429；Build available=0，Web available=16402。先前 `grok-chat-fast` canary 证据仍有效，但不能据此写成 Build 池恢复
 - [CX] 已接线并验证：高级视觉一审使用 G2A Web `grok-chat-fast`，失败时回退本机 Ollama `qwen3-vl:8b`，低置信度二审预留本机 `gemma3:12b`；真实 Cravatar 受控头像得到 G2A `allow/0.95`，队列任务也已验证 Ollama 兜底成功
 - [CX] 已修复：归一化 JPEG 预览与原始内容哈希不同会导致 vision worker 拒绝任务；队列现分别保存内容哈希和受控媒体哈希，本机 29 条积压任务已补齐媒体哈希并保留修复前数据库备份
+- [CX] 已验证：29 条 Cravatar 高级视觉一审任务和 3 条低置信度二审任务全部成功收敛；审核项为 29 条自动通过、6 条自动拒绝、0 条人工待审，未执行 Cravatar 写回
 - [CX] 未完成：代表性头像 corpus 的真人全量主审 0/1100、固定 10% 独立双审 0/110 和可能产生的分歧仲裁；目标主机持续调度部署仍未批准
 - 生产接入：只读 canary 已完成；未写回 WordPress/头像/队列
 - 外部审查 API：生产默认关闭；仅做过受控 G2A canary
