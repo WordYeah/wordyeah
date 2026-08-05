@@ -10,7 +10,10 @@ avatar mutation, Tencent Cloud or production database write code.
 ```text
 /opt/wordyeah/                         application checkout and virtualenv
 /etc/wordyeah/cravatar-shadow.env      root-owned 0600 runtime configuration
+/etc/wordyeah/wordyeah.env             root-owned 0600 API/worker configuration
 /var/lib/wordyeah/inbox/               read-only manifest and controlled images
+/var/lib/wordyeah/media/               controlled API media objects
+/var/lib/wordyeah/models/              pre-staged local model files
 /var/lib/wordyeah/state/               cursor and failure ledger
 /var/lib/wordyeah/status/              atomic current watermark JSON
 ```
@@ -60,14 +63,30 @@ verification state.
 ```bash
 python -m venv /opt/wordyeah/.venv
 /opt/wordyeah/.venv/bin/pip install '/opt/wordyeah[api]'
-install -d -o wordyeah -g wordyeah /var/lib/wordyeah/{inbox,state,status}
+install -d -o wordyeah -g wordyeah /var/lib/wordyeah/{inbox,media,models,state,status}
 install -d -m 0750 /etc/wordyeah
+install -m 0600 deploy/systemd/wordyeah.env.example \
+  /etc/wordyeah/wordyeah.env
 install -m 0600 deploy/systemd/cravatar-shadow.env.example \
   /etc/wordyeah/cravatar-shadow.env
+install -m 0644 deploy/systemd/wordyeah-api.service \
+  /etc/systemd/system/wordyeah-api.service
+install -m 0644 deploy/systemd/wordyeah-worker.service \
+  /etc/systemd/system/wordyeah-worker.service
+install -m 0644 deploy/systemd/wordyeah-vision-worker.service \
+  /etc/systemd/system/wordyeah-vision-worker.service
 install -m 0644 deploy/systemd/wordyeah-cravatar-shadow.service \
   /etc/systemd/system/wordyeah-cravatar-shadow.service
 systemctl daemon-reload
 ```
+
+The Falconsai model must already exist at the private
+`WORDYEAH_MEDIA_MODEL_PATH`; runtime requests use `local_files_only=True` and
+never download weights. Installing the units does not start them. Start the API
+and fast-scan worker only after the model, policy, database directory and
+loopback health checks are ready. Start the vision worker only after both its
+primary provider and an independent secondary provider have been configured;
+the example keeps both disabled.
 
 Before enabling anything, run one bounded cycle and inspect the watermark:
 
@@ -77,7 +96,7 @@ sudo -u wordyeah /opt/wordyeah/.venv/bin/wordyeah-cravatar watch \
   --state /var/lib/wordyeah/state/cravatar-cursor.json \
   --manifest /var/lib/wordyeah/inbox/cravatar-manifest.jsonl \
   --root /var/lib/wordyeah/inbox/images \
-  --endpoint http://127.0.0.1:8000 \
+  --endpoint http://127.0.0.1:18765 \
   --max-cycles 1 --output /var/lib/wordyeah/status/cravatar-shadow.json
 ```
 

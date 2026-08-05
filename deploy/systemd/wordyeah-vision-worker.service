@@ -1,0 +1,30 @@
+[Unit]
+Description=WordYeah advanced vision review worker
+After=network-online.target wordyeah-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=wordyeah
+Group=wordyeah
+UMask=0077
+WorkingDirectory=/opt/wordyeah
+EnvironmentFile=/etc/wordyeah/wordyeah.env
+ExecStart=/opt/wordyeah/.venv/bin/wordyeah-worker --vision --database ${WORDYEAH_DATABASE} --media-root ${WORDYEAH_MEDIA_ROOT} --worker-id vision-1 --poll-interval 1
+Restart=on-failure
+RestartSec=10s
+TimeoutStopSec=30s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/var/lib/wordyeah
+
+[Install]
+WantedBy=multi-user.target

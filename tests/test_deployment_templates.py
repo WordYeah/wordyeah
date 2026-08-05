@@ -26,8 +26,26 @@ def test_shadow_service_template_is_loopback_non_mutating_and_disabled_by_defaul
     assert "ReadWritePaths=/var/lib/wordyeah/state /var/lib/wordyeah/status" in service
     assert "WORDYEAH_API_KEY=" not in service
     assert "enforce" not in service.lower()
-    assert "WORDYEAH_ENDPOINT=http://127.0.0.1:8000" in environment
+    assert "WORDYEAH_ENDPOINT=http://127.0.0.1:18765" in environment
     assert "systemctl enable" not in service
+
+
+def test_runtime_service_templates_share_the_real_api_port_and_private_state() -> None:
+    environment = (ROOT / "deploy/systemd/wordyeah.env.example").read_text(encoding="utf-8")
+    api = (ROOT / "deploy/systemd/wordyeah-api.service").read_text(encoding="utf-8")
+    worker = (ROOT / "deploy/systemd/wordyeah-worker.service").read_text(encoding="utf-8")
+    vision = (ROOT / "deploy/systemd/wordyeah-vision-worker.service").read_text(encoding="utf-8")
+
+    assert "WORDYEAH_BIND=127.0.0.1" in environment
+    assert "WORDYEAH_PORT=18765" in environment
+    assert "WORDYEAH_G2A_ENABLED=false" in environment
+    assert "WORDYEAH_G2A_SECONDARY_ENABLED=false" in environment
+    assert "WORDYEAH_API_KEY=" not in api + worker + vision
+    assert "ReadWritePaths=/var/lib/wordyeah" in api
+    assert all("UMask=0077" in unit for unit in (api, worker, vision))
+    assert "wordyeah-worker --database" in worker
+    assert "wordyeah-worker --vision" in vision
+    assert "systemctl enable" not in api + worker + vision
 
 
 def test_cavalcade_exporter_is_bounded_and_read_only() -> None:

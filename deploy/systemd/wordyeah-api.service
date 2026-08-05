@@ -1,0 +1,30 @@
+[Unit]
+Description=WordYeah moderation and review API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=wordyeah
+Group=wordyeah
+UMask=0077
+WorkingDirectory=/opt/wordyeah
+EnvironmentFile=/etc/wordyeah/wordyeah.env
+ExecStart=/opt/wordyeah/.venv/bin/wordyeah-api
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/var/lib/wordyeah
+
+[Install]
+WantedBy=multi-user.target

@@ -122,6 +122,36 @@ class VisionWorkerCliTests(unittest.TestCase):
 
         vision_worker.assert_not_called()
 
+    def test_default_worker_waits_when_queue_is_temporarily_empty(self) -> None:
+        job_store = MagicMock()
+        review_store = MagicMock()
+        result_store = MagicMock()
+        worker = MagicMock()
+        worker.run_once.side_effect = [None, KeyboardInterrupt]
+        service = MagicMock()
+
+        with (
+            patch.object(worker_cli, "load_policy_config") as policy,
+            patch.object(worker_cli, "JobStore", return_value=job_store),
+            patch.object(worker_cli, "ReviewStore", return_value=review_store),
+            patch.object(worker_cli, "ResultStore", return_value=result_store),
+            patch.object(worker_cli, "FalconsaiClassifier"),
+            patch.object(worker_cli, "MediaModerationService", return_value=service),
+            patch.object(worker_cli, "JobWorker", return_value=worker),
+            patch.object(worker_cli.time, "sleep") as sleep,
+            self.assertRaises(KeyboardInterrupt),
+        ):
+            policy.return_value.media_policy = MagicMock()
+            policy.return_value.policy_version = "test"
+            policy.return_value.profile = "avatar-default"
+            worker_cli.main(["--poll-interval", "0.2"])
+
+        sleep.assert_called_once_with(0.2)
+        self.assertEqual(worker.run_once.call_count, 2)
+        review_store.close.assert_called_once_with()
+        result_store.close.assert_called_once_with()
+        job_store.close.assert_called_once_with()
+
 
 if __name__ == "__main__":
     unittest.main()

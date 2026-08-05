@@ -7,6 +7,7 @@ Wants=network-online.target
 Type=simple
 User=wordyeah
 Group=wordyeah
+UMask=0077
 WorkingDirectory=/opt/wordyeah
 EnvironmentFile=/etc/wordyeah/cravatar-shadow.env
 ExecStart=/opt/wordyeah/.venv/bin/wordyeah-cravatar watch --workspace ${CRAVATAR_WORKSPACE} --source cravatar --state /var/lib/wordyeah/state/cravatar-cursor.json --manifest ${CRAVATAR_MANIFEST} --root ${CRAVATAR_ROOT} --endpoint ${WORDYEAH_ENDPOINT} --poll-seconds ${CRAVATAR_POLL_SECONDS} --limit ${CRAVATAR_BATCH_LIMIT} --output /var/lib/wordyeah/status/cravatar-shadow.json

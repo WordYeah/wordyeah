@@ -154,8 +154,11 @@ def main(argv: Sequence[str] | None = None) -> None:
     try:
         while True:
             job = worker.run_once(handle)
-            if args.once or job is None:
+            if args.once:
                 return
+            if job is None:
+                time.sleep(max(args.poll_interval, 0.05))
+                continue
             time.sleep(max(args.poll_interval, 0.05))
     finally:
         review_store.close()

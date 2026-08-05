@@ -100,7 +100,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--state", type=Path, required=True)
     parser.add_argument("--manifest", type=Path)
     parser.add_argument("--root", type=Path)
-    parser.add_argument("--endpoint", default="http://127.0.0.1:8000")
+    parser.add_argument("--endpoint", default="http://127.0.0.1:18765")
     parser.add_argument("--limit", type=int)
     parser.add_argument("--poll-seconds", type=float, default=30.0)
     parser.add_argument("--max-cycles", type=int)

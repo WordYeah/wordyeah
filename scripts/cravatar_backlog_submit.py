@@ -38,7 +38,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("manifest", type=Path)
     parser.add_argument("--root", type=Path, required=True, help="controlled local image root")
-    parser.add_argument("--endpoint", default="http://127.0.0.1:8000")
+    parser.add_argument("--endpoint", default="http://127.0.0.1:18765")
     parser.add_argument("--output", type=Path, help="metadata-only result report")
     args = parser.parse_args()
     try:

@@ -40,6 +40,9 @@
 - [CX] 已验证：Cravatar 生产源只读 shadow 完成 1,100/1,100、失败 0、稳定重跑、暂停 0.09 秒，前后选定源记录一致；没有生产头像写回
 - [CX] 已验证：G2A `grok-chat-fast` 对两张合成图片返回真实结构化视觉响应；`grok-4.5` 与 `grok-4.3` 因 Build 池可用账号为 0 仍为 429
 - [CX] 已验证：仓库外 0600 三角色运行配置可分别建立 `reviewer-a`、`reviewer-b`、`arbitrator` session，身份、CSRF、质量批次和单 cookie 隔离均 PASS；浏览器恢复为 `reviewer-a`
+- [CX] 已修复：Cravatar CLI、提交脚本、systemd 环境和部署文档统一使用 API 真默认端口 `127.0.0.1:18765`；普通图片 worker 在空队列时继续轮询，不再退出常驻进程
+- [CX] 已准备：API、普通图片 worker、高级视觉 worker 与 Cravatar shadow 的 root-owned 环境样例和默认禁用 systemd 模板；运行时使用 0077 umask、loopback API、受限写目录，本地模型必须预置，高级视觉主/二审默认关闭；尚未安装到目标主机
+- [CX] 已核对：2026-08-05 08:34 Asia/Shanghai，G2A healthz 为 200，但 `grok-4.5` 串行 3 次均为 429；Build available=0，Web available=16402。先前 `grok-chat-fast` canary 证据仍有效，但不能据此写成 Build 池恢复
 - [CX] 未完成：代表性头像 corpus 的真人全量主审 0/1100、固定 10% 独立双审 0/110 和可能产生的分歧仲裁；目标主机持续调度部署仍未批准
 - 生产接入：只读 canary 已完成；未写回 WordPress/头像/队列
 - 外部审查 API：生产默认关闭；仅做过受控 G2A canary

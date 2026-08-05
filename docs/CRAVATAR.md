@@ -50,7 +50,7 @@ production path and requires an independent canary and rollback verification.
 python scripts/cravatar_backlog_import.py manifest.json \
   --root ./controlled-images --output ./normalized.jsonl
 python scripts/cravatar_backlog_submit.py manifest.json \
-  --root ./controlled-images --endpoint http://127.0.0.1:8000 \
+  --root ./controlled-images --endpoint http://127.0.0.1:18765 \
   --output ./shadow-results.json
 ```
 
@@ -74,7 +74,7 @@ records:
 ```bash
 wordyeah-cravatar run --workspace cravatar --state ./cursor.json \
   --manifest ./manifest.jsonl --root ./controlled-images \
-  --endpoint http://127.0.0.1:8000
+  --endpoint http://127.0.0.1:18765
 wordyeah-cravatar watermark --workspace cravatar --state ./cursor.json
 wordyeah-cravatar pause --workspace cravatar --state ./cursor.json
 wordyeah-cravatar resume --workspace cravatar --state ./cursor.json

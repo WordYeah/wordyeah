@@ -1,0 +1,29 @@
+[Unit]
+Description=WordYeah local fast-scan worker
+After=wordyeah-api.service
+
+[Service]
+Type=simple
+User=wordyeah
+Group=wordyeah
+UMask=0077
+WorkingDirectory=/opt/wordyeah
+EnvironmentFile=/etc/wordyeah/wordyeah.env
+ExecStart=/opt/wordyeah/.venv/bin/wordyeah-worker --database ${WORDYEAH_DATABASE} --media-root ${WORDYEAH_MEDIA_ROOT} --model-path ${WORDYEAH_MEDIA_MODEL_PATH} --policy-path ${WORDYEAH_POLICY_PATH} --device ${WORDYEAH_DEVICE} --worker-id fast-scan-1 --poll-interval 0.5
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/var/lib/wordyeah
+
+[Install]
+WantedBy=multi-user.target
