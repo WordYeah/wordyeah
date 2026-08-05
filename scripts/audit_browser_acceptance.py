@@ -338,6 +338,15 @@ def main() -> int:
                                       textLeftInset: textBox
                                         ? textBox.left - optionBox.left
                                         : null,
+                                      textTriggerDelta: textBox && labelBox
+                                        ? Math.abs(textBox.left - labelBox.left)
+                                        : null,
+                                      checkTriggerDelta: checkBox && iconBox
+                                        ? Math.abs(
+                                            checkBox.left + checkBox.width / 2
+                                            - (iconBox.left + iconBox.width / 2)
+                                          )
+                                        : null,
                                       textClipped: text
                                         ? text.scrollWidth > text.clientWidth + .5
                                         : null,
@@ -478,7 +487,15 @@ def main() -> int:
                             and option["textCenterDelta"] is not None
                             and option["textCenterDelta"] <= 0.75
                             and option["textLeftInset"] is not None
-                            and abs(option["textLeftInset"] - 9.0) <= 0.75
+                            and abs(option["textLeftInset"] - 5.0) <= 0.75
+                            and (
+                                option["textTriggerDelta"] is None
+                                or option["textTriggerDelta"] <= 0.75
+                            )
+                            and (
+                                option["checkTriggerDelta"] is None
+                                or option["checkTriggerDelta"] <= 0.75
+                            )
                             and (
                                 option["checkCenterDelta"] is None
                                 or option["checkCenterDelta"] <= 0.5

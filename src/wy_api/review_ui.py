@@ -217,7 +217,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   min-height: 34px;
   align-items: center;
   gap: 12px;
-  padding: 0 9px;
+  padding: 0 5px;
   border-radius: 7px;
   color: var(--muted);
   font-size: 12px;
@@ -1349,7 +1349,7 @@ details[open] > .dropdown-trigger > .dropdown-trigger__chevron > .icon {
   width: 148px;
   min-width: 148px;
 }
-.risk-filter-dropdown > summary { border-color: var(--line); padding-left: 12px; }
+.risk-filter-dropdown > summary { border-color: var(--line); }
 .risk-filter-dropdown > .menu-select__menu { right: 0; left: auto; }
 
 .filter-bar {
@@ -1649,7 +1649,7 @@ details[open] > .dropdown-trigger > .dropdown-trigger__chevron > .icon {
   margin: 0;
 }
 .per-page-dropdown > summary {
-  padding: 0 8px 0 9px;
+  padding: 0 10px 0 11px;
   border: 1px solid var(--line);
   border-radius: 7px;
   background: var(--panel-soft);
