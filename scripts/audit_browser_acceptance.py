@@ -351,10 +351,11 @@ def main() -> int:
                             }"""
                         )
                         trigger.click()
-                        page.wait_for_timeout(200)
-                        menu_box = page.locator(
+                        page.wait_for_timeout(250)
+                        menu = page.locator(
                             selector.replace("> summary", ".consumer-popover-menu")
-                        ).bounding_box()
+                        )
+                        menu_box = menu.bounding_box()
                         trigger_box = trigger.bounding_box()
                         trigger_measurement["menuWithinViewport"] = bool(
                             menu_box
@@ -366,6 +367,16 @@ def main() -> int:
                             if menu_box and trigger_box
                             else None
                         )
+                        trigger_measurement["visibleAtCenter"] = menu.evaluate(
+                            """menu => {
+                              const box = menu.getBoundingClientRect();
+                              const hit = document.elementFromPoint(
+                                box.left + box.width / 2,
+                                box.top + box.height / 2
+                              );
+                              return Boolean(hit && menu.contains(hit));
+                            }"""
+                        )
                         trigger_measurement.update({"path": path, "viewport": width})
                         mobile_triggers.append(trigger_measurement)
                 triggers_aligned = all(
@@ -373,6 +384,7 @@ def main() -> int:
                     and row["iconSize"] == [14, 14]
                     and row["centerDelta"] <= 0.5
                     and row["menuWithinViewport"]
+                    and row["visibleAtCenter"]
                     and row["anchorEdgeDelta"] is not None
                     and row["anchorEdgeDelta"] <= 0.5
                     for row in mobile_triggers
@@ -395,7 +407,7 @@ def main() -> int:
                 ):
                     page.goto(base + path, wait_until="networkidle")
                     page.locator(trigger_selector).click()
-                    page.wait_for_timeout(200)
+                    page.wait_for_timeout(250)
                     popover = page.locator(menu_selector)
                     menu_box = popover.bounding_box()
                     trigger_box = page.locator(trigger_selector).bounding_box()
@@ -433,6 +445,16 @@ def main() -> int:
                                 width <= 16 and height <= 16
                                 for width, height in icon_sizes
                             ),
+                            "visibleAtCenter": popover.evaluate(
+                                """menu => {
+                                  const box = menu.getBoundingClientRect();
+                                  const hit = document.elementFromPoint(
+                                    box.left + box.width / 2,
+                                    box.top + box.height / 2
+                                  );
+                                  return Boolean(hit && menu.contains(hit));
+                                }"""
+                            ),
                         }
                     )
                 desktop_popovers_aligned = all(
@@ -441,6 +463,7 @@ def main() -> int:
                     and row["anchorEdgeDelta"] is not None
                     and row["anchorEdgeDelta"] <= 0.5
                     and row["iconsWithinContract"]
+                    and row["visibleAtCenter"]
                     for row in desktop_popovers
                 )
                 page.set_viewport_size({"width": 1440, "height": 900})

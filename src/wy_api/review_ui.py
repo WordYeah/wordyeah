@@ -614,6 +614,9 @@ details[open] > .dropdown-trigger > .icon:last-child {
   position: relative;
   width: 100%;
 }
+.consumer-popover-wrapper[open],
+.mobile-workspace-switcher[open],
+.account-menu[open] { z-index: 120; }
 .consumer-popover-wrapper summary {
   list-style: none;
   outline: none;
@@ -930,6 +933,8 @@ details[open] > .dropdown-trigger > .icon:last-child {
 }
 
 .topbar {
+  position: relative;
+  z-index: 20;
   min-height: 72px;
   display: flex;
   align-items: center;
@@ -1033,7 +1038,7 @@ details[open] > .dropdown-trigger > .icon:last-child {
 .toolbar-logout { margin: 0; }
 .toolbar-logout button { cursor: pointer; }
 
-.account-menu { position: relative; }
+.account-menu { position: relative; z-index: 1; }
 .account-menu summary {
   display: flex;
   min-height: 42px;
