@@ -16,6 +16,7 @@ from wy_media.service import MediaModerationService
 from wy_review.store import ReviewStore
 from wy_review.quality import QualityStore
 from wy_review.corpus_quality_import import import_candidate_manifests
+from wy_review.corpus_ai_prelabels import enqueue_corpus_ai_prelabels
 
 
 class Classifier:
@@ -175,6 +176,66 @@ def test_imported_corpus_sample_has_session_protected_controlled_preview() -> No
             )
             assert decision.status_code == 303
             assert decision.headers["location"] == "/review/quality?offset=24"
+
+
+def test_quality_page_shows_ai_proposal_without_promoting_it_to_human_truth() -> None:
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        database = root / "wordyeah.sqlite3"
+        digest = "c" * 64
+        quality = QualityStore(str(database))
+        quality.create_vocabulary(consumer_id="corpus-avatar")
+        sample = quality.create_sample(
+            consumer_id="corpus-avatar",
+            item_id=f"corpus-{digest}",
+            content_sha256=digest,
+            media_ref=f"media://corpus/corpus-avatar/{digest}.png",
+            reason="quality_sample",
+            stratum="boundary",
+            retention_status="private_corpus",
+        )
+        quality.close()
+        database.chmod(0o600)
+        app = create_app(
+            settings=ApiSettings(
+                database_path=str(database),
+                media_root=root / "media",
+                consumer_id="corpus-avatar",
+                local_review_no_auth=True,
+            ),
+            service=MediaModerationService(Classifier()),
+        )
+        with TestClient(app) as client:
+            before = client.get("/review/quality")
+            assert before.status_code == 200
+            assert "待 AI 预标注" in before.text
+
+            report = enqueue_corpus_ai_prelabels(
+                database=database,
+                consumer_id="corpus-avatar",
+                policy_path=Path(__file__).parents[1]
+                / "config"
+                / "policy.avatar.example.json",
+                limit=1,
+                apply=True,
+            )
+            assert report["human_decisions_created"] == 0
+            after = client.get("/review/quality")
+            assert after.status_code == 200
+            assert "AI 一审排队中" in after.text
+
+        quality = QualityStore(str(database))
+        try:
+            persisted = quality.get_sample(
+                sample_id=sample.sample_id, consumer_id="corpus-avatar"
+            )
+            assert persisted.final_decision is None
+            assert persisted.status == "awaiting_reviews"
+            assert quality.list_decisions(
+                sample_id=sample.sample_id, consumer_id="corpus-avatar"
+            ) == []
+        finally:
+            quality.close()
 
 
 def test_quality_page_defaults_to_frozen_batch_and_preserves_batch_navigation() -> None:

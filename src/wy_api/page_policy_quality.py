@@ -292,7 +292,7 @@ def render_quality_body(data: object = None) -> str:
         )
         rows.append(
             '<tr data-quality-row>'
-            f'<td>{case_html}</td><td>{_e(ai)}</td><td>{_e(check)}</td><td>{_e(disagreement)}</td>'
+            f'<td>{case_html}</td><td data-quality-ai-proposal>{_e(ai)}</td><td>{_e(check)}</td><td>{_e(disagreement)}</td>'
             f'<td><span class="pq-verdict" data-tone="{_tone(item.get("tone"))}">{_e(verdict)}</span>{action_html}</td></tr>'
         )
     rows_html = "".join(rows) or '<tr><td colspan="5"><div class="pq-empty" role="status">SKIP · 未提供抽检样本。</div></td></tr>'

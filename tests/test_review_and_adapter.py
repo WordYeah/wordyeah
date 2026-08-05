@@ -50,6 +50,23 @@ class ReviewAndAdapterTest(unittest.TestCase):
             len(store.list_items(status=None, consumer_id="cravatar")), 1
         )
 
+    def test_source_lookup_is_consumer_scoped(self) -> None:
+        store = ReviewStore()
+        created = store.enqueue(
+            result("review"),
+            "media://first.png",
+            consumer_id="cravatar",
+            source_id="upstream:1",
+        )
+        self.assertEqual(
+            store.get_by_source_id("upstream:1", consumer_id="cravatar").item_id,
+            created.item_id,
+        )
+        with self.assertRaises(KeyError):
+            store.get_by_source_id("upstream:1", consumer_id="other")
+        with self.assertRaises(ValueError):
+            store.get_by_source_id("", consumer_id="cravatar")
+
     def test_reject_replaces_default_while_blacklist_uses_the_ban_state(self) -> None:
         store = ReviewStore()
         ordinary = store.enqueue(result("review", "e" * 64), "media://ordinary.png")

@@ -50,6 +50,34 @@ session，并核对账户身份、`corpus-primary-v1` 和 `dual-review-10pct-v2`
 - 顶栏/侧栏工作区切换使用服务端工作区配置，切换后队列、事件、attempt 和 cursor 都按 consumer 隔离。
 - 质量页直接显示真实抽检样本；独立 reviewer 可完成双审，结论分歧后只向未参与审核的仲裁员显示通过/拒绝动作，全程不弹确认框。
 
+### 私有 corpus 的 AI 预标注
+
+代表性 corpus 可以先进入与普通头像相同的高级视觉链，质量页把模型输出显示为
+“AI 建议”，用于减少人工阅读成本。AI 预标注和人工真值是两条独立记录：预标注不会写入
+`quality_decisions`，不会设置 `quality_samples.final_decision`，也不计入 1,100 条主审、
+110 条双审或仲裁完成数。模型上下文不包含 corpus 分层或预期标签，避免把选样信息泄露给
+被测模型。
+
+命令默认只读；实际入队必须显式使用 `--apply`。写入模式要求数据库是非符号链接的 0600
+普通文件，并受活动任务水位限制：
+
+```bash
+python scripts/enqueue_corpus_ai_prelabels.py \
+  --database /private/wordyeah/avatar-corpus-review/wordyeah.sqlite3 \
+  --consumer-id corpus-avatar
+
+python scripts/enqueue_corpus_ai_prelabels.py \
+  --database /private/wordyeah/avatar-corpus-review/wordyeah.sqlite3 \
+  --consumer-id corpus-avatar \
+  --max-active-jobs 2000 \
+  --apply
+```
+
+脚本按 corpus item id 幂等关联审核项目，并幂等确保 `vision_review_1` 任务。报告固定声明
+`production_write=false`、`mutates_avatar=false` 和
+`counts_toward_ground_truth=false`，同时比较执行前后的样本数、人工决定数和已收敛数；任何
+变化都按错误处理。入队不等于模型已完成，只有 attempt 成功后质量页才显示实际 AI 建议。
+
 ## 安全边界
 
 - 只绑定 loopback/private network；不做公网匿名审核入口。

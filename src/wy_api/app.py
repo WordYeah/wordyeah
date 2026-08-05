@@ -32,6 +32,7 @@ from wy_review.quality import (
     QualityConflictError,
     QualityStore,
 )
+from wy_review.corpus_ai_prelabels import is_corpus_ai_prelabel
 from wy_review.workspace import Workspace, WorkspaceStore
 from wy_api.login_ui import render_login_page
 from wy_api.review_pages import ReviewPageContext, render_review_page
@@ -1554,6 +1555,49 @@ def create_app(
                     consumer_id=consumer_id, limit=page_size, offset=safe_offset
                 )
             )
+
+            def quality_ai_proposal(sample_item_id: str) -> str:
+                try:
+                    item = review_store.get_by_source_id(
+                        sample_item_id, consumer_id=consumer_id
+                    )
+                except KeyError:
+                    return "待 AI 预标注"
+                if not is_corpus_ai_prelabel(item.source_metadata):
+                    return "待 AI 预标注"
+                item_attempts = attempt_store.list_attempts(
+                    item.item_id, consumer_id=consumer_id
+                )
+                latest = next(
+                    (
+                        attempt
+                        for attempt in reversed(item_attempts)
+                        if attempt.status == "succeeded" and attempt.decision
+                    ),
+                    None,
+                )
+                if latest is not None:
+                    decision_text = {
+                        "allow": "AI 建议通过",
+                        "block": "AI 建议拒绝",
+                        "review": "AI 建议复核",
+                        "error": "AI 预标注失败",
+                    }[latest.decision]
+                    confidence = (
+                        f" · {latest.confidence:.0%}"
+                        if latest.confidence is not None else ""
+                    )
+                    return decision_text + confidence
+                return {
+                    "fast_scan": "AI 预标注待入队",
+                    "vision_review_1": "AI 一审排队中",
+                    "vision_review_2": "AI 二审排队中",
+                    "human_required": "AI 建议人工复核",
+                    "auto_approved": "AI 建议通过",
+                    "auto_rejected": "AI 建议拒绝",
+                    "model_error": "AI 预标注失败",
+                }.get(item.stage, "AI 预标注处理中")
+
             sample_rows = []
             for sample in samples:
                 decisions = quality_store.list_decisions(
@@ -1585,7 +1629,7 @@ def create_app(
                     {
                         "id": sample.sample_id[:12],
                         "item_id": sample.item_id,
-                        "model": sample.reason,
+                        "model": quality_ai_proposal(sample.item_id),
                         "review": review_text,
                         "disagreement": "是" if sample.arbitration_required else "否",
                         "verdict": sample.final_decision or sample.status,

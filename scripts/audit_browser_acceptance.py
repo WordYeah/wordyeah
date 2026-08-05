@@ -487,6 +487,16 @@ def main() -> int:
                 body = page.locator("body").inner_text()
                 thumbnails = page.locator('.pq-sample-link img[loading="lazy"]').count()
                 original_links = page.locator('.pq-sample-link[target="_blank"]').count()
+                proposals = page.locator("[data-quality-ai-proposal]").all_inner_texts()
+                proposal_states = (
+                    "待 AI 预标注",
+                    "AI 预标注待入队",
+                    "AI 一审排队中",
+                    "AI 二审排队中",
+                    "AI 建议",
+                    "AI 预标注失败",
+                    "AI 预标注处理中",
+                )
                 return {
                     "passed": bool(
                         response
@@ -494,10 +504,18 @@ def main() -> int:
                         and "1100" in body.replace(",", "")
                         and 0 < thumbnails <= 24
                         and original_links == thumbnails
+                        and len(proposals) == thumbnails
+                        and all(
+                            any(proposal.startswith(state) for state in proposal_states)
+                            for proposal in proposals
+                        )
+                        and all("quality_sample" not in proposal for proposal in proposals)
                     ),
                     "http": response.status if response else None,
                     "lazy_thumbnails": thumbnails,
                     "original_autoloads": 0,
+                    "ai_proposals": len(proposals),
+                    "human_truth_mutations": 0,
                 }
 
             checks.append(_check("corpus_quality_1100_paginated_thumbnails", quality_corpus))

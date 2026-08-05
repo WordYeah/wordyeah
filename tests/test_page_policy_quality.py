@@ -68,6 +68,7 @@ class PolicyQualityPageTest(unittest.TestCase):
         self.assertIn('aria-label="抽检概况"', page)
         self.assertIn("误判确认", page)
         self.assertIn("vision ↔ rules", page)
+        self.assertIn("data-quality-ai-proposal", page)
         self.assertIn("30 天", page)
         self.assertIn("false-positive", page)
         self.assertIn("人工介入边界", page)

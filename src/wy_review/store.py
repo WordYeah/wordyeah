@@ -246,6 +246,25 @@ class ReviewStore:
             raise KeyError(f"review item not found: {item_id}")
         return self._row(row)
 
+    def get_by_source_id(self, source_id: str, *, consumer_id: str) -> ReviewItem:
+        """Return the review item linked to an upstream controlled source identifier."""
+
+        if not source_id or len(source_id) > 512:
+            raise ValueError("source_id must be between 1 and 512 characters")
+        if not consumer_id or len(consumer_id) > 128:
+            raise ValueError("consumer_id must be between 1 and 128 characters")
+        row = self.connection.execute(
+            """
+            SELECT * FROM review_items
+            WHERE consumer_id = ? AND source_id = ?
+            ORDER BY created_at, item_id LIMIT 1
+            """,
+            (consumer_id, source_id),
+        ).fetchone()
+        if row is None:
+            raise KeyError(f"review item source not found: {source_id}")
+        return self._row(row)
+
     def list_items(
         self,
         status: ReviewStatus | None = "pending",
