@@ -243,14 +243,14 @@ CSS = """
    selects or pushes the reset action outside the workspace. */
 @media (min-width: 761px) and (max-width: 1180px) {
   .audit-filters {
-    grid-template-columns: repeat(3, minmax(132px, 1fr)) auto auto;
+    grid-template-columns: minmax(210px, 1.4fr) repeat(2, minmax(132px, 1fr)) auto auto;
   }
   .audit-filter-search { grid-column: 1 / -1; }
 }
 @media (max-width: 760px) {
   .audit-filters { grid-template-columns: 1fr 1fr; }
   .audit-filter-search { grid-column: 1 / -1; }
-  .audit-filter-menu:last-of-type { grid-column: 1 / -1; }
+  .audit-filter-menu--actor { grid-column: 1 / -1; }
   .audit-list-meta { align-items: flex-start; flex-direction: column; }
   .audit-list-head { display: none; }
   .audit-event { grid-template-columns: 1fr auto; gap: 6px 10px; }
@@ -347,7 +347,8 @@ def _history_filter_menu(
             f'<span>{escape(choice_label)}</span>{check}</a>'
         )
     return (
-        f'<details class="audit-filter audit-filter-menu menu-select" name="review-dropdown">'
+        f'<details class="audit-filter audit-filter-menu audit-filter-menu--{escape(name)} '
+        f'menu-select" name="review-dropdown">'
         f'<summary class="dropdown-trigger" aria-label="{escape(label)}">'
         f'<span class="menu-select__label dropdown-trigger__label">{escape(current_label)}</span>'
         f'<span class="dropdown-trigger__chevron">{icon("chevron-down")}</span></summary>'

@@ -318,8 +318,8 @@ def main() -> int:
                                     : [];
                                   const optionAlignment = options.map(option => {
                                     const optionBox = option.getBoundingClientRect();
-                                    const textBox = option.querySelector(':scope > span')
-                                      ?.getBoundingClientRect();
+                                    const text = option.querySelector(':scope > span');
+                                    const textBox = text?.getBoundingClientRect();
                                     const checkBox = option.querySelector(':scope > .icon')
                                       ?.getBoundingClientRect();
                                     return {
@@ -337,6 +337,9 @@ def main() -> int:
                                         : null,
                                       textLeftInset: textBox
                                         ? textBox.left - optionBox.left
+                                        : null,
+                                      textClipped: text
+                                        ? text.scrollWidth > text.clientWidth + .5
                                         : null,
                                       inside: textBox
                                         ? textBox.left >= optionBox.left
@@ -393,6 +396,9 @@ def main() -> int:
                                           - (labelBox.top + labelBox.height / 2)
                                         )
                                       : null,
+                                    labelClipped: labelBox
+                                      ? label.scrollWidth > label.clientWidth + .5
+                                      : false,
                                     optionAlignment,
                                     inlineEdgeDelta,
                                     widthDelta: triggerBox && menuBox
@@ -461,8 +467,10 @@ def main() -> int:
                             row["labelCenterDelta"] is None
                             or row["labelCenterDelta"] <= 0.75
                         )
+                        and not row["labelClipped"]
                         and all(
                             option["inside"]
+                            and not option["textClipped"]
                             and option["textCenterDelta"] is not None
                             and option["textCenterDelta"] <= 0.75
                             and option["textLeftInset"] is not None

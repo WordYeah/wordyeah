@@ -55,9 +55,10 @@ class PageHistoryHealthTest(unittest.TestCase):
             page,
         )
         self.assertIn('href="/review/history?q=avatar&amp;actor=agent-a"', page)
-        self.assertEqual(
-            page.count('class="audit-filter audit-filter-menu menu-select"'), 3
-        )
+        self.assertEqual(page.count('class="audit-filter audit-filter-menu '), 3)
+        self.assertIn("audit-filter-menu--actor", page)
+        self.assertIn("audit-filter-menu--action", page)
+        self.assertIn("audit-filter-menu--stage", page)
         self.assertEqual(page.count('class="menu-select__menu"'), 3)
         self.assertEqual(page.count('<path d="M6 9l6 6l6 -6"/>'), 3)
         self.assertIn(
@@ -65,7 +66,7 @@ class PageHistoryHealthTest(unittest.TestCase):
             PAGE_HISTORY_HEALTH_CSS,
         )
         self.assertIn(
-            "grid-template-columns: repeat(3, minmax(132px, 1fr)) auto auto",
+            "grid-template-columns: minmax(210px, 1.4fr) repeat(2, minmax(132px, 1fr)) auto auto",
             PAGE_HISTORY_HEALTH_CSS,
         )
         self.assertIn('class="audit-list-head"', page)
