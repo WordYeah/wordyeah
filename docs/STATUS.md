@@ -71,6 +71,7 @@
 - [CX] 已固化并验证：浏览器验收默认从源 SQLite 的 `mode=ro + query_only` 连接创建 0600 一次性副本，只在副本中放置一条人工审核项；真实 Chromium 覆盖九个页面、全部下拉、三种队列视图、批量上限、质量分页和移动端，报告为 PASS。源库未交给 Web 进程、临时审核状态与事件数未变化，`source_database_mutated=false`、`production_avatar_write=false`
 - [CX] 已加固：头像 MVP 聚合器不再接受缺少隔离来源、未声明审核决定非写入、未覆盖全部下拉或未覆盖 1,100 条质量分页的旧浏览器报告；当前除代表性 corpus 真人标签外其余证据仍为 PASS，整体继续为 `INCOMPLETE`
 - [CX] 已验证：最新完整测试为 265 个 pytest、12 个 subtest；Ruff、compileall 和 diff check 全部通过。唯一警告为 Starlette/httpx 弃用提示
+- [CX] 2026-08-05 20:42 Asia/Shanghai 只读重算：冻结 corpus 仍为 1,100 条，AI 可评测建议增至 91，真人收敛 0、可评测人机配对 0；Cravatar shadow、浏览器隔离验收、高级视觉 canary、故障演练和 15 分钟队列负载均为 PASS，聚合状态仍为 `INCOMPLETE`
 - [CX] 未完成：代表性头像 corpus 的真人全量主审 0/1100、固定 10% 独立双审 0/110 和可能产生的分歧仲裁；目标主机持续调度部署仍未批准
 - 生产接入：只读 canary 已完成；未写回 WordPress/头像/队列
 - 外部审查 API：生产默认关闭；仅做过受控 G2A canary
