@@ -168,6 +168,34 @@ class ReviewAndAdapterTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             store.list_items_page(consumer_id="one", cursor="not-a-cursor")
 
+    def test_quality_samples_stay_out_of_operational_human_queue_until_escalated(self) -> None:
+        store = ReviewStore()
+        sample = store.enqueue(
+            result("review", "a" * 64),
+            "media://quality.png",
+            consumer_id="one",
+        )
+        store.connection.execute(
+            "UPDATE review_items SET quality_sample = 1 WHERE item_id = ?",
+            (sample.item_id,),
+        )
+        store.connection.commit()
+
+        pending, _ = store.list_items_page(
+            consumer_id="one", limit=10, human_only=True
+        )
+        self.assertEqual(pending, [])
+
+        store.connection.execute(
+            "UPDATE review_items SET arbitration_required = 1 WHERE item_id = ?",
+            (sample.item_id,),
+        )
+        store.connection.commit()
+        escalated, _ = store.list_items_page(
+            consumer_id="one", limit=10, human_only=True
+        )
+        self.assertEqual([item.item_id for item in escalated], [sample.item_id])
+
     def test_error_results_enter_held_not_pending(self) -> None:
         store = ReviewStore()
         item = store.enqueue(result("error", "d" * 64), "sha256://d", consumer_id="one")

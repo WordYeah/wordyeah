@@ -3777,7 +3777,6 @@ def _requires_human_review(item: ReviewItem) -> bool:
     """Return only pending cases the automated review chain has escalated."""
     return item.status == "pending" and (
         item.stage == "human_required"
-        or item.quality_sample
         or item.arbitration_required
     )
 

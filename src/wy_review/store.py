@@ -325,7 +325,7 @@ class ReviewStore:
             parameters.append(decision_hint)
         if human_only:
             clauses.append(
-                "(stage = 'human_required' OR quality_sample = 1 OR arbitration_required = 1)"
+                "(stage = 'human_required' OR arbitration_required = 1)"
             )
         if cursor:
             created_at, item_id = self._decode_cursor(cursor)

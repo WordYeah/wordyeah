@@ -207,8 +207,20 @@ def main() -> int:
             def focus_no_modal() -> dict[str, object]:
                 dialogs: list[str] = []
                 page.on("dialog", lambda dialog: (dialogs.append(dialog.type), dialog.dismiss()))
+                pending_response = page.request.get(
+                    base + "/review/items?status=pending&limit=1"
+                )
+                pending_payload = pending_response.json() if pending_response.ok else {}
+                pending_items = pending_payload.get("items", [])
+                focus_item_id = (
+                    pending_items[0].get("item_id")
+                    if pending_items and isinstance(pending_items[0], dict)
+                    else None
+                )
                 response = page.goto(
-                    base + "/review?status=all&view=focus",
+                    base
+                    + "/review?status=all&view=focus"
+                    + (f"&focus={focus_item_id}" if focus_item_id else ""),
                     wait_until="networkidle",
                 )
                 buttons = page.locator(".action-buttons button")
@@ -224,6 +236,7 @@ def main() -> int:
                         response and response.status == 200 and button_count >= 2 and not dialogs
                     ),
                     "http": response.status if response else None,
+                    "eligible_item_found": bool(focus_item_id),
                     "actions": button_count,
                     "dialogs": len(dialogs),
                     "mutating_requests": 0,
