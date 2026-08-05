@@ -237,6 +237,109 @@ def main() -> int:
                 )
             )
 
+            def dropdown_alignment() -> dict[str, object]:
+                page.set_viewport_size({"width": 1440, "height": 900})
+                measurements: list[dict[str, object]] = []
+                for path in (
+                    "/review?status=all&view=list&per_page=20",
+                    "/review/history",
+                ):
+                    response = page.goto(base + path, wait_until="networkidle")
+                    if response is None or response.status != 200:
+                        raise RuntimeError(f"dropdown page failed: {path}")
+                    for control in page.locator("select").all():
+                        measurement = control.evaluate(
+                            """select => {
+                              const wrapper = select.closest('.select-control');
+                              const icon = wrapper?.querySelector('.select-control__icon');
+                              const selectBox = select.getBoundingClientRect();
+                              const iconBox = icon?.getBoundingClientRect();
+                              const style = getComputedStyle(select);
+                              return {
+                                name: select.getAttribute('name'),
+                                wrapped: Boolean(wrapper),
+                                icon: Boolean(icon),
+                                appearance: style.appearance,
+                                selectHeight: selectBox.height,
+                                centerDelta: iconBox
+                                  ? Math.abs(
+                                      (selectBox.top + selectBox.height / 2)
+                                      - (iconBox.top + iconBox.height / 2)
+                                    )
+                                  : null,
+                              };
+                            }"""
+                        )
+                        measurement["path"] = path
+                        measurements.append(measurement)
+                aligned = all(
+                    row["wrapped"]
+                    and row["icon"]
+                    and row["appearance"] == "none"
+                    and row["centerDelta"] is not None
+                    and row["centerDelta"] <= 0.5
+                    for row in measurements
+                )
+                mobile_triggers: list[dict[str, object]] = []
+                page.set_viewport_size({"width": 390, "height": 844})
+                for path, selector in (
+                    (
+                        "/review?status=all&view=list&per_page=20",
+                        ".mobile-workspace-switcher > summary",
+                    ),
+                    ("/review/history", ".support-mobile-workspace > summary"),
+                ):
+                    page.goto(base + path, wait_until="networkidle")
+                    trigger = page.locator(selector)
+                    trigger_measurement = trigger.evaluate(
+                        """summary => {
+                          const triggerBox = summary.getBoundingClientRect();
+                          const iconBox = summary.querySelector('.icon').getBoundingClientRect();
+                          return {
+                            height: triggerBox.height,
+                            iconSize: [iconBox.width, iconBox.height],
+                            centerDelta: Math.abs(
+                              (triggerBox.top + triggerBox.height / 2)
+                              - (iconBox.top + iconBox.height / 2)
+                            ),
+                          };
+                        }"""
+                    )
+                    trigger.click()
+                    menu_box = page.locator(
+                        selector.replace("> summary", ".consumer-popover-menu")
+                    ).bounding_box()
+                    trigger_measurement["menuWithinViewport"] = bool(
+                        menu_box
+                        and menu_box["x"] >= 0
+                        and menu_box["x"] + menu_box["width"] <= 390
+                    )
+                    trigger_measurement["path"] = path
+                    mobile_triggers.append(trigger_measurement)
+                triggers_aligned = all(
+                    row["height"] <= 42
+                    and row["iconSize"] == [14, 14]
+                    and row["centerDelta"] <= 0.5
+                    and row["menuWithinViewport"]
+                    for row in mobile_triggers
+                )
+                page.set_viewport_size({"width": 1440, "height": 900})
+                page.goto(base + "/review/history", wait_until="networkidle")
+                shot = screenshot("dropdowns-1440x900.png")
+                return {
+                    "passed": (
+                        aligned
+                        and len(measurements) == 5
+                        and triggers_aligned
+                        and len(mobile_triggers) == 2
+                    ),
+                    "controls": measurements,
+                    "mobile_triggers": mobile_triggers,
+                    "screenshot": shot,
+                }
+
+            checks.append(_check("all_dropdowns_share_alignment_contract", dropdown_alignment))
+
             def mobile_quality() -> dict[str, object]:
                 page.set_viewport_size({"width": 390, "height": 844})
                 response = page.goto(base + "/review/quality", wait_until="networkidle")

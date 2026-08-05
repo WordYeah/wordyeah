@@ -40,7 +40,6 @@ CSS = """
 }
 .audit-filter input,
 .audit-filter select {
-  display: block;
   width: 100%;
   height: 36px;
   min-height: 36px;
@@ -50,25 +49,13 @@ CSS = """
   background: var(--panel);
   color: var(--text);
   font-size: 12px;
-  line-height: 34px;
+  line-height: normal;
 }
 .audit-filter-search input { padding-left: 34px; }
 .audit-filter-select select {
   padding-right: 34px;
   appearance: none;
   -webkit-appearance: none;
-  cursor: pointer;
-}
-.audit-filter-select > .icon {
-  position: absolute;
-  top: 50%;
-  right: 11px;
-  z-index: 1;
-  width: 14px;
-  height: 14px;
-  color: var(--quiet);
-  pointer-events: none;
-  transform: translateY(-50%);
 }
 .audit-filter input:focus-visible,
 .audit-filter select:focus-visible,
@@ -438,12 +425,12 @@ def render_history_content(data: Mapping[str, object]) -> str:
         '<label class="audit-filter audit-filter-search">'
         f'{icon("search")}<span class="sr-only">搜索对象、原因或事件</span>'
         f'<input type="search" name="q" value="{escape(query)}" autocomplete="off" placeholder="搜索对象、原因或事件"></label>'
-        '<label class="audit-filter audit-filter-select"><span class="sr-only">执行者</span><select name="actor" aria-label="执行者">'
-        f"{_options(actors, actor, '全部执行者')}</select>{icon('chevron-down')}</label>"
-        '<label class="audit-filter audit-filter-select"><span class="sr-only">事件类型</span><select name="action" aria-label="事件类型">'
-        f"{_options(actions, action, '全部事件')}</select>{icon('chevron-down')}</label>"
-        '<label class="audit-filter audit-filter-select"><span class="sr-only">流水线阶段</span><select name="stage" aria-label="流水线阶段">'
-        f"{_options(stages, stage, '全部阶段')}</select>{icon('chevron-down')}</label>"
+        '<label class="audit-filter audit-filter-select select-control"><span class="sr-only">执行者</span><select name="actor" aria-label="执行者">'
+        f"{_options(actors, actor, '全部执行者')}</select><span class=\"select-control__icon\" aria-hidden=\"true\">{icon('chevron-down')}</span></label>"
+        '<label class="audit-filter audit-filter-select select-control"><span class="sr-only">事件类型</span><select name="action" aria-label="事件类型">'
+        f"{_options(actions, action, '全部事件')}</select><span class=\"select-control__icon\" aria-hidden=\"true\">{icon('chevron-down')}</span></label>"
+        '<label class="audit-filter audit-filter-select select-control"><span class="sr-only">流水线阶段</span><select name="stage" aria-label="流水线阶段">'
+        f"{_options(stages, stage, '全部阶段')}</select><span class=\"select-control__icon\" aria-hidden=\"true\">{icon('chevron-down')}</span></label>"
         f'<button class="audit-apply" type="submit">{icon("search")}筛选</button>'
         f'<a class="audit-reset" href="/review/history">{icon("x")}清除</a></form>'
     )

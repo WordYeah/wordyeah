@@ -115,6 +115,64 @@ code, .mono { font-family: var(--mono); }
 .brand, h1, h2, h3, button, .page-tabs, .view-switch { font-family: var(--font-display); }
 button, a { -webkit-tap-highlight-color: transparent; }
 
+/* One geometry contract for every native select in the reviewer UI. */
+.select-control {
+  --select-height: 36px;
+  --select-chevron-size: 14px;
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  vertical-align: middle;
+}
+:where(.select-control) > select {
+  display: block;
+  width: 100%;
+  height: var(--select-height);
+  min-height: var(--select-height);
+  padding: 0 34px 0 11px;
+  appearance: none;
+  -webkit-appearance: none;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  outline: 0;
+  background: var(--panel);
+  color: var(--text);
+  line-height: normal;
+  cursor: pointer;
+}
+.select-control > .select-control__icon {
+  position: absolute;
+  top: 50%;
+  right: 11px;
+  z-index: 1;
+  display: grid;
+  width: var(--select-chevron-size);
+  height: var(--select-chevron-size);
+  place-items: center;
+  color: var(--quiet);
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+.select-control > .select-control__icon > .icon {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.dropdown-trigger {
+  display: inline-flex;
+  align-items: center;
+  list-style: none;
+}
+.dropdown-trigger::-webkit-details-marker { display: none; }
+.dropdown-trigger > .icon,
+.dropdown-trigger > .chevron > .icon {
+  display: block;
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
@@ -588,18 +646,23 @@ button, a { -webkit-tap-highlight-color: transparent; }
 
 .mobile-workspace-switcher { display: none; position: relative; }
 .mobile-workspace-switcher summary {
-  list-style: none;
+  min-height: 34px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
   cursor: pointer;
   font-size: 12px;
   font-weight: 650;
+  line-height: 1;
   color: var(--muted);
 }
-.mobile-workspace-switcher summary::-webkit-details-marker { display: none; }
 .mobile-workspace-switcher .consumer-popover-menu {
   top: calc(100% + 8px);
-  right: 0;
+  right: auto;
   bottom: auto;
-  left: auto;
+  left: 0;
 }
 
 .consumer-popover-item {
@@ -1162,37 +1225,15 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .risk-filter-form {
   margin: 0;
 }
-
-.risk-filter-form {
-  position: relative;
-}
-
-.risk-filter-form::after {
-  position: absolute;
-  top: 50%;
-  right: 12px;
-  width: 6px;
-  height: 6px;
-  border-right: 1.5px solid var(--quiet);
-  border-bottom: 1.5px solid var(--quiet);
-  content: "";
-  pointer-events: none;
-  transform: translateY(-70%) rotate(45deg);
-}
+.risk-filter-form { --select-height: 40px; }
 
 .risk-select {
-  min-height: 40px;
   min-width: 132px;
   padding: 0 34px 0 12px;
-  appearance: none;
   border: 1px solid var(--line);
-  border-radius: 8px;
-  outline: 0;
-  background: var(--panel);
   color: var(--muted);
   font-size: 12px;
   font-weight: 600;
-  cursor: pointer;
   transition: border-color 140ms ease, background-color 140ms ease;
 }
 
@@ -1494,11 +1535,12 @@ button, a { -webkit-tap-highlight-color: transparent; }
   padding: 0 4px;
 }
 .per-page-form {
+  --select-height: 30px;
+  --select-chevron-size: 12px;
   margin: 0;
 }
 .per-page-select {
-  height: 30px;
-  padding: 0 8px;
+  padding: 0 28px 0 9px;
   border: 1px solid var(--line);
   border-radius: 7px;
   background: var(--panel-soft);
@@ -3363,7 +3405,7 @@ def render_review_workbench(
 
       <div class="nav-spacer"></div>
       <details class="consumer-popover-wrapper">
-        <summary class="consumer-switcher">
+        <summary class="consumer-switcher dropdown-trigger">
           <span class="consumer-avatar">{escape(consumer_id[:1].upper() or 'W')}</span>
           <span class="consumer-copy"><strong>{escape(consumer_id)}</strong><small>Consumer workspace</small></span>
           <span class="chevron">{icon('chevron-down')}</span>
@@ -3395,7 +3437,7 @@ def render_review_workbench(
         </div>
         <div class="toolbar-actions">
           <details class="mobile-workspace-switcher">
-            <summary aria-label="切换工作区">{escape(consumer_id)}{icon('chevron-down')}</summary>
+            <summary class="dropdown-trigger" aria-label="切换工作区">{escape(consumer_id)}{icon('chevron-down')}</summary>
             <div class="consumer-popover-menu">
               <div class="consumer-popover-header">切换工作区</div>
               <div class="consumer-popover-list">{workspace_menu}</div>
@@ -3453,7 +3495,7 @@ def render_review_workbench(
                 </div>
               </form>
 
-              <form class="risk-filter-form" method="get" action="/review">
+              <form class="risk-filter-form select-control" method="get" action="/review">
                 <input type="hidden" name="status" value="{escape(status_value)}">
                 <input type="hidden" name="view" value="{escape(view_value)}">
                 {f'<input type="hidden" name="q" value="{escape(search_query)}">' if search_query else ''}
@@ -3465,6 +3507,7 @@ def render_review_workbench(
                   {_filter_option("elevated", "高风险", risk_value)}
                   {_filter_option("critical", "严重风险", risk_value)}
                 </select>
+                <span class="select-control__icon" aria-hidden="true">{icon('chevron-down')}</span>
               </form>
               </div>
             </div>
@@ -3578,7 +3621,7 @@ def _render_pagination(
     )
 
     per_page_select = f'''
-    <form class="per-page-form" method="get" action="/review">
+    <form class="per-page-form select-control" method="get" action="/review">
       <input type="hidden" name="status" value="{escape(status)}">
       <input type="hidden" name="risk" value="{escape(risk)}">
       <input type="hidden" name="view" value="{escape(view)}">
@@ -3587,6 +3630,7 @@ def _render_pagination(
       <select name="per_page" class="per-page-select" onchange="this.form.submit()">
         {page_size_options}
       </select>
+      <span class="select-control__icon" aria-hidden="true">{icon('chevron-down')}</span>
     </form>
     '''
 

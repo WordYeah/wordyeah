@@ -10,6 +10,7 @@ from wy_api.page_history_health import (
     render_history_body,
     render_history_content,
 )
+from wy_api.review_ui import CSS as REVIEW_CSS
 
 
 class PageHistoryHealthTest(unittest.TestCase):
@@ -50,7 +51,10 @@ class PageHistoryHealthTest(unittest.TestCase):
         self.assertIn('<time class="audit-time"', page)
         self.assertIn('value="avatar"', page)
         self.assertIn('<option value="agent-a" selected>', page)
-        self.assertEqual(page.count('class="audit-filter audit-filter-select"'), 3)
+        self.assertEqual(
+            page.count('class="audit-filter audit-filter-select select-control"'), 3
+        )
+        self.assertEqual(page.count('class="select-control__icon"'), 3)
         self.assertEqual(page.count('<path d="M6 9l6 6l6 -6"/>'), 3)
         self.assertIn('class="audit-list-head"', page)
         self.assertIn("1 / 2", page)
@@ -131,7 +135,8 @@ class PageHistoryHealthTest(unittest.TestCase):
         self.assertIn(".health-pipeline", CSS)
         self.assertIn(":focus-visible", CSS)
         self.assertIn("appearance: none", CSS)
-        self.assertIn("transform: translateY(-50%)", CSS)
+        self.assertIn(".select-control > .select-control__icon", REVIEW_CSS)
+        self.assertIn("transform: translateY(-50%)", REVIEW_CSS)
         self.assertIs(PAGE_HISTORY_HEALTH_CSS, CSS)
         self.assertIs(render_history_body, render_history_content)
         self.assertIs(render_health_body, render_health_content)
