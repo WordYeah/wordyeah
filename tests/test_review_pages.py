@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import unittest
 
+from wy_api.icons import TABLER_ICONS_VERSION, icon
 from wy_api.login_ui import render_login_page
 from wy_api.review_pages import (
     Metric,
@@ -21,6 +22,15 @@ from wy_api.review_pages import (
 
 
 class ReviewPagesTest(unittest.TestCase):
+    def test_shared_tabler_icon_registry_is_pinned_and_accessible(self) -> None:
+        decorative = icon("queue")
+        labelled = icon("shield-lock", label="受控会话")
+        self.assertEqual(TABLER_ICONS_VERSION, "3.46.0")
+        self.assertIn('class="icon icon-tabler"', decorative)
+        self.assertIn('stroke-width="1.75"', decorative)
+        self.assertIn('aria-hidden="true"', decorative)
+        self.assertIn('role="img" aria-label="受控会话"', labelled)
+
     def test_every_page_has_the_shared_accessible_shell(self) -> None:
         renderers = {
             "运营概览": render_overview_page,
@@ -48,7 +58,13 @@ class ReviewPagesTest(unittest.TestCase):
             {
                 "attention": [Notice("二审积压", "最老任务 18 分钟", "warning")],
                 "metrics": [Metric("人工介入率", "1.8%", "较昨日 +0.2%")],
-                "pipeline": [{"title": "vision_review_2", "detail": "12 个等待", "meta": "p95 44s"}],
+                "pipeline": [
+                    {
+                        "title": "vision_review_2",
+                        "detail": "12 个等待",
+                        "meta": "p95 44s",
+                    }
+                ],
             },
             context=ReviewPageContext(consumer_id="avatar", reviewer_id="alice"),
         )
@@ -57,7 +73,9 @@ class ReviewPagesTest(unittest.TestCase):
         self.assertIn("vision_review_2", page)
         self.assertNotIn('type="submit"', page)
 
-    def test_support_pages_show_explicit_uncollected_states_instead_of_fake_dashboards(self) -> None:
+    def test_support_pages_show_explicit_uncollected_states_instead_of_fake_dashboards(
+        self,
+    ) -> None:
         overview = render_overview_page()
         self.assertIn("未提供概览指标。", overview)
         self.assertIn("未提供阶段积压或延迟信息。", overview)
@@ -74,7 +92,9 @@ class ReviewPagesTest(unittest.TestCase):
         self.assertNotIn("SQLite WAL", health)
         self.assertNotIn("Worker Lease", health)
 
-    def test_overview_uses_supplied_counts_without_duplicate_page_heading_or_demo_values(self) -> None:
+    def test_overview_uses_supplied_counts_without_duplicate_page_heading_or_demo_values(
+        self,
+    ) -> None:
         overview = render_overview_page(
             {
                 "overview_metrics": [
@@ -114,12 +134,21 @@ class ReviewPagesTest(unittest.TestCase):
         data = {
             "exceptions": [{"title": attack, "detail": attack, "tone": attack}],
             "current_policy": {attack: attack},
-            "routes": {"columns": [attack], "rows": [[attack]], "empty_message": attack},
+            "routes": {
+                "columns": [attack],
+                "rows": [[attack]],
+                "empty_message": attack,
+            },
             "versions": [{"title": attack, "description": attack, "version": attack}],
         }
         page = render_policies_page(
             data,
-            context={"consumer_id": attack, "reviewer_id": attack, "service_error": attack, "service_ready": False},
+            context={
+                "consumer_id": attack,
+                "reviewer_id": attack,
+                "service_error": attack,
+                "service_ready": False,
+            },
         )
         self.assertNotIn('<script>alert("x")</script>', page)
         self.assertNotIn("<img src=x", page)

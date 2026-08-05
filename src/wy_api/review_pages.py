@@ -10,6 +10,7 @@ from dataclasses import asdict, dataclass, is_dataclass
 from html import escape
 from typing import Mapping, Sequence
 
+from wy_api.icons import icon
 from wy_api.page_account_guide import CSS as ACCOUNT_GUIDE_CSS
 from wy_api.page_account_guide import render_account_content, render_guide_content
 from wy_api.page_history_health import CSS as HISTORY_HEALTH_CSS
@@ -18,7 +19,7 @@ from wy_api.page_overview_agents import CSS as OVERVIEW_AGENTS_CSS
 from wy_api.page_overview_agents import render_agents_body
 from wy_api.page_policy_quality import CSS as POLICY_QUALITY_CSS
 from wy_api.page_policy_quality import render_policies_body, render_quality_body
-from wy_api.review_ui import CSS as REVIEW_CSS, THEME_INIT_JS, _top_icon
+from wy_api.review_ui import CSS as REVIEW_CSS, THEME_INIT_JS
 
 
 @dataclass(frozen=True)
@@ -119,23 +120,25 @@ _PAGE_INTENTS = {
     "guide": "只在例外场景查阅本页，不打断主审核流。",
 }
 
-_NAV_ICONS = {
-    "overview": '<path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-3H4zM14 7h6V4h-6z"></path>',
-    "queue": '<rect x="4" y="4" width="16" height="16" rx="3"></rect><path d="M8 9h8M8 12h6M8 15h4"></path>',
-    "agents": '<path d="M8 8h8v8H8zM12 3v3M12 18v3M3 12h3M18 12h3"></path><circle cx="10.5" cy="11" r=".7"></circle><circle cx="13.5" cy="11" r=".7"></circle><path d="M10 14h4"></path>',
-    "policies": '<path d="M12 3.5l7 3v5.2c0 4.2-2.8 7.5-7 8.8-4.2-1.3-7-4.6-7-8.8V6.5z"></path><path d="M9 12l2 2 4-4"></path>',
-    "quality": '<circle cx="12" cy="12" r="8.5"></circle><path d="m8.5 12 2.2 2.2 4.8-5"></path>',
-    "history": '<path d="M6 4.5h12v15H6z"></path><path d="M9 8h6M9 11.5h6M9 15h4"></path>',
-    "health": '<path d="M3.5 12h4l1.8-4.5 3.2 9 2.1-4.5h5.9"></path>',
-    "account": '<circle cx="12" cy="8" r="3.5"></circle><path d="M5.5 20c.7-4 3-6 6.5-6s5.8 2 6.5 6"></path>',
-    "guide": '<circle cx="12" cy="12" r="8.5"></circle><path d="M12 10v5M12 7.5h.01"></path>',
+_PAGE_ICON_NAMES = {
+    "overview": "overview",
+    "queue": "queue",
+    "agents": "agents",
+    "history": "history",
+    "policies": "policy",
+    "quality": "quality",
+    "health": "health",
+    "account": "account",
+    "guide": "guide",
 }
 
-
-def _icon(path: str) -> str:
-    return f'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{path}</svg>'
-
-_CSS = REVIEW_CSS + OVERVIEW_AGENTS_CSS + POLICY_QUALITY_CSS + HISTORY_HEALTH_CSS + ACCOUNT_GUIDE_CSS + """
+_CSS = (
+    REVIEW_CSS
+    + OVERVIEW_AGENTS_CSS
+    + POLICY_QUALITY_CSS
+    + HISTORY_HEALTH_CSS
+    + ACCOUNT_GUIDE_CSS
+    + """
 /* Support pages reuse the queue shell but tighten typography, states, and spacing. */
 :root {
   --font-display: -apple-system, BlinkMacSystemFont, "Inter", "SF Pro Display", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
@@ -723,6 +726,7 @@ tbody tr:hover { background: var(--support-panel-soft); }
   .definition-grid dd { padding-top: 3px; }
 }
 """
+)
 
 
 def _plain(value: object) -> object:
@@ -753,7 +757,11 @@ def _text(value: object, default: str = "") -> str:
 
 def _tone(value: object) -> str:
     candidate = _text(value).lower()
-    return candidate if candidate in {"quiet", "info", "warning", "danger", "success"} else "quiet"
+    return (
+        candidate
+        if candidate in {"quiet", "info", "warning", "danger", "success"}
+        else "quiet"
+    )
 
 
 def _render_notices(value: object) -> str:
@@ -767,7 +775,7 @@ def _render_notices(value: object) -> str:
         detail = escape(_text(item.get("detail") or item.get("message")))
         rendered.append(
             f'<article class="notice" data-tone="{_tone(item.get("tone"))}"><strong>{title}</strong>'
-            f'{f"<p>{detail}</p>" if detail else ""}</article>'
+            f"{f'<p>{detail}</p>' if detail else ''}</article>"
         )
     return f'<div class="notice-stack" aria-label="需要关注">{"".join(rendered)}</div>'
 
@@ -782,7 +790,11 @@ def _render_metrics(value: object) -> str:
             f'<strong class="stat-value">{escape(_text(item.get("value"), "—"))}</strong>'
             f'<span class="stat-detail">{escape(_text(item.get("detail")))}</span></article>'
         )
-    return f'<div class="stats" aria-label="关键指标">{"".join(cards)}</div>' if cards else ""
+    return (
+        f'<div class="stats" aria-label="关键指标">{"".join(cards)}</div>'
+        if cards
+        else ""
+    )
 
 
 def _render_data_state(status: str, detail: str) -> str:
@@ -796,7 +808,9 @@ def _render_data_state(status: str, detail: str) -> str:
 
 def _section_block(title: str, body: str, description: str = "") -> str:
     copy = f'<p class="section-copy">{escape(description)}</p>' if description else ""
-    return f'<section class="section-block"><h3>{escape(title)}</h3>{copy}{body}</section>'
+    return (
+        f'<section class="section-block"><h3>{escape(title)}</h3>{copy}{body}</section>'
+    )
 
 
 def _section_stack(*sections: str) -> str:
@@ -807,7 +821,9 @@ def _render_metrics_block(value: object, *, empty_detail: str) -> str:
     return _render_metrics(value) or _render_data_state("未采集", empty_detail)
 
 
-def _render_records_block(value: object, *, empty_status: str, empty_detail: str, empty_message: str) -> str:
+def _render_records_block(
+    value: object, *, empty_status: str, empty_detail: str, empty_message: str
+) -> str:
     return (
         _render_records(value, empty_message)
         if _sequence(value)
@@ -815,7 +831,9 @@ def _render_records_block(value: object, *, empty_status: str, empty_detail: str
     )
 
 
-def _render_table_block(value: object, *, empty_status: str, empty_detail: str, empty_message: str) -> str:
+def _render_table_block(
+    value: object, *, empty_status: str, empty_detail: str, empty_message: str
+) -> str:
     table = _mapping(value)
     columns = _sequence(table.get("columns"))
     if not columns:
@@ -825,7 +843,9 @@ def _render_table_block(value: object, *, empty_status: str, empty_detail: str, 
     return _render_table(normalized)
 
 
-def _render_definitions_block(value: object, *, empty_status: str, empty_detail: str) -> str:
+def _render_definitions_block(
+    value: object, *, empty_status: str, empty_detail: str
+) -> str:
     return (
         _render_definitions(value)
         if _mapping(value)
@@ -837,11 +857,23 @@ def _render_records(value: object, empty: str) -> str:
     records: list[str] = []
     for raw in _sequence(value):
         item = _mapping(raw)
-        title = escape(_text(item.get("title") or item.get("name") or item.get("label"), "—"))
-        detail = escape(_text(item.get("detail") or item.get("description") or item.get("status")))
-        meta = escape(_text(item.get("meta") or item.get("value") or item.get("version")))
-        records.append(f'<li class="record"><strong>{title}</strong><span>{detail}</span><code>{meta}</code></li>')
-    return f'<ul class="record-list">{"".join(records)}</ul>' if records else f'<div class="empty">{escape(empty)}</div>'
+        title = escape(
+            _text(item.get("title") or item.get("name") or item.get("label"), "—")
+        )
+        detail = escape(
+            _text(item.get("detail") or item.get("description") or item.get("status"))
+        )
+        meta = escape(
+            _text(item.get("meta") or item.get("value") or item.get("version"))
+        )
+        records.append(
+            f'<li class="record"><strong>{title}</strong><span>{detail}</span><code>{meta}</code></li>'
+        )
+    return (
+        f'<ul class="record-list">{"".join(records)}</ul>'
+        if records
+        else f'<div class="empty">{escape(empty)}</div>'
+    )
 
 
 def _render_table(value: object) -> str:
@@ -855,7 +887,10 @@ def _render_table(value: object) -> str:
     body_rows: list[str] = []
     for raw_row in rows:
         row = _sequence(raw_row)
-        cells = "".join(_table_cell(row[index]) if index < len(row) else "<td></td>" for index in range(len(columns)))
+        cells = "".join(
+            _table_cell(row[index]) if index < len(row) else "<td></td>"
+            for index in range(len(columns))
+        )
         body_rows.append(f"<tr>{cells}</tr>")
     body = "".join(body_rows) or (
         f'<tr><td colspan="{len(columns)}"><div class="empty">{escape(empty)}</div></td></tr>'
@@ -868,7 +903,9 @@ def _table_cell(value: object) -> str:
     shown = raw
     if "T" in raw and len(raw) >= 19 and raw[:4].isdigit():
         shown = raw[:19].replace("T", " ")
-    elif len(raw) == 32 and all(character in "0123456789abcdefABCDEF" for character in raw):
+    elif len(raw) == 32 and all(
+        character in "0123456789abcdefABCDEF" for character in raw
+    ):
         shown = f"{raw[:10]}…{raw[-4:]}"
     return f'<td title="{escape(raw)}">{escape(shown)}</td>'
 
@@ -877,7 +914,10 @@ def _render_definitions(value: object) -> str:
     definitions = _mapping(value)
     if not definitions:
         return '<div class="empty">暂无信息</div>'
-    parts = [f'<dt>{escape(_text(key))}</dt><dd>{escape(_text(item))}</dd>' for key, item in definitions.items()]
+    parts = [
+        f"<dt>{escape(_text(key))}</dt><dd>{escape(_text(item))}</dd>"
+        for key, item in definitions.items()
+    ]
     return f'<dl class="definition-grid">{"".join(parts)}</dl>'
 
 
@@ -890,11 +930,16 @@ def _panel(title: str, description: str, body: str) -> str:
 
 
 def _link_row(*links: tuple[str, str]) -> str:
-    rendered = [f'<a class="deep-link" href="{escape(href)}">{escape(label)}</a>' for href, label in links]
+    rendered = [
+        f'<a class="deep-link" href="{escape(href)}">{escape(label)}</a>'
+        for href, label in links
+    ]
     return f'<div class="link-row">{"".join(rendered)}</div>' if rendered else ""
 
 
-def _coerce_context(context: ReviewPageContext | Mapping[str, object] | None) -> ReviewPageContext:
+def _coerce_context(
+    context: ReviewPageContext | Mapping[str, object] | None,
+) -> ReviewPageContext:
     if context is None:
         return ReviewPageContext()
     if isinstance(context, ReviewPageContext):
@@ -903,13 +948,19 @@ def _coerce_context(context: ReviewPageContext | Mapping[str, object] | None) ->
     return ReviewPageContext(
         consumer_id=_text(raw.get("consumer_id"), "default"),
         reviewer_id=_text(raw.get("reviewer_id"), "Reviewer"),
-        csrf_token=None if raw.get("csrf_token") is None else _text(raw.get("csrf_token")),
+        csrf_token=None
+        if raw.get("csrf_token") is None
+        else _text(raw.get("csrf_token")),
         service_ready=bool(raw.get("service_ready", True)),
-        service_error=None if raw.get("service_error") is None else _text(raw.get("service_error")),
+        service_error=None
+        if raw.get("service_error") is None
+        else _text(raw.get("service_error")),
         workspaces=tuple(
             (_text(item[0]), _text(item[1]))
             for item in _sequence(raw.get("workspaces"))
-            if isinstance(item, Sequence) and not isinstance(item, (str, bytes)) and len(item) >= 2
+            if isinstance(item, Sequence)
+            and not isinstance(item, (str, bytes))
+            and len(item) >= 2
         ),
     )
 
@@ -923,15 +974,23 @@ def _dashboard_integer(value: object) -> int:
 
 def _render_dashboard_charts(data: Mapping[str, object]) -> str:
     series = [_mapping(item) for item in _sequence(data.get("volume_series"))]
-    distribution = [_mapping(item) for item in _sequence(data.get("decision_distribution"))]
+    distribution = [
+        _mapping(item) for item in _sequence(data.get("decision_distribution"))
+    ]
     cards = [_mapping(item) for item in _sequence(data.get("overview_metrics"))]
     if not series and not distribution and not cards:
         return ""
 
     if not cards:
-        total_items = sum(_dashboard_integer(item.get("value")) for item in distribution)
+        total_items = sum(
+            _dashboard_integer(item.get("value")) for item in distribution
+        )
         passed = next(
-            (_dashboard_integer(item.get("value")) for item in distribution if _text(item.get("label")) == "已通过"),
+            (
+                _dashboard_integer(item.get("value"))
+                for item in distribution
+                if _text(item.get("label")) == "已通过"
+            ),
             0,
         )
         finalized = sum(
@@ -946,17 +1005,22 @@ def _render_dashboard_charts(data: Mapping[str, object]) -> str:
         )
         cards = [
             {"label": "审核总量", "value": total_items, "detail": "当前工作区"},
-            {"label": "14 天入队", "value": sum(_dashboard_integer(item.get("incoming")) for item in series), "detail": "按创建时间统计"},
-            {"label": "通过率", "value": f"{passed * 100 / finalized:.1f}%" if finalized else "—", "detail": f"{finalized} 条已有最终结论"},
+            {
+                "label": "14 天入队",
+                "value": sum(
+                    _dashboard_integer(item.get("incoming")) for item in series
+                ),
+                "detail": "按创建时间统计",
+            },
+            {
+                "label": "通过率",
+                "value": f"{passed * 100 / finalized:.1f}%" if finalized else "—",
+                "detail": f"{finalized} 条已有最终结论",
+            },
             {"label": "待处理", "value": pending, "detail": "含留置项目"},
         ]
 
-    card_icons = (
-        '<path d="M4 5h16v14H4zM8 9h8M8 13h5"/>',
-        '<path d="M4 17l4-5 4 3 6-8M16 7h2v2"/>',
-        '<path d="M5 12l4 4L19 6"/>',
-        '<path d="M12 8v4l3 2M12 3a9 9 0 1 0 9 9"/>',
-    )
+    card_icons = ("photo", "chart-line", "percentage", "clock-hour-4")
     metric_cards: list[str] = []
     for index, item in enumerate(cards[:4]):
         metric_cards.append(
@@ -964,15 +1028,25 @@ def _render_dashboard_charts(data: Mapping[str, object]) -> str:
             '<div class="metric-card-info">'
             f'<span class="label">{escape(_text(item.get("label"), "指标"))}</span>'
             f'<strong class="val">{escape(_text(item.get("value"), "—"))}</strong>'
-            f'<small>{escape(_text(item.get("detail")))}</small></div>'
-            f'<span class="metric-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{card_icons[index]}</svg></span>'
-            '</article>'
+            f"<small>{escape(_text(item.get('detail')))}</small></div>"
+            f'<span class="metric-card-icon">{icon(card_icons[index])}</span>'
+            "</article>"
         )
-    metrics_html = f'<div class="dashboard-grid">{"".join(metric_cards)}</div>' if metric_cards else ""
+    metrics_html = (
+        f'<div class="dashboard-grid">{"".join(metric_cards)}</div>'
+        if metric_cards
+        else ""
+    )
 
     charts: list[str] = []
     if series:
-        values = [max(_dashboard_integer(item.get("incoming")), _dashboard_integer(item.get("decided"))) for item in series]
+        values = [
+            max(
+                _dashboard_integer(item.get("incoming")),
+                _dashboard_integer(item.get("decided")),
+            )
+            for item in series
+        ]
         scale_max = max(1, max(values, default=0))
         plot_left, plot_top, plot_width, plot_height = 36, 16, 480, 110
         slot = plot_width / max(1, len(series))
@@ -1002,15 +1076,17 @@ def _render_dashboard_charts(data: Mapping[str, object]) -> str:
                 labels.append(
                     f'<text x="{center:.1f}" y="142" fill="var(--muted)" font-size="9" text-anchor="middle" font-family="var(--mono)">{day_label}</text>'
                 )
-        incoming_total = sum(_dashboard_integer(item.get("incoming")) for item in series)
+        incoming_total = sum(
+            _dashboard_integer(item.get("incoming")) for item in series
+        )
         charts.append(
             '<section class="chart-card">'
             '<header class="chart-card-header"><div><h4>处理趋势</h4><p>最近 14 天模型处理与人工结论量</p></div>'
-            f'<span>{incoming_total} 条模型处理</span></header>'
+            f"<span>{incoming_total} 条模型处理</span></header>"
             '<div class="chart-legend"><span><i data-tone="incoming"></i>模型处理</span><span><i data-tone="decided"></i>人工结论</span></div>'
             '<svg class="svg-bar-chart" viewBox="0 0 530 150" role="img" aria-label="最近十四天审核处理趋势">'
             + "".join(grid + bars + labels)
-            + '</svg></section>'
+            + "</svg></section>"
         )
 
     if distribution:
@@ -1040,9 +1116,9 @@ def _render_dashboard_charts(data: Mapping[str, object]) -> str:
                 )
             percentage = value * 100 / total if total else 0.0
             legend.append(
-                '<li>'
+                "<li>"
                 f'<span><i style="background:{color}"></i>{escape(label)}</span>'
-                f'<strong>{percentage:.1f}% <small>{value}</small></strong></li>'
+                f"<strong>{percentage:.1f}% <small>{value}</small></strong></li>"
             )
             offset += length
         charts.append(
@@ -1086,9 +1162,15 @@ def _page_body(
         if _sequence(data.get("exceptions") or data.get("attention")):
             sections.append(_panel("需要关注", "只显示需要人工接手的异常。", notices))
         if _sequence(data.get("pipeline")):
-            sections.append(_panel("待处理流水线", "按当前阶段显示仍在等待处理的项目。", pipeline_block))
+            sections.append(
+                _panel(
+                    "待处理流水线", "按当前阶段显示仍在等待处理的项目。", pipeline_block
+                )
+            )
         elif not charts_html:
-            sections.append(_panel("待处理流水线", "后端未提供阶段数据。", pipeline_block))
+            sections.append(
+                _panel("待处理流水线", "后端未提供阶段数据。", pipeline_block)
+            )
         return "".join(sections)
     if page == "agents":
         return render_agents_body(data)
@@ -1105,6 +1187,7 @@ def _page_body(
     if page == "guide":
         return render_guide_content(data)
     raise ValueError(f"unsupported review page: {page}")
+
 
 def render_review_page(
     page: str,
@@ -1126,36 +1209,44 @@ def render_review_page(
         href = "/review" if key == "queue" else f"/review/{key}"
         nav_items[key] = (
             f'<a class="nav-item{active_class}" href="{href}"{current}>'
-            f'<span class="nav-icon">{_icon(_NAV_ICONS[key])}</span><span>{escape(label)}</span></a>'
+            f'<span class="nav-icon">{icon(_PAGE_ICON_NAMES[key])}</span><span>{escape(label)}</span></a>'
         )
-    workspace_nav = "".join(nav_items[key] for key in ("overview", "queue", "agents", "history"))
-    settings_nav = "".join(nav_items[key] for key in ("policies", "quality", "health", "account", "guide"))
+    workspace_nav = "".join(
+        nav_items[key] for key in ("overview", "queue", "agents", "history")
+    )
+    settings_nav = "".join(
+        nav_items[key] for key in ("policies", "quality", "health", "account", "guide")
+    )
     nav = (
         '<div class="nav-scroll">'
         '<nav class="nav-section" aria-label="工作区"><p class="nav-label">Workspace</p>'
         f"{workspace_nav}</nav>"
         '<nav class="nav-section" aria-label="设置"><p class="nav-label">Settings</p>'
         f"{settings_nav}</nav>"
-        '</div>'
+        "</div>"
     )
 
-    service_label = "Local scanner ready" if ctx.service_ready else "Local scanner blocked"
+    service_label = (
+        "Local scanner ready" if ctx.service_ready else "Local scanner blocked"
+    )
     service_tone = "success" if ctx.service_ready else "danger"
     service_notice = ""
     if not ctx.service_ready:
-        service_notice = _render_notices((Notice("审核流水线受阻", ctx.service_error or "服务未就绪", "danger"),))
+        service_notice = _render_notices(
+            (Notice("审核流水线受阻", ctx.service_error or "服务未就绪", "danger"),)
+        )
 
     body = _page_body(page, page_data, csrf_token=ctx.csrf_token)
     intent = _PAGE_INTENTS[page]
-    service_icon = _icon('<path d="M12 3l1.4 4.1 4.1 1.4-4.1 1.4L12 14l-1.4-4.1-4.1-1.4 4.1-1.4z"></path>')
-    help_icon = _icon(_NAV_ICONS["guide"])
+    service_icon = icon("spark")
+    help_icon = icon("guide")
     workspace_choices = ctx.workspaces or ((ctx.consumer_id, ctx.consumer_id),)
     workspace_items = "".join(
         (
             '<div class="consumer-popover-item is-active">'
             f'<span class="consumer-avatar">{escape(name[:1].upper())}</span>'
             f'<div class="item-info"><strong>{escape(name)}</strong><small>当前审核工作区</small></div>'
-            f'<span class="check-icon">{_top_icon("check")}</span></div>'
+            f'<span class="check-icon">{icon("check")}</span></div>'
             if workspace_id == ctx.consumer_id
             else '<form class="workspace-select-form" method="post" action="/review/workspaces/'
             + escape(workspace_id, quote=True)
@@ -1166,7 +1257,7 @@ def render_review_page(
             + '"><button class="consumer-popover-item" type="submit">'
             + f'<span class="consumer-avatar">{escape(name[:1].upper())}</span>'
             + f'<span class="item-info"><strong>{escape(name)}</strong><small>{escape(workspace_id)}</small></span>'
-            + '</button></form>'
+            + "</button></form>"
         )
         for workspace_id, name in workspace_choices
     )
@@ -1179,10 +1270,10 @@ def render_review_page(
 
 <div class="usage-widget">
   <div class="usage-header">
-    <span class="usage-icon">{_top_icon("spark")}</span>
+    <span class="usage-icon">{icon("spark")}</span>
     <span class="usage-title">审查引擎状态</span>
     <button class="usage-gear-btn" type="button" title="查看策略与健康状态" onclick="location.href='/review/health'">
-      {_top_icon("settings")}
+      {icon("settings")}
     </button>
   </div>
   <p class="usage-subtitle">当前 consumer 的审核流水线</p>
@@ -1190,8 +1281,8 @@ def render_review_page(
     <span class="usage-count">工作区 <strong>{escape(ctx.consumer_id)}</strong></span>
   </div>
   <div class="usage-tag">
-    <span class="dot" style="background: {'var(--green)' if ctx.service_ready else 'var(--red)'};"></span>
-    {'本地扫描服务可用' if ctx.service_ready else '本地扫描服务受阻'}
+    <span class="dot" style="background: {"var(--green)" if ctx.service_ready else "var(--red)"};"></span>
+    {"本地扫描服务可用" if ctx.service_ready else "本地扫描服务受阻"}
   </div>
   <a class="usage-upgrade-btn" href="/review/health">检查系统健康</a>
 </div>
@@ -1199,9 +1290,9 @@ def render_review_page(
 <div class="nav-spacer"></div>
 <details class="consumer-popover-wrapper">
   <summary class="consumer-switcher">
-    <span class="consumer-avatar">{escape(ctx.consumer_id[:1].upper() or 'W')}</span>
+    <span class="consumer-avatar">{escape(ctx.consumer_id[:1].upper() or "W")}</span>
     <span class="consumer-copy"><strong>{escape(ctx.consumer_id)}</strong><small>Consumer workspace</small></span>
-    <span class="chevron" aria-hidden="true">⌄</span>
+    <span class="chevron">{icon("chevron-down")}</span>
   </summary>
   <div class="consumer-popover-menu">
     <div class="consumer-popover-header">Reviewer: {escape(ctx.reviewer_id)}</div>
@@ -1217,12 +1308,12 @@ def render_review_page(
 </aside>
 <div class="app-main"><header class="topbar"><div class="toolbar-title"><nav class="topbar-breadcrumbs" aria-label="面包屑"><a href="/review/overview">WordYeah</a><span class="divider" aria-hidden="true">/</span><span class="current-crumb">{escape(nav_label)}</span></nav></div>
 <div class="toolbar-actions">
-<details class="support-mobile-workspace"><summary aria-label="切换工作区">{escape(ctx.consumer_id)}⌄</summary><div class="consumer-popover-menu"><div class="consumer-popover-header">切换工作区</div><div class="consumer-popover-list">{workspace_items}</div></div></details>
-<button class="theme-toggle-btn" type="button" data-action="toggle-layout" title="切换全宽/盒装居中" aria-label="切换全宽/盒装居中">{_top_icon('layout')}</button>
-<button class="theme-toggle-btn" type="button" data-action="toggle-theme" title="切换深色/浅色模式" aria-label="切换深色/浅色模式"><span class="theme-icon-sun">{_top_icon('sun')}</span><span class="theme-icon-moon">{_top_icon('moon')}</span></button>
+<details class="support-mobile-workspace"><summary aria-label="切换工作区">{escape(ctx.consumer_id)}{icon("chevron-down")}</summary><div class="consumer-popover-menu"><div class="consumer-popover-header">切换工作区</div><div class="consumer-popover-list">{workspace_items}</div></div></details>
+<button class="theme-toggle-btn" type="button" data-action="toggle-layout" title="切换全宽/盒装居中" aria-label="切换全宽/盒装居中">{icon("layout")}</button>
+<button class="theme-toggle-btn" type="button" data-action="toggle-theme" title="切换深色/浅色模式" aria-label="切换深色/浅色模式"><span class="theme-icon-sun">{icon("sun")}</span><span class="theme-icon-moon">{icon("moon")}</span></button>
 <span class="topbar-icon service-status" data-tone="{service_tone}" role="status" title="{service_label}" aria-label="{service_label}">{service_icon}</span>
 <a class="topbar-icon" href="/review/guide" title="审核说明" aria-label="审核说明">{help_icon}</a>
-<details class="account-menu"><summary><span class="reviewer-avatar">{escape(ctx.reviewer_id[:1].upper() or 'R')}</span><span>{escape(ctx.reviewer_id)}</span><span aria-hidden="true">⌄</span></summary>
+<details class="account-menu"><summary><span class="reviewer-avatar">{escape(ctx.reviewer_id[:1].upper() or "R")}</span><span>{escape(ctx.reviewer_id)}</span><span class="chevron">{icon("chevron-down")}</span></summary>
 <div class="account-popover"><p>{escape(ctx.consumer_id)} · 受限审核会话</p>{'<form class="logout" method="post" action="/review/logout"><input type="hidden" name="csrf_token" value="' + escape(ctx.csrf_token) + '"><button type="submit">安全退出</button></form>' if ctx.csrf_token else '<a class="toolbar-link" href="/review/account">账户与会话</a>'}</div></details></div></header>
 <main class="shell" id="main-content"><header class="support-hero"><div class="support-hero-copy"><h1>{escape(title)}</h1><p>{escape(subtitle)}</p></div>
 <div class="hero-meta"><span class="status-pill" data-tone="{service_tone}">{service_icon}{service_label}</span><span class="intent-note">{help_icon}{escape(intent)}</span></div></header>

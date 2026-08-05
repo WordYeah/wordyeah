@@ -12,6 +12,6 @@
 | `SashiDo/content-moderation-application` | 图片网格交互参考 | 仓库 LICENSE 为 Apache-2.0；package metadata 仍写 MIT | 只参考交互，旧 Node/Parse 运行时不接入 |
 | `muxinc/content-moderation-dashboard` | 会语视频时间轴/关键帧参考 | Apache-2.0 | 不引入 Mux、Convex、Vercel 或云端凭据 |
 | `KOKOSde/localmod` | 本地模型/API 对照 | MIT | 现有 Falconsai 适配器已满足头像基线，不整套替换 |
-| `lucide-icons/lucide` | 审核页导航、筛选、详情和操作图标 | ISC；当前仅内联 SVG 路径，不加载外部 CDN | 保留开源图标来源说明；不引入运行时依赖 |
+| `tabler/tabler-icons` 3.46.0 | 审核台导航、指标、筛选、详情和操作图标 | MIT；固定 SVG 子集位于 `src/wy_api/icons.py`，许可证见 `third_party/tabler-icons/LICENSE` | 只从统一注册表输出；不加载 CDN，不混入其他图标族 |
 
 WordYeah 组织内的 fork 不自动授予无许可证上游项目的再分发权。复制 Apache/MIT 代码时必须保留许可证和版权声明；模型权重与数据集另行记录，不能只看代码仓库许可证。

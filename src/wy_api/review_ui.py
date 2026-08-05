@@ -7,6 +7,7 @@ from html import escape
 from typing import Iterable, Mapping
 from urllib.parse import urlencode
 
+from wy_api.icons import icon
 from wy_review.store import ReviewEvent, ReviewItem
 
 LANE_ORDER: tuple[str, ...] = ("auto-approve", "auto-reject", "escalate", "error")
@@ -364,10 +365,11 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 
 .chevron {
+  display: inline-flex;
   margin-left: auto;
   color: var(--quiet);
-  font-size: 13px;
 }
+.chevron .icon { width: 15px; height: 15px; }
 
 /* Usage Limits Widget in Side-Nav (Windsor Style) */
 .usage-widget {
@@ -1639,6 +1641,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   display: inline-flex;
   min-height: 34px;
   align-items: center;
+  gap: 6px;
   padding: 0 11px;
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -1647,7 +1650,9 @@ button, a { -webkit-tap-highlight-color: transparent; }
   text-decoration: none;
   font-size: 12px;
   font-weight: 680;
+  white-space: nowrap;
 }
+.focus-nav a .icon { width: 14px; height: 14px; flex: 0 0 auto; }
 .focus-shortcuts { color: var(--quiet); font-size: 11px; }
 
 .row-preview img {
@@ -1868,8 +1873,12 @@ button, a { -webkit-tap-highlight-color: transparent; }
   list-style: none;
 }
 .metadata-details > summary::-webkit-details-marker { display: none; }
-.metadata-details > summary::after { content: "＋"; float: right; color: var(--quiet); }
-.metadata-details[open] > summary::after { content: "−"; }
+.metadata-details > summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.metadata-details .details-toggle-icon { display: inline-flex; color: var(--quiet); }
+.metadata-details .details-toggle-icon .icon { width: 15px; height: 15px; }
+.metadata-details .details-toggle-icon .icon-minus { display: none; }
+.metadata-details[open] .details-toggle-icon .icon-plus { display: none; }
+.metadata-details[open] .details-toggle-icon .icon-minus { display: block; }
 .metadata-details .detail-facts { margin-top: 14px; }
 
 .detail-facts {
@@ -2926,10 +2935,10 @@ WORKBENCH_JS = r"""
           <div class="lightbox-toolbar">
             <strong>受控大图预览<span class="lightbox-zoom-hint">滚轮缩放</span></strong>
             <div class="lightbox-toolbar-actions">
-              <button type="button" onclick="window.setLightboxScale(window.lightboxScale - .25)" aria-label="缩小">−</button>
+              <button type="button" onclick="window.setLightboxScale(window.lightboxScale - .25)" aria-label="缩小">__WY_ICON_ZOOM_OUT__</button>
               <button type="button" data-lightbox-scale onclick="window.resetLightboxScale()" aria-label="适应窗口">适应</button>
-              <button type="button" onclick="window.setLightboxScale(window.lightboxScale + .25)" aria-label="放大">＋</button>
-              <button type="button" class="lightbox-close" onclick="window.closeLightbox()" aria-label="关闭预览">×</button>
+              <button type="button" onclick="window.setLightboxScale(window.lightboxScale + .25)" aria-label="放大">__WY_ICON_ZOOM_IN__</button>
+              <button type="button" class="lightbox-close" onclick="window.closeLightbox()" aria-label="关闭预览">__WY_ICON_CLOSE__</button>
             </div>
           </div>
           <div class="lightbox-stage"><img src="" alt="大图放大预览" id="lightbox-img"></div>
@@ -3086,6 +3095,12 @@ WORKBENCH_JS = r"""
 })();
 """
 
+WORKBENCH_JS = (
+    WORKBENCH_JS.replace("__WY_ICON_ZOOM_OUT__", icon("minus"))
+    .replace("__WY_ICON_ZOOM_IN__", icon("plus"))
+    .replace("__WY_ICON_CLOSE__", icon("x"))
+)
+
 
 @dataclass(frozen=True)
 class ReviewQueueItem:
@@ -3189,12 +3204,7 @@ def render_review_workbench(
     if not queue_cards:
         queue_cards = (
             '<div class="empty-state">'
-            '<div class="empty-state-icon">'
-            '<svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">'
-            '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>'
-            '<path d="M9 12l2 2 4-4"/>'
-            '</svg>'
-            '</div>'
+            f'<div class="empty-state-icon">{icon("shield-check")}</div>'
             '<h3>当前队列已被清空</h3>'
             '<p>AI Agent 自动化规则引擎正在后台稳定运行，常规审核项目已实时放行。<br>任何低置信度、存在模型分歧或需要人工决断的例外项将出现在这里。</p>'
             '<div class="empty-state-badge">'
@@ -3264,7 +3274,7 @@ def render_review_workbench(
           <button class="consumer-popover-item{' is-active' if row['workspace_id'] == consumer_id else ''}" type="submit">
             <span class="consumer-avatar">{escape((row.get('name') or row['workspace_id'])[:1].upper())}</span>
             <span class="item-info"><strong>{escape(row.get('name') or row['workspace_id'])}</strong><small>{escape(row.get('adapter') or 'workspace')}</small></span>
-            {'<span class="check-icon">' + _top_icon('check') + '</span>' if row['workspace_id'] == consumer_id else ''}
+            {'<span class="check-icon">' + icon('check') + '</span>' if row['workspace_id'] == consumer_id else ''}
           </button>
         </form>'''
         for row in workspace_rows
@@ -3307,36 +3317,36 @@ def render_review_workbench(
       <nav class="nav-section" aria-label="工作区">
         <p class="nav-label">Workspace</p>
         <a class="nav-item" href="/review/overview">
-          <span class="nav-icon" aria-hidden="true">{_nav_icon("overview")}</span><span>概览</span>
+          <span class="nav-icon">{icon("overview")}</span><span>概览</span>
         </a>
         <a class="nav-item is-active" href="/review#review-queue" aria-current="page">
-          <span class="nav-icon" aria-hidden="true">{_nav_icon("queue")}</span>
+          <span class="nav-icon">{icon("queue")}</span>
           <span>审核队列</span><span class="nav-count">{pending_count}</span>
         </a>
         <a class="nav-item" href="/review/agents">
-          <span class="nav-icon" aria-hidden="true">{_nav_icon("agents")}</span><span>AI 任务</span>
+          <span class="nav-icon">{icon("agents")}</span><span>AI 任务</span>
         </a>
         <a class="nav-item" href="/review/history">
-          <span class="nav-icon" aria-hidden="true">{_nav_icon("log")}</span><span>操作记录</span>
+          <span class="nav-icon">{icon("log")}</span><span>操作记录</span>
         </a>
       </nav>
 
       <nav class="nav-section" aria-label="设置">
         <p class="nav-label">Settings</p>
         <a class="nav-item" href="/review/policies">
-          <span class="nav-icon" aria-hidden="true">{_nav_icon("policy")}</span><span>审核策略</span>
+          <span class="nav-icon">{icon("policy")}</span><span>审核策略</span>
         </a>
         <a class="nav-item" href="/review/quality">
-          <span class="nav-icon" aria-hidden="true">{_nav_icon("quality")}</span><span>抽检质量</span>
+          <span class="nav-icon">{icon("quality")}</span><span>抽检质量</span>
         </a>
         <a class="nav-item" href="/review/health">
-          <span class="nav-icon" aria-hidden="true">{_nav_icon("health")}</span><span>系统健康</span>
+          <span class="nav-icon">{icon("health")}</span><span>系统健康</span>
         </a>
         <a class="nav-item" href="/review/account">
-          <span class="nav-icon" aria-hidden="true">{_nav_icon("account")}</span><span>账户与会话</span>
+          <span class="nav-icon">{icon("account")}</span><span>账户与会话</span>
         </a>
         <a class="nav-item" href="/review/guide">
-          <span class="nav-icon" aria-hidden="true">{_nav_icon("guide")}</span><span>审核说明</span>
+          <span class="nav-icon">{icon("guide")}</span><span>审核说明</span>
         </a>
       </nav>
       </div>
@@ -3346,7 +3356,7 @@ def render_review_workbench(
         <summary class="consumer-switcher">
           <span class="consumer-avatar">{escape(consumer_id[:1].upper() or 'W')}</span>
           <span class="consumer-copy"><strong>{escape(consumer_id)}</strong><small>Consumer workspace</small></span>
-          <span class="chevron" aria-hidden="true">⌄</span>
+          <span class="chevron">{icon('chevron-down')}</span>
         </summary>
         <div class="consumer-popover-menu">
           <div class="consumer-popover-header">Reviewer: {escape(reviewer_id)}</div>
@@ -3355,10 +3365,10 @@ def render_review_workbench(
           </div>
           <div class="consumer-popover-actions">
             <a class="popover-action-btn" href="/review/account">
-              {_top_icon('settings')}
+              {icon('settings')}
               <span>账户与会话</span>
             </a>
-            {'<form class="logout-form" method="post" action="/review/logout"><input type="hidden" name="csrf_token" value="' + escape(csrf_token) + '"><button class="popover-action-btn logout-btn" type="submit"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg><span>退出登录</span></button></form>' if csrf_token else '<a class="popover-action-btn" href="/review/account">Account Details</a>'}
+            {'<form class="logout-form" method="post" action="/review/logout"><input type="hidden" name="csrf_token" value="' + escape(csrf_token) + '"><button class="popover-action-btn logout-btn" type="submit">' + icon('logout') + '<span>退出登录</span></button></form>' if csrf_token else '<a class="popover-action-btn" href="/review/account">Account Details</a>'}
           </div>
         </div>
       </details>
@@ -3375,24 +3385,24 @@ def render_review_workbench(
         </div>
         <div class="toolbar-actions">
           <details class="mobile-workspace-switcher">
-            <summary aria-label="切换工作区">{escape(consumer_id)}⌄</summary>
+            <summary aria-label="切换工作区">{escape(consumer_id)}{icon('chevron-down')}</summary>
             <div class="consumer-popover-menu">
               <div class="consumer-popover-header">切换工作区</div>
               <div class="consumer-popover-list">{workspace_menu}</div>
             </div>
           </details>
           <button class="theme-toggle-btn" type="button" data-action="toggle-layout" title="切换全宽/盒装居中" aria-label="切换全宽/盒装居中">
-            {_top_icon('layout')}
+            {icon('layout')}
           </button>
           <button class="theme-toggle-btn" type="button" data-action="toggle-theme" title="切换深色/浅色模式" aria-label="切换深色/浅色模式">
-            <span class="theme-icon-sun">{_top_icon('sun')}</span>
-            <span class="theme-icon-moon">{_top_icon('moon')}</span>
+            <span class="theme-icon-sun">{icon('sun')}</span>
+            <span class="theme-icon-moon">{icon('moon')}</span>
           </button>
           <span class="topbar-icon service-status" data-tone="{ready_tone}" role="status" title="本地多模型引擎及扫描服务" aria-label="本地多模型引擎及扫描服务">
-            {_top_icon('spark')}
+            {icon('spark')}
           </span>
           <a class="topbar-icon" href="/review/guide" title="查看审核系统使用指引" aria-label="查看审核系统使用指引">
-            {_top_icon('guide')}
+            {icon('guide')}
           </a>
           <div class="user-chip">
             <span class="reviewer-avatar">{escape(reviewer_id[:1].upper() or 'R')}</span>
@@ -3428,7 +3438,7 @@ def render_review_workbench(
                 <input type="hidden" name="view" value="{escape(view_value)}">
                 {f'<input type="hidden" name="batch" value="1">' if batch_mode else ''}
                 <div class="search-box">
-                  <span class="search-icon">{_top_icon('search')}</span>
+                  <span class="search-icon">{icon('search')}</span>
                   <input type="search" name="q" value="{escape(search_query)}" placeholder="搜索项目 ID、标签或描述..." aria-label="搜索项目 ID、标签或描述">
                 </div>
               </form>
@@ -3524,14 +3534,14 @@ def _render_pagination(
     end_num = min(current_page * per_page, total_items)
 
     prev_link = (
-        f'<a class="page-nav-btn prev" href="{_review_href(status=status, risk=risk, query=query, view=view, batch=batch, page=current_page-1, per_page=per_page)}" title="上一页" aria-label="上一页">{_top_icon("arrow")}</a>'
+        f'<a class="page-nav-btn prev" href="{_review_href(status=status, risk=risk, query=query, view=view, batch=batch, page=current_page-1, per_page=per_page)}" title="上一页" aria-label="上一页">{icon("arrow")}</a>'
         if current_page > 1
-        else '<span class="page-nav-btn prev is-disabled" aria-disabled="true">' + _top_icon("arrow") + '</span>'
+        else '<span class="page-nav-btn prev is-disabled" aria-disabled="true">' + icon("arrow") + '</span>'
     )
     next_link = (
-        f'<a class="page-nav-btn next" href="{_review_href(status=status, risk=risk, query=query, view=view, batch=batch, page=current_page+1, per_page=per_page)}" title="下一页" aria-label="下一页">{_top_icon("arrow")}</a>'
+        f'<a class="page-nav-btn next" href="{_review_href(status=status, risk=risk, query=query, view=view, batch=batch, page=current_page+1, per_page=per_page)}" title="下一页" aria-label="下一页">{icon("arrow")}</a>'
         if current_page < total_pages
-        else '<span class="page-nav-btn next is-disabled" aria-disabled="true">' + _top_icon("arrow") + '</span>'
+        else '<span class="page-nav-btn next is-disabled" aria-disabled="true">' + icon("arrow") + '</span>'
     )
 
     page_numbers: list[str] = []
@@ -3771,7 +3781,7 @@ def _review_card(
           <span class="batch-lock-note">需单项审核</span>
           <small>等待 {escape(_time_text(item.created_at).replace(' 前', ''))}</small>
         </div>
-        <span class="row-open" aria-hidden="true">{_top_icon("arrow")}</span>
+        <span class="row-open" aria-hidden="true">{icon("arrow")}</span>
       </a>
     </article>
     """
@@ -3838,14 +3848,14 @@ def _detail_panel(
     buttons = _manual_actions(item, csrf_token)
     return_href = next_href or close_href
     previous_link = (
-        f'<a href="{escape(previous_href)}" data-focus-previous>← 上一条 <span class="mono">K</span></a>'
+        f'<a href="{escape(previous_href)}" data-focus-previous>{icon("arrow-left")}上一条 <span class="mono">K</span></a>'
         if previous_href else ""
     )
     next_link = (
-        f'<a href="{escape(next_href)}" data-focus-next>下一条 <span class="mono">J</span> →</a>'
+        f'<a href="{escape(next_href)}" data-focus-next>下一条 <span class="mono">J</span>{icon("arrow-right")}</a>'
         if next_href else ""
     )
-    return_link = f'<a class="focus-return" href="{escape(close_href)}#review-queue">← 返回队列</a>'
+    return_link = f'<a class="focus-return" href="{escape(close_href)}#review-queue">{icon("arrow-left")}返回队列</a>'
     return f"""
     <div class="focus-nav">
       <div class="focus-nav-group">{return_link}{previous_link}{next_link}</div>
@@ -3858,7 +3868,7 @@ def _detail_panel(
           <h2 id="detail-title">{'人工确认' if buttons else '处理结果'}</h2>
           <p>{escape(item.item_id)} · {escape(_product_reason(item))}</p>
         </div>
-        <a class="detail-close" href="{escape(close_href)}#review-queue" aria-label="关闭详情">{_top_icon("close")}</a>
+        <a class="detail-close" href="{escape(close_href)}#review-queue" aria-label="关闭详情">{icon("close")}</a>
       </header>
 
       <div class="detail-layout">
@@ -3875,7 +3885,7 @@ def _detail_panel(
           </section>
 
           <details class="sidebar-section metadata-details">
-            <summary>证据与元数据</summary>
+            <summary>证据与元数据<span class="details-toggle-icon">{icon('plus', class_name='icon-plus')}{icon('minus', class_name='icon-minus')}</span></summary>
             <div class="detail-facts">
               <div class="detail-fact"><div class="label">进入人工原因</div><div class="value">{escape(_reason_summary(item))}</div></div>
               <div class="detail-fact"><div class="label">策略版本</div><div class="value mono">{escape(item.policy_version)}</div></div>
@@ -3915,7 +3925,7 @@ def _detail_panel(
           </section>
 
           <details class="audit-log detail-audit">
-            <summary><span class="audit-summary-main">{_top_icon("arrow")}<span>这张图片的操作记录</span></span><span class="quiet audit-summary-meta">AI 自动记录<span class="sr-only">Agent action log</span></span></summary>
+            <summary><span class="audit-summary-main">{icon("arrow")}<span>这张图片的操作记录</span></span><span class="quiet audit-summary-meta">AI 自动记录<span class="sr-only">Agent action log</span></span></summary>
             <div class="audit-log-body">
               <ul class="event-list">{timeline}</ul>
             </div>
@@ -3951,7 +3961,7 @@ def _media_preview(item: ReviewItem) -> str:
     risk_band = _risk_band(item)
     blur_class = " is-sensitive-blur" if risk_band in {"elevated", "critical"} else ""
     toggle_button = (
-        f'<button type="button" class="preview-unblur-toggle" onclick="this.closest(\'.media-preview\').classList.toggle(\'is-sensitive-blur\')">{_top_icon("eye")}<span>切换防护遮罩</span></button>'
+        f'<button type="button" class="preview-unblur-toggle" onclick="this.closest(\'.media-preview\').classList.toggle(\'is-sensitive-blur\')">{icon("eye")}<span>切换防护遮罩</span></button>'
         if risk_band in {"elevated", "critical"} else ""
     )
     bg_switch = """
@@ -3990,7 +4000,7 @@ def _media_preview(item: ReviewItem) -> str:
     <div class="media-preview{blur_class} bg-grid">
       <div class="preview-header-tools">
         {bg_switch}
-        <button type="button" class="lightbox-trigger" onclick="openLightbox('{img_src}', {str(blocked).lower()})">{_top_icon("zoom")}<span>放大预览</span><kbd>Space</kbd></button>
+        <button type="button" class="lightbox-trigger" onclick="openLightbox('{img_src}', {str(blocked).lower()})">{icon("zoom")}<span>放大预览</span><kbd>Space</kbd></button>
       </div>
       <div class="preview-wrapper">
         <button type="button" class="preview-image-button" aria-label="打开大图预览" onclick="openLightbox('{img_src}', {str(blocked).lower()})">
@@ -4038,8 +4048,8 @@ def _manual_actions(item: ReviewItem, csrf_token: str) -> str:
         [
             _action_button(item, "approve", "approve", "通过"),
             _action_button(item, "reject", "reject", "拒绝"),
-            _action_button(item, "blacklist", "blacklist", "", icon="ban"),
-            _action_button(item, "hold", "hold", "", icon="pause"),
+            _action_button(item, "blacklist", "blacklist", "", icon_name="ban"),
+            _action_button(item, "hold", "hold", "", icon_name="pause"),
         ]
     )
 
@@ -4050,7 +4060,7 @@ def _action_button(
     data_action: str,
     label: str,
     *,
-    icon: str | None = None,
+    icon_name: str | None = None,
 ) -> str:
     accessible_label = {
         "approve": "通过并保留原头像",
@@ -4059,8 +4069,8 @@ def _action_button(
         "hold": "留置人工复核",
         "retry": "重新检查",
     }.get(action, label)
-    button_class = ' class="is-icon-only"' if icon else ""
-    content = _top_icon(icon) if icon else escape(label)
+    button_class = ' class="is-icon-only"' if icon_name else ""
+    content = icon(icon_name) if icon_name else escape(label)
     return (
         f'<button type="submit"{button_class} formaction="/review/items/{escape(item.item_id)}/{action}" '
         f'data-action="{escape(data_action)}" aria-label="{escape(accessible_label)}" '
@@ -4286,45 +4296,3 @@ def _risk_filter_value(value: str) -> str:
 def _filter_option(value: str, label: str, selected: str) -> str:
     mark = " selected" if value == selected else ""
     return f'<option value="{escape(value)}"{mark}>{escape(label)}</option>'
-
-
-def _nav_icon(name: str) -> str:
-    paths = {
-        "overview": '<path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-3H4zM14 7h6V4h-6z"></path>',
-        "queue": '<rect x="4" y="4" width="16" height="16" rx="3"></rect><path d="M8 9h8M8 12h6M8 15h4"></path>',
-        "agents": '<path d="M8 8h8v8H8zM12 3v3M12 18v3M3 12h3M18 12h3"></path><circle cx="10.5" cy="11" r=".7"></circle><circle cx="13.5" cy="11" r=".7"></circle><path d="M10 14h4"></path>',
-        "guide": '<circle cx="12" cy="12" r="8.5"></circle><path d="M12 10v5M12 7.5h.01"></path>',
-        "log": '<path d="M6 4.5h12v15H6z"></path><path d="M9 8h6M9 11.5h6M9 15h4"></path>',
-        "policy": '<path d="M12 3.5l7 3v5.2c0 4.2-2.8 7.5-7 8.8-4.2-1.3-7-4.6-7-8.8V6.5z"></path><path d="M9 12l2 2 4-4"></path>',
-        "quality": '<circle cx="12" cy="12" r="8.5"></circle><path d="m8.5 12 2.2 2.2 4.8-5"></path>',
-        "health": '<path d="M3.5 12h4l1.8-4.5 3.2 9 2.1-4.5h5.9"></path>',
-        "account": '<circle cx="12" cy="8" r="3.5"></circle><path d="M5.5 20c.7-4 3-6 6.5-6s5.8 2 6.5 6"></path>',
-    }
-    return f'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{paths.get(name, paths["guide"])}</svg>'
-
-
-def _top_icon(name: str) -> str:
-    paths = {
-        "spark": '<path d="M12 3l1.4 4.1 4.1 1.4-4.1 1.4L12 14l-1.4-4.1-4.1-1.4 4.1-1.4z"></path><path d="M18 14l.8 2.2L21 17l-2.2.8L18 20l-.8-2.2L15 17l2.2-.8z"></path>',
-        "bell": '<path d="M18 9a6 6 0 0 0-12 0c0 6.5-2.5 7-2.5 8.5h17C20.5 16 18 15.5 18 9"></path><path d="M10 20h4"></path>',
-        "help": '<circle cx="12" cy="12" r="8.5"></circle><path d="M9.8 9.2a2.5 2.5 0 1 1 4.4 1.7c-.8.9-2.2 1.2-2.2 2.7M12 17h.01"></path>',
-        "search": '<circle cx="10.7" cy="10.7" r="5.7"></circle><path d="M15 15l4 4"></path>',
-        "settings": '<path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"></path><path d="m19.4 15 .1.1a1.8 1.8 0 0 1-2.5 2.5l-.1-.1a1.8 1.8 0 0 0-3.1 1.3v.2a1.8 1.8 0 0 1-3.6 0v-.2a1.8 1.8 0 0 0-3.1-1.3l-.1.1a1.8 1.8 0 1 1-2.5-2.5l.1-.1a1.8 1.8 0 0 0-1.3-3.1h-.2a1.8 1.8 0 0 1 0-3.6h.2a1.8 1.8 0 0 0 1.3-3.1l-.1-.1a1.8 1.8 0 1 1 2.5-2.5l.1.1a1.8 1.8 0 0 0 3.1-1.3V1.2a1.8 1.8 0 0 1 3.6 0v.2a1.8 1.8 0 0 0 3.1 1.3l.1-.1a1.8 1.8 0 0 1 2.5 2.5l-.1.1a1.8 1.8 0 0 0 1.3 3.1h.2a1.8 1.8 0 0 1 0 3.6h-.2a1.8 1.8 0 0 0-1.3 3.1Z"></path>',
-        "grip": '<circle cx="8" cy="8" r="1"></circle><circle cx="16" cy="8" r="1"></circle><circle cx="8" cy="12" r="1"></circle><circle cx="16" cy="12" r="1"></circle><circle cx="8" cy="16" r="1"></circle><circle cx="16" cy="16" r="1"></circle>',
-        "logout": '<path d="M10 17l5-5-5-5"></path><path d="M15 12H3"></path><path d="M21 19V5a2 2 0 0 0-2-2h-5"></path>',
-        "close": '<path d="m6 6 12 12M18 6 6 18"></path>',
-        "arrow": '<path d="m9 18 6-6-6-6"></path>',
-        "guide": '<circle cx="12" cy="12" r="8.5"></circle><path d="M12 10v5M12 7.5h.01"></path>',
-        "grid": '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/>',
-        "list": '<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>',
-        "zap": '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
-        "sun": '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>',
-        "moon": '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
-        "layout": '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/>',
-        "keyboard": '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M6 12h.01M10 12h.01M14 12h.01M18 12h.01M7 16h10"/>',
-        "eye": '<path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.5"/>',
-        "zoom": '<circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4M10.5 7.5v6M7.5 10.5h6"/>',
-        "ban": '<circle cx="12" cy="12" r="9"/><path d="m5.6 5.6 12.8 12.8"/>',
-        "pause": '<path d="M9 5v14M15 5v14"/>',
-    }
-    return f'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{paths.get(name, paths["help"])}</svg>'
