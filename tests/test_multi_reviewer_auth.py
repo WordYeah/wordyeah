@@ -76,6 +76,8 @@ def test_three_reviewer_sessions_complete_independent_dual_review_and_arbitratio
             sample_id = sample_response.json()["sample_id"]
             quality_page = client.get("/review/quality")
             assert f'/review/quality/samples/{sample_id}/decision' in quality_page.text
+            assert "盲审封存 · 提交独立结论后显示" in quality_page.text
+            assert "待 AI 预标注" not in quality_page.text
             assert 'name="decision" value="allow"' in quality_page.text
             assert 'name="decision" value="review"' in quality_page.text
             assert 'name="decision" value="block"' in quality_page.text
@@ -90,6 +92,8 @@ def test_three_reviewer_sessions_complete_independent_dual_review_and_arbitratio
             independent_page = client.get("/review/quality")
             assert "reviewer-a:allow" not in independent_page.text
             assert "待双人复核" in independent_page.text
+            assert "盲审封存 · 提交独立结论后显示" in independent_page.text
+            assert "待 AI 预标注" not in independent_page.text
             second = client.post(
                 f"/review/quality/samples/{sample_id}/decision",
                 json={"decision": "block", "csrf_token": csrf_b},
@@ -104,6 +108,8 @@ def test_three_reviewer_sessions_complete_independent_dual_review_and_arbitratio
             arbitration_page = client.get("/review/quality")
             assert "reviewer-a:allow" in arbitration_page.text
             assert "reviewer-b:block" in arbitration_page.text
+            assert "盲审封存 · 提交独立结论后显示" in arbitration_page.text
+            assert "待 AI 预标注" not in arbitration_page.text
             assert f'/review/quality/samples/{sample_id}/arbitrate' in arbitration_page.text
             final = client.post(
                 f"/review/quality/samples/{sample_id}/arbitrate",
@@ -113,6 +119,9 @@ def test_three_reviewer_sessions_complete_independent_dual_review_and_arbitratio
             assert final.status_code == 200
             assert final.json()["status"] == "resolved"
             assert final.json()["final_decision"] == "allow"
+            resolved_page = client.get("/review/quality")
+            assert "待 AI 预标注" in resolved_page.text
+            assert 'data-blinded="false"' in resolved_page.text
 
             bad = client.post(
                 "/review/login",

@@ -121,6 +121,66 @@ class VisionFailoverTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "reasoning_effort"):
             OllamaConfig(reasoning_effort="invalid")
 
+    def test_ollama_accepts_structured_result_in_reasoning_when_content_is_empty(self) -> None:
+        body = json.dumps(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "content": "",
+                            "reasoning": json.dumps(
+                                {
+                                    "decision": "review",
+                                    "confidence": 0.72,
+                                    "reasons": ["boundary content"],
+                                    "findings": [],
+                                    "evidence": [],
+                                }
+                            ),
+                        }
+                    }
+                ]
+            }
+        ).encode()
+        provider = OllamaVisionProvider(
+            OllamaConfig(enabled=True),
+            transport=lambda _request, _timeout: HttpResponse(200, body),
+        )
+
+        result = provider.review(request())
+
+        self.assertEqual(result.decision, "review")
+        self.assertEqual(result.confidence, 0.72)
+
+    def test_ollama_does_not_replace_nonempty_content_with_reasoning(self) -> None:
+        body = json.dumps(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "content": "not-json",
+                            "reasoning": json.dumps(
+                                {
+                                    "decision": "allow",
+                                    "confidence": 0.99,
+                                    "reasons": [],
+                                    "findings": [],
+                                    "evidence": [],
+                                }
+                            ),
+                        }
+                    }
+                ]
+            }
+        ).encode()
+        provider = OllamaVisionProvider(
+            OllamaConfig(enabled=True),
+            transport=lambda _request, _timeout: HttpResponse(200, body),
+        )
+
+        with self.assertRaisesRegex(VisionProviderError, "invalid structured response"):
+            provider.review(request())
+
 
 if __name__ == "__main__":
     unittest.main()

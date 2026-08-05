@@ -82,3 +82,5 @@
 - 图片基线：Falconsai，需用代表性头像样本重新校准
 - 决策模式：`shadow -> review -> enforce`
 - [CX] 2026-08-05 20:49 Asia/Shanghai：G2A Web 账号水位仍为 16,402，但真实 corpus canary 返回可重试 HTTP 502；本机 Ollama OpenAI 兼容请求现默认设置 `reasoning_effort=none` 并将结构化输出限制为 1,024 token，避免头像审核生成无用长推理。配置可显式覆盖，24 个相关 pytest、4 个 subtest、Ruff 和 compileall 通过；持续双 worker 未中断，后续新 worker 才加载该优化。
+- [CX] 2026-08-05 21:08 Asia/Shanghai：新 worker 实测发现 Ollama `qwen3-vl:8b` 在 `reasoning_effort=none` 时把完整 JSON 结论放入 `message.reasoning` 并令 `message.content` 为空，导致 28 次可重试 `invalid_response` attempt；worker 已立即停止，未形成最终决定或生产写回。adapter 现仅对“空 content + 非空 reasoning”形态做本地兼容，非空 content 不被覆盖；真实受控头像 canary 已恢复 `allow/0.95`，耗时 21.95 秒，30 个相关 pytest、Ruff、compileall 和 diff check 通过。
+- [CX] 已修复：质量页不再让未提交人工标签的 reviewer 预先看到 AI 建议；每位 reviewer 提交独立结论后才解封模型结果，双审第二人仍看不到第一人结论，仲裁和已收敛样本可查看完整证据。相关三角色会话与质量 API 回归已纳入测试。

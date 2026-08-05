@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import dataclass
 from typing import Mapping
@@ -97,6 +98,55 @@ class OllamaVisionProvider(G2AVisionProvider):
         payload["reasoning_effort"] = self.ollama_config.reasoning_effort
         payload["max_tokens"] = self.ollama_config.max_tokens
         return payload
+
+    def _parse_response(self, body: bytes, request_id: str):
+        """Normalize Ollama's thinking envelope before strict JSON parsing.
+
+        Some Ollama vision models return the requested JSON object in the
+        OpenAI-compatible ``message.reasoning`` field while leaving
+        ``message.content`` empty, including when ``reasoning_effort=none``.
+        Only that exact empty-content shape is normalized; a non-empty content
+        field remains authoritative and malformed output still fails closed.
+        """
+        try:
+            envelope = json.loads(body.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            return super()._parse_response(body, request_id)
+        normalized = _reasoning_as_empty_content(envelope)
+        if normalized is envelope:
+            return super()._parse_response(body, request_id)
+        return super()._parse_response(
+            json.dumps(normalized, ensure_ascii=False, separators=(",", ":")).encode(
+                "utf-8"
+            ),
+            request_id,
+        )
+
+
+def _reasoning_as_empty_content(envelope: object) -> object:
+    if not isinstance(envelope, dict):
+        return envelope
+    choices = envelope.get("choices")
+    if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
+        return envelope
+    message = choices[0].get("message")
+    if not isinstance(message, dict):
+        return envelope
+    content = message.get("content")
+    reasoning = message.get("reasoning")
+    if not isinstance(content, str) or content.strip():
+        return envelope
+    if not isinstance(reasoning, str) or not reasoning.strip():
+        return envelope
+    normalized = dict(envelope)
+    normalized_choices = list(choices)
+    normalized_choice = dict(choices[0])
+    normalized_message = dict(message)
+    normalized_message["content"] = reasoning
+    normalized_choice["message"] = normalized_message
+    normalized_choices[0] = normalized_choice
+    normalized["choices"] = normalized_choices
+    return normalized
 
 
 def _parse_bool(value: str) -> bool:

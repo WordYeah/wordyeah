@@ -181,7 +181,7 @@ def test_imported_corpus_sample_has_session_protected_controlled_preview() -> No
             assert decision.headers["location"] == "/review/quality?offset=24"
 
 
-def test_quality_page_shows_ai_proposal_without_promoting_it_to_human_truth() -> None:
+def test_quality_page_blinds_ai_proposal_until_reviewer_commits_truth() -> None:
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
         database = root / "wordyeah.sqlite3"
@@ -211,7 +211,9 @@ def test_quality_page_shows_ai_proposal_without_promoting_it_to_human_truth() ->
         with TestClient(app) as client:
             before = client.get("/review/quality")
             assert before.status_code == 200
-            assert "待 AI 预标注" in before.text
+            assert "盲审封存 · 提交独立结论后显示" in before.text
+            assert "待 AI 预标注" not in before.text
+            assert 'data-blinded="true"' in before.text
 
             report = enqueue_corpus_ai_prelabels(
                 database=database,
@@ -225,7 +227,8 @@ def test_quality_page_shows_ai_proposal_without_promoting_it_to_human_truth() ->
             assert report["human_decisions_created"] == 0
             after = client.get("/review/quality")
             assert after.status_code == 200
-            assert "AI 一审排队中" in after.text
+            assert "盲审封存 · 提交独立结论后显示" in after.text
+            assert "AI 一审排队中" not in after.text
 
             reviews = ReviewStore(str(database))
             proposal = reviews.get_by_source_id(
@@ -318,7 +321,20 @@ def test_quality_page_shows_ai_proposal_without_promoting_it_to_human_truth() ->
             reviews.close()
             second_review = client.get("/review/quality")
             assert second_review.status_code == 200
-            assert "AI 二审后需人工确认 · 99%" in second_review.text
+            assert "盲审封存 · 提交独立结论后显示" in second_review.text
+            assert "AI 二审后需人工确认 · 99%" not in second_review.text
+
+            csrf = client.post("/review/login").json()["csrf_token"]
+            committed = client.post(
+                f"/review/quality/samples/{sample.sample_id}/decision",
+                json={"decision": "review", "csrf_token": csrf},
+                headers={"X-CSRF-Token": csrf},
+            )
+            assert committed.status_code == 200
+            revealed = client.get("/review/quality")
+            assert revealed.status_code == 200
+            assert "AI 二审后需人工确认 · 99%" in revealed.text
+            assert 'data-blinded="false"' in revealed.text
 
         quality = QualityStore(str(database))
         try:
@@ -327,9 +343,11 @@ def test_quality_page_shows_ai_proposal_without_promoting_it_to_human_truth() ->
             )
             assert persisted.final_decision is None
             assert persisted.status == "awaiting_reviews"
-            assert quality.list_decisions(
+            persisted_decisions = quality.list_decisions(
                 sample_id=sample.sample_id, consumer_id="corpus-avatar"
-            ) == []
+            )
+            assert len(persisted_decisions) == 1
+            assert persisted_decisions[0].decision == "review"
         finally:
             quality.close()
 
@@ -383,7 +401,8 @@ def test_quality_page_defaults_to_frozen_batch_and_preserves_batch_navigation() 
             assert "全量主审" in page.text
             assert "10% 双审" in page.text
             assert "样本标注与仲裁" in page.text
-            assert "第二位 reviewer 提交前看不到第一位结论" in page.text
+            assert "每位 reviewer 提交前都看不到 AI 建议" in page.text
+            assert "第二位 reviewer 也看不到第一位结论" in page.text
             assert "完成进度" in page.text
             assert "data-quality-row" in page.text
             assert "data-quality-action" in page.text

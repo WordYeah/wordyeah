@@ -1666,11 +1666,21 @@ def create_app(
                     action_url = f"/review/quality/samples/{sample.sample_id}/decision"
                 elif sample.arbitration_required and reviewer_id not in reviewer_ids:
                     action_url = f"/review/quality/samples/{sample.sample_id}/arbitrate"
+                # Human quality labels are calibration truth, not confirmations of an
+                # existing model answer. Do not render the proposal until this reviewer
+                # has committed an independent decision. Resolved samples are safe to
+                # inspect because no further independent label can change them.
+                model_visible = reviewer_id in reviewer_ids or sample.status == "resolved"
                 sample_rows.append(
                     {
                         "id": sample.sample_id[:12],
                         "item_id": sample.item_id,
-                        "model": quality_ai_proposal(sample.item_id),
+                        "model": (
+                            quality_ai_proposal(sample.item_id)
+                            if model_visible
+                            else "盲审封存 · 提交独立结论后显示"
+                        ),
+                        "model_blinded": not model_visible,
                         "review": review_text,
                         "disagreement": "是" if sample.arbitration_required else "否",
                         "verdict": sample.final_decision or sample.status,

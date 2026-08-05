@@ -77,6 +77,7 @@ CSS = r"""
 .pq-case-table td { padding: 14px; border-bottom: 1px solid var(--line); vertical-align: middle; text-align: left; background: var(--panel); }
 .pq-case-table tr:last-child td { border-bottom: 0; }
 .pq-case-table tr:hover td { background: var(--panel-soft); }
+.pq-ai-blind { color: var(--quiet); font-weight: 600; }
 
 .pq-sample-link { display: inline-flex; align-items: center; gap: 10px; font-weight: 600; color: var(--text); text-decoration: none; }
 .pq-sample-link img { width: 38px; height: 38px; border-radius: 8px; object-fit: cover; background: var(--panel-soft); border: 1px solid var(--line); flex-shrink: 0; }
@@ -252,7 +253,7 @@ def render_quality_body(data: object = None) -> str:
     has_review_batches = bool(batch_links)
     quality_heading = "样本标注与仲裁" if has_review_batches else "抽检与分歧证据"
     quality_intro = (
-        "先完成全量主审，再处理冻结 10% 独立双审；第二位 reviewer 提交前看不到第一位结论。"
+        "先完成全量主审，再处理冻结 10% 独立双审；每位 reviewer 提交前都看不到 AI 建议，第二位 reviewer 也看不到第一位结论。"
         if has_review_batches
         else "默认由自动抽检闭环处理；这里只保留误判、模型分歧和可复现样本。"
     )
@@ -263,6 +264,8 @@ def render_quality_body(data: object = None) -> str:
         item = _map(raw)
         case_id = item.get("id") or item.get("sample") or item.get("样本") or "—"
         ai = item.get("model") or item.get("ai_decision") or item.get("模型结论") or "—"
+        ai_blinded = item.get("model_blinded") is True
+        ai_class = ' class="pq-ai-blind"' if ai_blinded else ""
         check = item.get("review") or item.get("result") or item.get("复核结论") or "待复核"
         disagreement = item.get("disagreement") or item.get("difference") or item.get("分歧") or "—"
         verdict = item.get("verdict") or item.get("status") or item.get("结论") or "无需人工"
@@ -298,7 +301,7 @@ def render_quality_body(data: object = None) -> str:
         )
         rows.append(
             '<tr data-quality-row>'
-            f'<td>{case_html}</td><td data-quality-ai-proposal>{_e(ai)}</td><td>{_e(check)}</td><td>{_e(disagreement)}</td>'
+            f'<td>{case_html}</td><td data-quality-ai-proposal data-blinded="{str(ai_blinded).lower()}"{ai_class}>{_e(ai)}</td><td>{_e(check)}</td><td>{_e(disagreement)}</td>'
             f'<td><span class="pq-verdict" data-tone="{_tone(item.get("tone"))}">{_e(verdict)}</span>{action_html}</td></tr>'
         )
     rows_html = "".join(rows) or '<tr><td colspan="5"><div class="pq-empty" role="status">SKIP · 未提供抽检样本。</div></td></tr>'
@@ -336,7 +339,7 @@ def render_quality_body(data: object = None) -> str:
         '<section class="pq-casebook" aria-labelledby="pq-case-title"><div class="pq-casebook-head"><h3 id="pq-case-title">样本复核簿</h3>'
         '<span class="pq-shortcuts"><kbd>J</kbd>/<kbd>K</kbd> 选择 · <kbd>A</kbd> 通过 · <kbd>R</kbd> 复核 · <kbd>B</kbd> 拒绝</span></div><div class="pq-table-wrap">'
         '<table class="pq-case-table"><caption>抽检、误判与模型分歧明细</caption><thead><tr>'
-        '<th scope="col">样本</th><th scope="col">模型判断</th><th scope="col">复核</th><th scope="col">分歧</th><th scope="col">处置</th>'
+        '<th scope="col">样本</th><th scope="col">AI 参考</th><th scope="col">复核</th><th scope="col">分歧</th><th scope="col">处置</th>'
         f'</tr></thead><tbody>{rows_html}</tbody></table></div>{pages_html}</section>'
         '<aside class="pq-evidence-rail" aria-label="样本证据规则">'
         f'<section><h3>样本留存</h3><dl class="pq-pair">{pair_html}</dl></section>'

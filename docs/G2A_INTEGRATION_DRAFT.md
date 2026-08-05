@@ -27,6 +27,11 @@
 
 启用时必须同时提供 endpoint、API key 和模型 ID。不要在 shell history、截图、工单或文档中粘贴真实 secret；部署系统应通过受限环境或 secret store 注入。
 
+Ollama 的 OpenAI 兼容响应在部分视觉模型上会出现 `message.content` 为空、请求的 JSON
+结论位于 `message.reasoning` 的情况，即使请求设置了 `reasoning_effort=none`。本地 adapter
+只在 content 为空且 reasoning 为非空字符串时把它作为候选结构化结论解析；content 非空时
+始终以 content 为准，任何非 JSON 或字段不完整的结果仍按 `invalid_response` 失败关闭。
+
 ## 接口与响应
 
 `src/wy_media/vision_provider.py` 定义 `AdvancedVisionProvider`、输入请求、结构化结论和稳定错误类别。G2A 只是其中一个 adapter；审核路由不需要依赖 G2A 名称。
