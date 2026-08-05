@@ -46,7 +46,7 @@
 - [CX] 已核对：2026-08-05 08:34 Asia/Shanghai，G2A healthz 为 200，但 `grok-4.5` 串行 3 次均为 429；Build available=0，Web available=16402。先前 `grok-chat-fast` canary 证据仍有效，但不能据此写成 Build 池恢复
 - [CX] 已接线并验证：高级视觉一审使用 G2A Web `grok-chat-fast`，失败时回退本机 Ollama `qwen3-vl:8b`，低置信度二审预留本机 `gemma3:12b`；真实 Cravatar 受控头像得到 G2A `allow/0.95`，队列任务也已验证 Ollama 兜底成功
 - [CX] 已修复：归一化 JPEG 预览与原始内容哈希不同会导致 vision worker 拒绝任务；队列现分别保存内容哈希和受控媒体哈希，本机 29 条积压任务已补齐媒体哈希并保留修复前数据库备份
-- [CX] 已验证：29 条 Cravatar 高级视觉一审任务和 3 条低置信度二审任务全部成功收敛；审核项为 29 条自动通过、6 条自动拒绝、0 条人工待审，未执行 Cravatar 写回
+- [CX] 已验证（早期受限 canary 快照）：29 条 Cravatar 高级视觉一审任务和 3 条低置信度二审任务曾完成模型处理；该快照不作为当前私有 corpus 数据库的最终队列计数，也未执行 Cravatar 写回
 - [CX] 已修复并回填：Cravatar 工作区的历史清单同时覆盖 Cravatar 原生头像 88 条和 Gravatar 镜像头像 1,012 条，两类共 1,100/1,100 条均已有审核项；既有 35 条保持原结论，新增 1,065 条进入 AI 一审队列。持续 worker 使用自管 G2A Web 号池并在 429 或超时时回退本机 Ollama。`cravatar.cn` 只作为历史 301 域名识别，不用于采集、预览或新数据输出
 - [CX] 已实现并验证：浏览器验收改为真实 Chromium 可重复脚本，使用 0600 三角色 reviewer runtime，覆盖 1440/1280 队列、列表/网格/沉浸三视图、50 项批量上限、无弹窗人工动作、390px 质量页和 1,100 样本分页缩略图；动作提交被拦截，未改变审核结论。审核队列重新显示紧凑视图切换、批量入口和分页控件
 - [CX] 已验证：232 个 pytest、12 个 subtest 全部通过；回填后 SQLite 为 1,100 submissions、1,100 review items，人工队列仍只接 AI 两轮后不确定项
@@ -63,6 +63,11 @@
 - [CX] 已实测：修复后 4 路本机并发中最慢一条 `qwen3-vl:8b` 推理耗时 124.1 秒，超过原 120 秒租约仍由原 worker 成功完成，4 条均无重复领取；双并发吞吐优于四并发，因此 1,100 条私有预标注改为两个有界 worker 排空。同期 G2A Web 账号水位仍为 16,402，但真实头像 canary 返回可重试 HTTP 503，未把账号水位当作请求成功
 - [CX] 已恢复试运行副作用：首次未加 lane 的 4 个普通视觉任务因旧媒体哈希失败，失败 attempt 作为审计保留，并已按真实受控媒体哈希各自确保一个新 retry；修复前 0600 SQLite 备份完整性为 `ok`。质量预标注 lane 未受这 4 个普通任务影响
 - [CX] 已核对范围：上述 1,100 条只是从 Cavalcade 历史任务抽取并关联 `wp_9_avatar_verify` 的审核样本，不是头像登记表全量。2026-08-05 实时只读查询登记表为 Gravatar 3,068,649 条、Cravatar 18,320 条；这 3,086,969 条尚未全量导入 WordYeah，禁止把 1,100/1,100 写成全库覆盖
+- [CX] 已验证：独立二审真实 canary 中，本机 `qwen3-vl:8b` 一审给出 `review/0.50`，随后 `gemma3:12b` 二审给出 `allow/0.85`；路由因这是 `quality_ai_prelabel` 保持 `vision_review_2/pending`，没有写 `final_decision`、`avatar_action`、人工决定或生产头像
+- [CX] 已验证：vision worker 支持 `--vision-max-jobs N` 的有界批次消费，慢推理期间持续续租；达到上限或当前筛选队列为空后退出，不改变常驻 worker 的默认行为
+- [CX] 已验证：最新完整测试为 259 个 pytest、12 个 subtest，Ruff、compileall 和 diff check 全部通过；唯一警告为 Starlette/httpx 弃用提示
+- [CX] 已验证：最新真实 Chromium reviewer session 验收覆盖审核队列与八个支持页，原生风险/分页/审计筛选在 7 个宽度下共 35 次几何检查，工作区菜单覆盖桌面与移动端，账户菜单在 9 个页面 × 4 个宽度共 36 次展开检查；全部位于视口内且中心无遮挡，未写审核决定
+- [CX] 2026-08-05 19:54 Asia/Shanghai 只读质量快照：`corpus-primary-v1` 仍选择 1,100 条，真人收敛 0、AI 建议 16、可评测人机配对 0；报告为 `INCOMPLETE`，`mutates_quality_decisions=false`、`mutates_avatar=false`
 - [CX] 未完成：代表性头像 corpus 的真人全量主审 0/1100、固定 10% 独立双审 0/110 和可能产生的分歧仲裁；目标主机持续调度部署仍未批准
 - 生产接入：只读 canary 已完成；未写回 WordPress/头像/队列
 - 外部审查 API：生产默认关闭；仅做过受控 G2A canary
