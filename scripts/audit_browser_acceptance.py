@@ -272,7 +272,8 @@ def main() -> int:
                             raise RuntimeError(f"dropdown page failed: {path}")
                         page.add_style_tag(
                             content=(
-                                "details[name='review-dropdown'] > * {"
+                                "details[name='review-dropdown'] > *, "
+                                "details[name='review-dropdown'] * {"
                                 "animation: none !important; transition: none !important;}"
                             )
                         )

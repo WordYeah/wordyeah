@@ -1661,6 +1661,7 @@ details[open] > .dropdown-trigger > .dropdown-trigger__chevron > .icon {
 }
 .per-page-dropdown > summary > .icon { width: 12px; height: 12px; flex-basis: 12px; }
 .per-page-dropdown > summary .dropdown-trigger__chevron > .icon { width: 12px; height: 12px; }
+.per-page-dropdown .menu-select__option > .icon { width: 12px; height: 12px; }
 .per-page-dropdown > .menu-select__menu {
   top: auto;
   right: 0;
