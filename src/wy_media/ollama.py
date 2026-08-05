@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Mapping
 
 from .g2a import G2AConfig, G2AVisionProvider, Transport
+from .vision_provider import VisionReviewRequest
 
 
 @dataclass(frozen=True)
@@ -15,6 +16,14 @@ class OllamaConfig:
     timeout_seconds: float = 120.0
     prompt_version: str = "wordyeah-avatar-review-ollama-v1"
     max_image_bytes: int = 10 * 1024 * 1024
+    reasoning_effort: str = "none"
+    max_tokens: int = 1024
+
+    def __post_init__(self) -> None:
+        if self.reasoning_effort not in {"none", "low", "medium", "high"}:
+            raise ValueError("Ollama reasoning_effort must be none, low, medium or high")
+        if self.max_tokens < 64 or self.max_tokens > 4096:
+            raise ValueError("Ollama max_tokens must be between 64 and 4096")
 
     @classmethod
     def from_env(
@@ -39,8 +48,11 @@ class OllamaConfig:
             max_bytes = int(
                 values.get(f"{prefix}MAX_IMAGE_BYTES", str(10 * 1024 * 1024))
             )
+            max_tokens = int(values.get(f"{prefix}MAX_TOKENS", "1024"))
         except ValueError as exc:
-            raise ValueError("Ollama timeout and image limit must be numeric") from exc
+            raise ValueError(
+                "Ollama timeout, image limit and token limit must be numeric"
+            ) from exc
         return cls(
             enabled=enabled,
             endpoint=values.get(
@@ -50,6 +62,10 @@ class OllamaConfig:
             timeout_seconds=timeout,
             prompt_version=values.get(f"{prefix}PROMPT_VERSION", default_prompt).strip(),
             max_image_bytes=max_bytes,
+            reasoning_effort=values.get(
+                f"{prefix}REASONING_EFFORT", "none"
+            ).strip().lower(),
+            max_tokens=max_tokens,
         )
 
 
@@ -72,6 +88,15 @@ class OllamaVisionProvider(G2AVisionProvider):
             ),
             transport=transport,
         )
+
+    def _build_payload(self, request: VisionReviewRequest) -> dict[str, object]:
+        payload = super()._build_payload(request)
+        # Ollama's OpenAI-compatible endpoint accepts reasoning_effort. Avatar
+        # moderation needs a bounded structured verdict, not a long hidden
+        # reasoning trace; disabling it materially reduces local queue latency.
+        payload["reasoning_effort"] = self.ollama_config.reasoning_effort
+        payload["max_tokens"] = self.ollama_config.max_tokens
+        return payload
 
 
 def _parse_bool(value: str) -> bool:

@@ -18,6 +18,8 @@
 | `WORDYEAH_G2A_PROMPT_VERSION` | `wordyeah-avatar-review-v1` | 写入审核 attempt 的提示词版本 |
 | `WORDYEAH_G2A_MAX_IMAGE_BYTES` | `10485760` | 发送前的图片字节上限 |
 | `WORDYEAH_OLLAMA_ENABLED` | `false` | G2A Web 调用失败时启用本机视觉模型兜底 |
+| `WORDYEAH_OLLAMA_REASONING_EFFORT` | `none` | OpenAI 兼容接口的推理强度；头像结构化审核默认关闭长推理 |
+| `WORDYEAH_OLLAMA_MAX_TOKENS` | `1024` | 单次结构化结论的最大生成 token，范围 `64..4096` |
 | `WORDYEAH_OLLAMA_ENDPOINT` | `http://127.0.0.1:11434/v1/chat/completions` | Ollama OpenAI-compatible endpoint |
 | `WORDYEAH_OLLAMA_MODEL` | `qwen3-vl:8b` | 本机一审兜底模型 |
 | `WORDYEAH_OLLAMA_SECONDARY_ENABLED` | 继承本机一审开关 | 是否启用独立二审模型 |

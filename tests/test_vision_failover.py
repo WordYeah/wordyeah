@@ -73,6 +73,7 @@ class VisionFailoverTests(unittest.TestCase):
         self.assertEqual(provider.fallback.model_id, "qwen3-vl:8b")
 
     def test_ollama_provider_returns_ollama_provenance(self) -> None:
+        seen: dict[str, object] = {}
         body = json.dumps(
             {
                 "choices": [
@@ -92,15 +93,33 @@ class VisionFailoverTests(unittest.TestCase):
                 ]
             }
         ).encode()
-        provider = OllamaVisionProvider(
-            OllamaConfig(enabled=True),
-            transport=lambda _request, _timeout: HttpResponse(200, body),
-        )
+        def transport(http_request, _timeout: float) -> HttpResponse:
+            seen.update(json.loads(http_request.data))
+            return HttpResponse(200, body)
+
+        provider = OllamaVisionProvider(OllamaConfig(enabled=True), transport=transport)
 
         result = provider.review(request())
 
         self.assertEqual(result.provider, "ollama")
         self.assertEqual(result.model_id, "qwen3-vl:8b")
+        self.assertEqual(seen["reasoning_effort"], "none")
+        self.assertEqual(seen["max_tokens"], 1024)
+
+    def test_ollama_runtime_generation_limits_are_configurable(self) -> None:
+        config = OllamaConfig.from_env(
+            {
+                "WORDYEAH_OLLAMA_ENABLED": "true",
+                "WORDYEAH_OLLAMA_REASONING_EFFORT": "low",
+                "WORDYEAH_OLLAMA_MAX_TOKENS": "384",
+            }
+        )
+
+        self.assertEqual(config.reasoning_effort, "low")
+        self.assertEqual(config.max_tokens, 384)
+
+        with self.assertRaisesRegex(ValueError, "reasoning_effort"):
+            OllamaConfig(reasoning_effort="invalid")
 
 
 if __name__ == "__main__":

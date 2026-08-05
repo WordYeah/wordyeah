@@ -72,9 +72,12 @@
 - [CX] 已加固：头像 MVP 聚合器不再接受缺少隔离来源、未声明审核决定非写入、未覆盖全部下拉或未覆盖 1,100 条质量分页的旧浏览器报告；当前除代表性 corpus 真人标签外其余证据仍为 PASS，整体继续为 `INCOMPLETE`
 - [CX] 已验证：最新完整测试为 265 个 pytest、12 个 subtest；Ruff、compileall 和 diff check 全部通过。唯一警告为 Starlette/httpx 弃用提示
 - [CX] 2026-08-05 20:42 Asia/Shanghai 只读重算：冻结 corpus 仍为 1,100 条，AI 可评测建议增至 91，真人收敛 0、可评测人机配对 0；Cravatar shadow、浏览器隔离验收、高级视觉 canary、故障演练和 15 分钟队列负载均为 PASS，聚合状态仍为 `INCOMPLETE`
+- [CX] 已实现并验证：新增冻结 corpus 预标排空只读审计，覆盖任务分阶段/状态、运行 worker 与租约、重复成功、attempt ID 复用、样本关联、人工真值不变式、最近 15/60 分钟吞吐和仅针对当前已入队任务的 ETA；最终路径拒绝 symlink，不写 SQLite、审核决定或头像
+- [CX] 2026-08-05 20:51 Asia/Shanghai 实时只读审计：`corpus-primary-v1` 仍为 1,100 条，AI 可评测建议 102（9.27%），当前任务成功 104、运行 2、排队 996；两个有界 worker 租约有效，重复成功、attempt 复用、未关联任务和结果损坏均为 0，人工决定与真人收敛仍为 0。最近 60 分钟完成 91 个任务，当前已入队任务 ETA 约 658 分钟；二审可动态增加任务，因此该 ETA 不是最终完成承诺
 - [CX] 未完成：代表性头像 corpus 的真人全量主审 0/1100、固定 10% 独立双审 0/110 和可能产生的分歧仲裁；目标主机持续调度部署仍未批准
 - 生产接入：只读 canary 已完成；未写回 WordPress/头像/队列
 - 外部审查 API：生产默认关闭；仅做过受控 G2A canary
 - 首个接入方：Cravatar，使用独立适配器
 - 图片基线：Falconsai，需用代表性头像样本重新校准
 - 决策模式：`shadow -> review -> enforce`
+- [CX] 2026-08-05 20:49 Asia/Shanghai：G2A Web 账号水位仍为 16,402，但真实 corpus canary 返回可重试 HTTP 502；本机 Ollama OpenAI 兼容请求现默认设置 `reasoning_effort=none` 并将结构化输出限制为 1,024 token，避免头像审核生成无用长推理。配置可显式覆盖，24 个相关 pytest、4 个 subtest、Ruff 和 compileall 通过；持续双 worker 未中断，后续新 worker 才加载该优化。
