@@ -379,6 +379,44 @@ class AvatarReviewApiTest(unittest.TestCase):
                     )
                 )
 
+    def test_focus_deep_link_resolves_item_outside_current_page(self) -> None:
+        try:
+            from fastapi.testclient import TestClient
+        except ImportError as exc:  # pragma: no cover - optional api extra
+            self.skipTest(str(exc))
+
+        with tempfile.TemporaryDirectory() as directory:
+            settings = ApiSettings(
+                database_path=str(Path(directory) / "wordyeah.sqlite3"),
+                media_root=Path(directory) / "media",
+                reviewer_token="review-secret",
+                review_session_secret="session-secret",
+                reviewer_id="alice",
+            )
+            app = create_app(
+                settings=settings, service=MediaModerationService(BlockClassifier())
+            )
+            with TestClient(app) as client:
+                for index in range(21):
+                    self._moderate_png(client, (index, 80, 120))
+                client.post("/review/login", json={"token": "review-secret"})
+                created = [
+                    item["item_id"]
+                    for item in client.get("/review/items?status=all").json()["items"]
+                ]
+                for item_id in created:
+                    self._route_item_to_human_required(client, item_id)
+
+                target = created[-1]
+                page = client.get(
+                    f"/review?status=all&view=focus&per_page=20&focus={target}"
+                )
+                self.assertEqual(page.status_code, 200)
+                self.assertIn(target, page.text)
+                self.assertIn('class="action-form"', page.text)
+                self.assertIn('value="approve"', page.text)
+                self.assertIn('value="reject"', page.text)
+
     def test_login_review_and_optimistic_action(self) -> None:
         try:
             from fastapi.testclient import TestClient

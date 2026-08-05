@@ -143,7 +143,10 @@ class PageHistoryHealthTest(unittest.TestCase):
         self.assertIn(".audit-timeline", CSS)
         self.assertIn(".health-pipeline", CSS)
         self.assertIn(":focus-visible", CSS)
-        self.assertIn(".audit-filter-menu > .menu-select__menu", CSS)
+        self.assertIn(
+            ".audit-filter-menu > .menu-select__menu { width: 100%; min-width: 100%; }",
+            CSS,
+        )
         self.assertIn(".menu-select > summary", REVIEW_CSS)
         self.assertIn(".menu-select__menu", REVIEW_CSS)
         self.assertIn("top: calc(100% + 6px)", REVIEW_CSS)

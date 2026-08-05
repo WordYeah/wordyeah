@@ -14,7 +14,7 @@ from typing import Mapping, Sequence
 
 CSS = r"""
 /* Policy ledger: dense configuration reading, refined Windsor card layout. */
-.pq-policy-ledger, .pq-quality-sheet { color: var(--text); }
+.pq-policy-ledger, .pq-quality-sheet { min-width: 0; color: var(--text); }
 .pq-policy-ledger *, .pq-quality-sheet * { box-sizing: border-box; }
 .pq-ledger-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; padding: 4px 0 22px; border-bottom: 2px solid var(--line); }
 .pq-eyebrow { margin: 0 0 6px; color: var(--accent); font-size: 11px; font-weight: 650; letter-spacing: 0.05em; text-transform: uppercase; }
@@ -23,8 +23,8 @@ CSS = r"""
 .pq-version-stamp { padding: 10px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-soft); text-align: right; }
 .pq-version-stamp span { display: block; color: var(--quiet); font-size: 11px; }
 .pq-version-stamp strong { font-family: var(--mono); font-size: 14px; font-weight: 650; color: var(--accent); }
-.pq-policy-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; margin-top: 22px; }
-.pq-policy-grid > section { padding: 18px 20px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+.pq-policy-grid { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; margin-top: 22px; }
+.pq-policy-grid > section { min-width: 0; padding: 18px 20px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
 .pq-section-kicker { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
 .pq-section-kicker h3 { margin: 0; font-size: 14px; font-weight: 650; }
 .pq-section-kicker span { color: var(--quiet); font-size: 11px; background: var(--panel-soft); padding: 2px 8px; border-radius: 6px; }
@@ -105,7 +105,13 @@ CSS = r"""
 .pq-empty { padding: 18px 0; color: var(--quiet); font-size: 12px; text-align: center; }
 .pq-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 @media (max-width: 760px) {
-  .pq-policy-grid { grid-template-columns: 1fr; }
+  .pq-ledger-head { align-items: stretch; flex-direction: column; gap: 14px; }
+  .pq-version-stamp { min-width: 0; text-align: left; overflow-wrap: anywhere; }
+  .pq-policy-grid { grid-template-columns: minmax(0, 1fr); }
+  .pq-section-kicker { align-items: flex-start; }
+  .pq-section-kicker span { text-align: right; }
+  .pq-release { align-items: flex-start; flex-direction: column; }
+  .pq-release time { white-space: normal; overflow-wrap: anywhere; }
   .pq-quality-sheet { grid-template-columns: 1fr; }
 }
 """

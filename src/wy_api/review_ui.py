@@ -174,7 +174,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   left: 0;
   box-sizing: border-box;
   display: grid;
-  width: max-content;
+  width: 100%;
   min-width: 100%;
   max-width: min(280px, calc(100vw - 32px));
   max-height: min(280px, calc(100vh - 96px));
@@ -188,6 +188,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 .menu-select__option {
   display: flex;
+  width: 100%;
+  min-width: 0;
   min-height: 34px;
   align-items: center;
   justify-content: space-between;
@@ -200,6 +202,11 @@ button, a { -webkit-tap-highlight-color: transparent; }
   line-height: 1.25;
   text-decoration: none;
   white-space: nowrap;
+}
+.menu-select__option > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .menu-select__option:hover,
 .menu-select__option:focus-visible {
@@ -1299,10 +1306,11 @@ details[open] > .dropdown-trigger > .icon:last-child {
 .search-form { margin: 0; }
 .risk-filter-dropdown {
   --dropdown-height: 40px;
-  min-width: 132px;
+  width: 148px;
+  min-width: 148px;
 }
 .risk-filter-dropdown > summary { border-color: var(--line); padding-left: 12px; }
-.risk-filter-dropdown > .menu-select__menu { right: 0; left: auto; min-width: 172px; }
+.risk-filter-dropdown > .menu-select__menu { right: 0; left: auto; }
 
 .filter-bar {
   display: flex;
@@ -1597,6 +1605,7 @@ details[open] > .dropdown-trigger > .icon:last-child {
 }
 .per-page-dropdown {
   --dropdown-height: 30px;
+  width: 104px;
   margin: 0;
 }
 .per-page-dropdown > summary {
@@ -1616,7 +1625,6 @@ details[open] > .dropdown-trigger > .icon:last-child {
   right: 0;
   bottom: calc(100% + 6px);
   left: auto;
-  min-width: 104px;
 }
 
 .batch-result {
@@ -2850,8 +2858,8 @@ details[open] > .dropdown-trigger > .icon:last-child {
     gap: 8px;
   }
   .per-page-dropdown {
-    flex: 0 0 78px;
-    width: 78px;
+    flex: 0 0 104px;
+    width: 104px;
   }
   .keyboard-help-btn span { display: none; }
   .queue-tool-note { display: none; }
@@ -3328,6 +3336,7 @@ def render_review_workbench(
         item_list,
         event_list,
         focus_item_id=focus_item_id,
+        focus_candidates=filtered_items,
         metrics=metrics or {},
     )
     current_ts = datetime.now(timezone.utc)
@@ -3833,6 +3842,7 @@ def _summarise(
     events: list[ReviewEvent],
     *,
     focus_item_id: str | None,
+    focus_candidates: list[ReviewItem] | None = None,
     metrics: dict[str, float | int],
 ) -> ReviewSummary:
     queue_items = list(items)
@@ -3875,7 +3885,7 @@ def _summarise(
         )
     )
 
-    focus_item = _resolve_focus_item(items, focus_item_id)
+    focus_item = _resolve_focus_item(focus_candidates or items, focus_item_id)
     focus_events = tuple(
         event for event in events if focus_item is not None and event.item_id == focus_item.item_id
     )
@@ -4489,5 +4499,6 @@ def _menu_link(*, href: str, label: str, selected: bool) -> str:
     check = icon("check") if selected else ""
     return (
         f'<a class="menu-select__option{selected_class}" role="menuitem" '
-        f'href="{escape(href)}"{current}><span>{escape(label)}</span>{check}</a>'
+        f'href="{escape(href)}" title="{escape(label)}"{current}>'
+        f'<span>{escape(label)}</span>{check}</a>'
     )

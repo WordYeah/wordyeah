@@ -21,7 +21,7 @@ CSS = """
 .health-workspace { display: grid; gap: 16px; }
 .audit-filters {
   display: grid;
-  grid-template-columns: minmax(240px, 1.5fr) repeat(3, minmax(132px, .65fr)) auto auto;
+  grid-template-columns: minmax(208px, 1.3fr) repeat(3, minmax(168px, .75fr)) auto auto;
   gap: 8px;
   align-items: center;
   padding: 10px;
@@ -32,7 +32,7 @@ CSS = """
 .audit-filter { position: relative; display: flex; min-width: 0; align-items: center; }
 .audit-filter-menu { width: 100%; }
 .audit-filter-menu > summary { height: 36px; min-height: 36px; }
-.audit-filter-menu > .menu-select__menu { min-width: max(100%, 176px); }
+.audit-filter-menu > .menu-select__menu { width: 100%; min-width: 100%; }
 .audit-filter-search .icon {
   position: absolute;
   left: 11px;
@@ -343,7 +343,8 @@ def _history_filter_menu(
         check = icon("check") if value == selected_text else ""
         rendered.append(
             f'<a class="menu-select__option{selected_class}" role="menuitem" '
-            f'href="{escape(href)}"{current}><span>{escape(choice_label)}</span>{check}</a>'
+            f'href="{escape(href)}" title="{escape(choice_label)}"{current}>'
+            f'<span>{escape(choice_label)}</span>{check}</a>'
         )
     return (
         f'<details class="audit-filter audit-filter-menu menu-select" name="review-dropdown">'

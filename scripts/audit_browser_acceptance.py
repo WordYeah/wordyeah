@@ -219,7 +219,7 @@ def main() -> int:
                 )
                 response = page.goto(
                     base
-                    + "/review?status=all&view=focus"
+                    + "/review?status=pending&view=focus"
                     + (f"&focus={focus_item_id}" if focus_item_id else ""),
                     wait_until="networkidle",
                 )
@@ -253,18 +253,34 @@ def main() -> int:
             def dropdown_alignment() -> dict[str, object]:
                 measurements: list[dict[str, object]] = []
                 layouts: list[dict[str, object]] = []
+                dropdown_paths = (
+                    "/review?status=all&view=list&per_page=20",
+                    "/review/overview",
+                    "/review/agents",
+                    "/review/policies",
+                    "/review/quality",
+                    "/review/history",
+                    "/review/health",
+                    "/review/account",
+                    "/review/guide",
+                )
                 for width in (1440, 1180, 1024, 900, 760, 640, 390):
                     page.set_viewport_size({"width": width, "height": 900})
-                    for path in (
-                        "/review?status=all&view=list&per_page=20",
-                        "/review/history",
-                    ):
-                        response = page.goto(base + path, wait_until="networkidle")
+                    for path in dropdown_paths:
+                        response = page.goto(base + path, wait_until="domcontentloaded")
                         if response is None or response.status != 200:
                             raise RuntimeError(f"dropdown page failed: {path}")
-                        controls = page.locator(".menu-select")
+                        page.add_style_tag(
+                            content=(
+                                "details[name='review-dropdown'] > * {"
+                                "animation: none !important; transition: none !important;}"
+                            )
+                        )
+                        controls = page.locator('details[name="review-dropdown"]')
                         page_measurements: list[dict[str, object]] = []
                         for control in controls.all():
+                            if not control.is_visible():
+                                continue
                             control.scroll_into_view_if_needed()
                             trigger = control.locator(":scope > summary")
                             trigger.click()
@@ -272,8 +288,14 @@ def main() -> int:
                             measurement = control.evaluate(
                                 """dropdown => {
                                   const trigger = dropdown.querySelector(':scope > summary');
-                                  const menu = dropdown.querySelector(':scope > .menu-select__menu');
-                                  const icon = trigger?.querySelector(':scope > .icon');
+                                  const menu = dropdown.querySelector(
+                                    ':scope > .menu-select__menu, '
+                                    + ':scope > .consumer-popover-menu, '
+                                    + ':scope > .account-popover'
+                                  );
+                                  const icon = trigger?.querySelector(
+                                    ':scope > .icon, :scope > .chevron > .icon'
+                                  );
                                   const triggerBox = trigger?.getBoundingClientRect();
                                   const menuBox = menu?.getBoundingClientRect();
                                   const iconBox = icon?.getBoundingClientRect();
@@ -289,8 +311,21 @@ def main() -> int:
                                         Math.abs(triggerBox.top - menuBox.bottom)
                                       )
                                     : null;
+                                  const inlineEdgeDelta = triggerBox && menuBox
+                                    ? Math.min(
+                                        Math.abs(menuBox.left - triggerBox.left),
+                                        Math.abs(menuBox.right - triggerBox.right)
+                                      )
+                                    : null;
                                   return {
                                     className: dropdown.className,
+                                    kind: dropdown.classList.contains('menu-select')
+                                      ? 'select'
+                                      : dropdown.classList.contains('consumer-popover-wrapper')
+                                        ? 'desktop-workspace'
+                                        : dropdown.classList.contains('account-menu')
+                                          ? 'account'
+                                          : 'mobile-workspace',
                                     triggerHeight: triggerBox?.height ?? null,
                                     icon: Boolean(icon),
                                     menu: Boolean(menu),
@@ -306,6 +341,10 @@ def main() -> int:
                                           (triggerBox.top + triggerBox.height / 2)
                                           - (iconBox.top + iconBox.height / 2)
                                         )
+                                      : null,
+                                    inlineEdgeDelta,
+                                    widthDelta: triggerBox && menuBox
+                                      ? Math.abs(menuBox.width - triggerBox.width)
                                       : null,
                                     verticalGap,
                                     menuVisibleAtAnchor: Boolean(
@@ -345,18 +384,34 @@ def main() -> int:
                                 "filterChildrenInside": filter_children_inside,
                             }
                         )
-                aligned = all(
-                    row["icon"]
-                    and row["menu"]
-                    and row["triggerInsideViewport"]
-                    and row["menuInsideViewport"]
-                    and row["menuVisibleAtAnchor"]
-                    and row["centerDelta"] is not None
-                    and row["centerDelta"] <= 0.5
-                    and row["verticalGap"] is not None
-                    and 5.5 <= row["verticalGap"] <= 6.5
-                    for row in measurements
-                ) and all(
+                def follows_geometry_contract(row: dict[str, object]) -> bool:
+                    kind = row["kind"]
+                    expected_gap = {
+                        "select": 6.0,
+                        "desktop-workspace": 10.0,
+                        "account": 9.0,
+                        "mobile-workspace": 8.0,
+                    }[kind]
+                    same_width = row["widthDelta"] is not None and row["widthDelta"] <= 0.5
+                    anchored = (
+                        row["inlineEdgeDelta"] is not None
+                        and row["inlineEdgeDelta"] <= 0.5
+                    )
+                    return bool(
+                        row["icon"]
+                        and row["menu"]
+                        and row["triggerInsideViewport"]
+                        and row["menuInsideViewport"]
+                        and row["menuVisibleAtAnchor"]
+                        and row["centerDelta"] is not None
+                        and row["centerDelta"] <= 0.5
+                        and anchored
+                        and (same_width if kind in {"select", "desktop-workspace"} else True)
+                        and row["verticalGap"] is not None
+                        and abs(row["verticalGap"] - expected_gap) <= 0.6
+                    )
+
+                aligned = all(follows_geometry_contract(row) for row in measurements) and all(
                     row["noHorizontalOverflow"] and row["filterChildrenInside"]
                     for row in layouts
                 )
