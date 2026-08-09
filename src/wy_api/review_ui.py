@@ -13,6 +13,18 @@ from wy_review.store import ReviewEvent, ReviewItem
 LANE_ORDER: tuple[str, ...] = ("auto-approve", "auto-reject", "escalate", "error")
 RISK_ORDER: tuple[str, ...] = ("low", "guarded", "elevated", "critical")
 
+SIDEBAR_NAV: tuple[tuple[str, str, str, str], ...] = (
+    ("overview", "概览", "overview", "/review/overview"),
+    ("queue", "审核队列", "queue", "/review"),
+    ("agents", "AI 任务", "agents", "/review/agents"),
+    ("history", "操作记录", "history", "/review/history"),
+    ("policies", "审核策略", "policy", "/review/policies"),
+    ("quality", "质量与仲裁", "quality", "/review/quality"),
+    ("health", "系统健康", "health", "/review/health"),
+    ("account", "账户", "account", "/review/account"),
+    ("guide", "审核说明", "guide", "/review/guide"),
+)
+
 
 CSS = """
 :root {
@@ -3328,6 +3340,89 @@ class ReviewSummary:
     recent_events: tuple[ReviewEvent, ...]
 
 
+def render_review_sidebar(
+    *,
+    active_page: str,
+    consumer_id: str,
+    reviewer_id: str,
+    workspace_menu: str,
+    csrf_token: str = "",
+    service_ready: bool = True,
+    pending_count: int | None = None,
+) -> str:
+    """Render the one canonical sidebar used by every review page."""
+
+    nav_items: dict[str, str] = {}
+    for key, label, icon_name, href in SIDEBAR_NAV:
+        active_class = " is-active" if key == active_page else ""
+        current = ' aria-current="page"' if key == active_page else ""
+        count = (
+            f'<span class="nav-count">{pending_count}</span>'
+            if key == "queue" and pending_count is not None
+            else ""
+        )
+        nav_items[key] = (
+            f'<a class="nav-item{active_class}" href="{href}"{current}>'
+            f'<span class="nav-icon">{icon(icon_name)}</span>'
+            f'<span>{escape(label)}</span>{count}</a>'
+        )
+
+    workspace_nav = "".join(
+        nav_items[key] for key in ("overview", "queue", "agents", "history")
+    )
+    settings_nav = "".join(
+        nav_items[key]
+        for key in ("policies", "quality", "health", "account", "guide")
+    )
+    status_color = "var(--green)" if service_ready else "var(--red)"
+    status_text = "本地扫描服务可用" if service_ready else "本地扫描服务受阻"
+    account_action = (
+        '<form method="post" action="/review/logout">'
+        f'<input type="hidden" name="csrf_token" value="{escape(csrf_token)}">'
+        f'<button class="popover-action-btn logout-btn" type="submit">{icon("logout")}<span>退出登录</span></button>'
+        "</form>"
+        if csrf_token
+        else '<a class="popover-action-btn" href="/review/account">Account Details</a>'
+    )
+
+    return f'''<aside class="side-nav" aria-label="审核导航">
+  <a class="brand" href="/review/overview" aria-label="WordYeah 图像审核">
+    <span class="brand-mark">wy</span><span>wordyeah</span>
+  </a>
+  <div class="nav-scroll">
+    <nav class="nav-section" aria-label="工作区"><p class="nav-label">Workspace</p>{workspace_nav}</nav>
+    <nav class="nav-section" aria-label="设置"><p class="nav-label">Settings</p>{settings_nav}</nav>
+  </div>
+  <div class="usage-widget">
+    <div class="usage-header">
+      <span class="usage-icon">{icon("spark")}</span>
+      <span class="usage-title">审查引擎状态</span>
+      <a class="usage-gear-btn" href="/review/health" title="查看策略与健康状态" aria-label="查看策略与健康状态">{icon("settings")}</a>
+    </div>
+    <p class="usage-subtitle">当前 consumer 的审核流水线</p>
+    <div class="usage-meta"><span class="usage-count">工作区 <strong>{escape(consumer_id)}</strong></span></div>
+    <div class="usage-tag"><span class="dot" style="background: {status_color};"></span>{status_text}</div>
+    <a class="usage-upgrade-btn" href="/review/health">检查系统健康</a>
+  </div>
+  <div class="nav-spacer"></div>
+  <details class="consumer-popover-wrapper" name="review-dropdown">
+    <summary class="consumer-switcher dropdown-trigger">
+      <span class="consumer-avatar">{escape(consumer_id[:1].upper() or "W")}</span>
+      <span class="consumer-copy"><strong>{escape(consumer_id)}</strong><small>Consumer workspace</small></span>
+      <span class="chevron dropdown-trigger__chevron">{icon("chevron-down")}</span>
+    </summary>
+    <div class="consumer-popover-menu">
+      <div class="consumer-popover-header">Reviewer: {escape(reviewer_id)}</div>
+      <div class="consumer-popover-list">{workspace_menu}</div>
+      <div class="consumer-popover-actions">
+        <a class="popover-action-btn" href="/review/account">{icon("settings")}<span>账户与会话</span></a>
+        {account_action}
+      </div>
+    </div>
+  </details>
+</aside>'''
+
+
 def render_review_workbench(
     *,
     items: Iterable[ReviewItem],
@@ -3519,6 +3614,15 @@ def render_review_workbench(
 
     start_num_disp = start_index + 1 if total_filtered > 0 else 0
     end_num_disp = min(start_index + per_page, total_filtered)
+    sidebar_html = render_review_sidebar(
+        active_page="queue",
+        consumer_id=consumer_id,
+        reviewer_id=reviewer_id,
+        workspace_menu=workspace_menu,
+        csrf_token=csrf_token,
+        service_ready=service_ready,
+        pending_count=pending_count,
+    )
 
     return f"""<!doctype html>
 <html lang="zh-CN">
@@ -3533,71 +3637,7 @@ def render_review_workbench(
 <body>
   <a class="skip-link" href="#review-queue">跳到待审核图片</a>
   <div class="app-frame">
-    <aside class="side-nav" aria-label="审核导航">
-      <a class="brand" href="/review/overview" aria-label="WordYeah 图像审核">
-        <span class="brand-mark">wy</span><span>wordyeah</span>
-      </a>
-
-      <div class="nav-scroll">
-      <nav class="nav-section" aria-label="工作区">
-        <p class="nav-label">Workspace</p>
-        <a class="nav-item" href="/review/overview">
-          <span class="nav-icon">{icon("overview")}</span><span>概览</span>
-        </a>
-        <a class="nav-item is-active" href="/review#review-queue" aria-current="page">
-          <span class="nav-icon">{icon("queue")}</span>
-          <span>审核队列</span><span class="nav-count">{pending_count}</span>
-        </a>
-        <a class="nav-item" href="/review/agents">
-          <span class="nav-icon">{icon("agents")}</span><span>AI 任务</span>
-        </a>
-        <a class="nav-item" href="/review/history">
-          <span class="nav-icon">{icon("log")}</span><span>操作记录</span>
-        </a>
-      </nav>
-
-      <nav class="nav-section" aria-label="设置">
-        <p class="nav-label">Settings</p>
-        <a class="nav-item" href="/review/policies">
-          <span class="nav-icon">{icon("policy")}</span><span>审核策略</span>
-        </a>
-        <a class="nav-item" href="/review/quality">
-          <span class="nav-icon">{icon("quality")}</span><span>抽检质量</span>
-        </a>
-        <a class="nav-item" href="/review/health">
-          <span class="nav-icon">{icon("health")}</span><span>系统健康</span>
-        </a>
-        <a class="nav-item" href="/review/account">
-          <span class="nav-icon">{icon("account")}</span><span>账户与会话</span>
-        </a>
-        <a class="nav-item" href="/review/guide">
-          <span class="nav-icon">{icon("guide")}</span><span>审核说明</span>
-        </a>
-      </nav>
-      </div>
-
-      <div class="nav-spacer"></div>
-      <details class="consumer-popover-wrapper" name="review-dropdown">
-        <summary class="consumer-switcher dropdown-trigger">
-          <span class="consumer-avatar">{escape(consumer_id[:1].upper() or 'W')}</span>
-          <span class="consumer-copy"><strong>{escape(consumer_id)}</strong><small>Consumer workspace</small></span>
-          <span class="chevron dropdown-trigger__chevron">{icon('chevron-down')}</span>
-        </summary>
-        <div class="consumer-popover-menu">
-          <div class="consumer-popover-header">Reviewer: {escape(reviewer_id)}</div>
-          <div class="consumer-popover-list">
-            {workspace_menu}
-          </div>
-          <div class="consumer-popover-actions">
-            <a class="popover-action-btn" href="/review/account">
-              {icon('settings')}
-              <span>账户与会话</span>
-            </a>
-            {'<form class="logout-form" method="post" action="/review/logout"><input type="hidden" name="csrf_token" value="' + escape(csrf_token) + '"><button class="popover-action-btn logout-btn" type="submit">' + icon('logout') + '<span>退出登录</span></button></form>' if csrf_token else '<a class="popover-action-btn" href="/review/account">Account Details</a>'}
-          </div>
-        </div>
-      </details>
-    </aside>
+    {sidebar_html}
 
     <div class="app-main">
       <header class="topbar">

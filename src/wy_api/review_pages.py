@@ -19,7 +19,7 @@ from wy_api.page_overview_agents import CSS as OVERVIEW_AGENTS_CSS
 from wy_api.page_overview_agents import render_agents_body
 from wy_api.page_policy_quality import CSS as POLICY_QUALITY_CSS
 from wy_api.page_policy_quality import render_policies_body, render_quality_body
-from wy_api.review_ui import CSS as REVIEW_CSS, THEME_INIT_JS
+from wy_api.review_ui import CSS as REVIEW_CSS, THEME_INIT_JS, render_review_sidebar
 
 
 @dataclass(frozen=True)
@@ -53,18 +53,6 @@ class TableData:
     rows: tuple[tuple[object, ...], ...]
     empty_message: str = "暂无记录"
 
-
-_NAV = (
-    ("overview", "概览"),
-    ("queue", "审核队列"),
-    ("agents", "AI 任务"),
-    ("policies", "审核策略"),
-    ("quality", "质量与仲裁"),
-    ("history", "操作记录"),
-    ("health", "系统健康"),
-    ("account", "账户"),
-    ("guide", "审核说明"),
-)
 
 _PAGE_META = {
     "overview": (
@@ -118,18 +106,6 @@ _PAGE_INTENTS = {
     "health": "先判断是否阻塞，再定位组件或队列异常。",
     "account": "先确认身份与会话范围，再处理退出或切换。",
     "guide": "只在例外场景查阅本页，不打断主审核流。",
-}
-
-_PAGE_ICON_NAMES = {
-    "overview": "overview",
-    "queue": "queue",
-    "agents": "agents",
-    "history": "history",
-    "policies": "policy",
-    "quality": "quality",
-    "health": "health",
-    "account": "account",
-    "guide": "guide",
 }
 
 _CSS = (
@@ -1229,30 +1205,6 @@ def render_review_page(
     ctx = _coerce_context(context)
     title, subtitle, nav_label = _PAGE_META[page]
 
-    nav_items: dict[str, str] = {}
-    for key, label in _NAV:
-        active_class = " is-active" if key == page else ""
-        current = ' aria-current="page"' if key == page else ""
-        href = "/review" if key == "queue" else f"/review/{key}"
-        nav_items[key] = (
-            f'<a class="nav-item{active_class}" href="{href}"{current}>'
-            f'<span class="nav-icon">{icon(_PAGE_ICON_NAMES[key])}</span><span>{escape(label)}</span></a>'
-        )
-    workspace_nav = "".join(
-        nav_items[key] for key in ("overview", "queue", "agents", "history")
-    )
-    settings_nav = "".join(
-        nav_items[key] for key in ("policies", "quality", "health", "account", "guide")
-    )
-    nav = (
-        '<div class="nav-scroll">'
-        '<nav class="nav-section" aria-label="工作区"><p class="nav-label">Workspace</p>'
-        f"{workspace_nav}</nav>"
-        '<nav class="nav-section" aria-label="设置"><p class="nav-label">Settings</p>'
-        f"{settings_nav}</nav>"
-        "</div>"
-    )
-
     service_label = (
         "Local scanner ready" if ctx.service_ready else "Local scanner blocked"
     )
@@ -1288,51 +1240,19 @@ def render_review_page(
         )
         for workspace_id, name in workspace_choices
     )
+    sidebar_html = render_review_sidebar(
+        active_page=page,
+        consumer_id=ctx.consumer_id,
+        reviewer_id=ctx.reviewer_id,
+        workspace_menu=workspace_items,
+        csrf_token=ctx.csrf_token or "",
+        service_ready=ctx.service_ready,
+    )
     return f'''<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light dark"><title>{escape(title)} · WordYeah</title>{THEME_INIT_JS}<style>{_CSS}</style></head>
 <body><a class="skip-link" href="#main-content">跳到主要内容</a><div class="app-frame">
-<aside class="side-nav" aria-label="审核导航"><a class="brand" href="/review/overview"><span class="brand-mark">wy</span><span>wordyeah</span></a>
-<nav aria-label="工作台页面"><div class="support-nav">{nav}</div></nav>
-
-<div class="usage-widget">
-  <div class="usage-header">
-    <span class="usage-icon">{icon("spark")}</span>
-    <span class="usage-title">审查引擎状态</span>
-    <button class="usage-gear-btn" type="button" title="查看策略与健康状态" onclick="location.href='/review/health'">
-      {icon("settings")}
-    </button>
-  </div>
-  <p class="usage-subtitle">当前 consumer 的审核流水线</p>
-  <div class="usage-meta">
-    <span class="usage-count">工作区 <strong>{escape(ctx.consumer_id)}</strong></span>
-  </div>
-  <div class="usage-tag">
-    <span class="dot" style="background: {"var(--green)" if ctx.service_ready else "var(--red)"};"></span>
-    {"本地扫描服务可用" if ctx.service_ready else "本地扫描服务受阻"}
-  </div>
-  <a class="usage-upgrade-btn" href="/review/health">检查系统健康</a>
-</div>
-
-<div class="nav-spacer"></div>
-<details class="consumer-popover-wrapper" name="review-dropdown">
-  <summary class="consumer-switcher dropdown-trigger">
-    <span class="consumer-avatar">{escape(ctx.consumer_id[:1].upper() or "W")}</span>
-    <span class="consumer-copy"><strong>{escape(ctx.consumer_id)}</strong><small>Consumer workspace</small></span>
-    <span class="chevron dropdown-trigger__chevron">{icon("chevron-down")}</span>
-  </summary>
-  <div class="consumer-popover-menu">
-    <div class="consumer-popover-header">Reviewer: {escape(ctx.reviewer_id)}</div>
-    <div class="consumer-popover-list">
-      {workspace_items}
-    </div>
-    <div class="consumer-popover-actions">
-      <a class="popover-action-btn" href="/review/account">账户与会话</a>
-      {'<form class="logout" method="post" action="/review/logout"><input type="hidden" name="csrf_token" value="' + escape(ctx.csrf_token) + '"><button class="popover-action-btn logout-btn" type="submit">Log out</button></form>' if ctx.csrf_token else '<a class="popover-action-btn" href="/review/account">Account Details</a>'}
-    </div>
-  </div>
-</details>
-</aside>
+{sidebar_html}
 <div class="app-main"><header class="topbar"><div class="toolbar-title"><nav class="topbar-breadcrumbs" aria-label="面包屑"><a href="/review/overview">WordYeah</a><span class="divider" aria-hidden="true">/</span><span class="current-crumb">{escape(nav_label)}</span></nav></div>
 <div class="toolbar-actions">
 <details class="support-mobile-workspace" name="review-dropdown"><summary class="dropdown-trigger" aria-label="切换工作区"><span class="dropdown-trigger__label">{escape(ctx.consumer_id)}</span><span class="dropdown-trigger__chevron">{icon("chevron-down")}</span></summary><div class="consumer-popover-menu"><div class="consumer-popover-header">切换工作区</div><div class="consumer-popover-list">{workspace_items}</div></div></details>

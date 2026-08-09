@@ -468,6 +468,8 @@ class AvatarReviewApiTest(unittest.TestCase):
                     support_page = client.get(f"/review/{route}")
                     self.assertEqual(support_page.status_code, 200, route)
                     self.assertIn('class="side-nav"', support_page.text)
+                    self.assertIn("审查引擎状态", support_page.text)
+                    self.assertIn("质量与仲裁", support_page.text)
 
                 filtered_history = client.get("/review/history?action=route")
                 self.assertEqual(filtered_history.status_code, 200)
@@ -502,6 +504,9 @@ class AvatarReviewApiTest(unittest.TestCase):
                 self.assertIn(".filter-controls {", queue_page.text)
                 self.assertIn(".risk-filter-dropdown {", queue_page.text)
                 self.assertIn('class="side-nav"', queue_page.text)
+                self.assertIn("审查引擎状态", queue_page.text)
+                self.assertIn("质量与仲裁", queue_page.text)
+                self.assertNotIn("抽检质量", queue_page.text)
                 self.assertNotIn("Create Avatar", queue_page.text)
                 self.assertNotIn("Agent plans", queue_page.text)
 
