@@ -186,6 +186,157 @@ class JobStore:
             raise KeyError(f"job not found: {job_id}")
         return self._row(row)
 
+    def cancel_queued(
+        self,
+        job_id: str,
+        *,
+        reason: str,
+        error_kind: str = "cancelled",
+    ) -> Job:
+        """Cancel one still-queued job without touching running or completed work."""
+
+        if not job_id:
+            raise ValueError("job_id is required")
+        if not reason or len(reason) > 1000 or any(ord(char) < 32 for char in reason):
+            raise ValueError("reason must be printable and between 1 and 1000 characters")
+        if (
+            not error_kind
+            or len(error_kind) > 64
+            or any(ord(char) < 32 for char in error_kind)
+        ):
+            raise ValueError(
+                "error_kind must be printable and between 1 and 64 characters"
+            )
+        now = _stamp()
+        cursor = self.connection.cursor()
+        try:
+            cursor.execute("BEGIN IMMEDIATE")
+            updated = cursor.execute(
+                """
+                UPDATE jobs
+                SET status = 'cancelled', worker_id = NULL, lease_until = NULL,
+                    error = ?, error_kind = ?, retryable = 0, dead_lettered_at = NULL,
+                    updated_at = ?
+                WHERE job_id = ? AND status = 'queued'
+                """,
+                (reason, error_kind, now, job_id),
+            )
+            if updated.rowcount != 1:
+                self.connection.rollback()
+                raise ValueError("job is not queued and cannot be cancelled")
+            self.connection.commit()
+            return self.get(job_id)
+        except Exception:
+            self.connection.rollback()
+            raise
+
+    def supersede_queued(
+        self,
+        job_id: str,
+        *,
+        kind: str,
+        payload: dict[str, Any],
+        consumer_id: str,
+        max_attempts: int,
+        idempotency_key: str,
+        reason: str,
+        error_kind: str,
+    ) -> tuple[Job, Job, bool]:
+        """Atomically cancel a queued job and ensure its replacement."""
+
+        if not job_id:
+            raise ValueError("job_id is required")
+        if not kind or len(kind) > 64:
+            raise ValueError("job kind must be between 1 and 64 characters")
+        if not consumer_id or len(consumer_id) > 128:
+            raise ValueError("consumer_id must be between 1 and 128 characters")
+        if max_attempts < 1 or max_attempts > 10:
+            raise ValueError("max_attempts must be between 1 and 10")
+        if not idempotency_key or len(idempotency_key) > 255:
+            raise ValueError("idempotency_key must be between 1 and 255 characters")
+        if not reason or len(reason) > 1000 or any(ord(char) < 32 for char in reason):
+            raise ValueError("reason must be printable and between 1 and 1000 characters")
+        if not error_kind or len(error_kind) > 64 or any(
+            ord(char) < 32 for char in error_kind
+        ):
+            raise ValueError(
+                "error_kind must be printable and between 1 and 64 characters"
+            )
+        payload_json = json.dumps(
+            payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        )
+        now = _stamp()
+        cursor = self.connection.cursor()
+        try:
+            cursor.execute("BEGIN IMMEDIATE")
+            source = cursor.execute(
+                "SELECT * FROM jobs WHERE job_id = ?", (job_id,)
+            ).fetchone()
+            if source is None or source["status"] != "queued":
+                raise ValueError("job is not queued and cannot be superseded")
+            if source["consumer_id"] != consumer_id:
+                raise ValueError("replacement consumer must match source job")
+            existing = cursor.execute(
+                "SELECT * FROM jobs WHERE consumer_id = ? AND idempotency_key = ?",
+                (consumer_id, idempotency_key),
+            ).fetchone()
+            created = existing is None
+            if existing is None:
+                replacement_id = uuid4().hex
+                cursor.execute(
+                    """
+                    INSERT INTO jobs
+                      (job_id, kind, payload_json, status, consumer_id, max_attempts,
+                       idempotency_key, created_at, updated_at)
+                    VALUES (?, ?, ?, 'queued', ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        replacement_id,
+                        kind,
+                        payload_json,
+                        consumer_id,
+                        max_attempts,
+                        idempotency_key,
+                        now,
+                        now,
+                    ),
+                )
+            else:
+                replacement = self._row(existing)
+                if (
+                    replacement.job_id == job_id
+                    or replacement.kind != kind
+                    or json.dumps(
+                        replacement.payload,
+                        ensure_ascii=False,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    )
+                    != payload_json
+                    or replacement.max_attempts != max_attempts
+                ):
+                    raise ValueError(
+                        "replacement idempotency key already contains different data"
+                    )
+                replacement_id = replacement.job_id
+            updated = cursor.execute(
+                """
+                UPDATE jobs
+                SET status = 'cancelled', worker_id = NULL, lease_until = NULL,
+                    error = ?, error_kind = ?, retryable = 0, dead_lettered_at = NULL,
+                    updated_at = ?
+                WHERE job_id = ? AND status = 'queued'
+                """,
+                (reason, error_kind, now, job_id),
+            )
+            if updated.rowcount != 1:
+                raise ValueError("job is not queued and cannot be superseded")
+            self.connection.commit()
+            return self.get(job_id), self.get(replacement_id), created
+        except Exception:
+            self.connection.rollback()
+            raise
+
     def count_active(self, consumer_id: str | None = None) -> int:
         if consumer_id is None:
             row = self.connection.execute(

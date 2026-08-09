@@ -91,3 +91,4 @@
 - [CX] 2026-08-05 下拉框 1280px 补漏：实际浏览器复核发现原七档门闸跳过 1280px，审计执行者菜单仍会截断长名称；现将执行者弹层改为不超过 280px 的内容宽度，并把 1280px 固定加入九页面验收。隔离 Chromium 共检查 184 个可见控件组合、72 个页面布局，1280px 的 23 个控件无文字截断，整体 PASS；完整测试 275 passed、12 subtests passed，Ruff、compileall、diff check 通过，源数据库与生产头像未写入。
 - [CX] 2026-08-05 已隔离质量预标 lane：常驻高级视觉 worker 新增排除 context marker 的领取条件，systemd 模板默认拒绝 `quality_ai_prelabel=true`；冻结 corpus 建议只由显式 consumer、包含 marker 且有 `--vision-max-jobs` 上限的批次 worker 消费，避免普通审核进程抢占质量任务或改变盲审批次边界。
 - [CX] 2026-08-05 聚合验收补入三角色 reviewer runtime 硬门闸：除浏览器隔离副本外，还必须有 `reviewer-a`、`reviewer-b`、`arbitrator` 三个独立登录会话的身份、CSRF、冻结主审/双审批次和单 cookie 证据，且报告声明未输出 secret；缺失、身份不全、多 cookie 或 secret 泄露均不能通过头像 MVP。
+- [CX] 2026-08-05 普通视觉旧队列恢复：真实库只读计划识别 24 条缺少规范化媒体哈希的旧 job 和 4 条复用失败 attempt 编号的旧恢复 job；恢复器在普通 lane 无运行任务时保留旧记录并创建完整性绑定替代任务，重复执行新增 0。恢复操作前后 `review_items.final_decision` 计数保持 6、质量决定与已收敛质量样本保持 0；随后独立 canary 成功完成视觉一审并产生新的内部 `auto_approved/allow` 路由，生产头像未写回。

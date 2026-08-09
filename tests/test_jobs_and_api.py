@@ -141,6 +141,65 @@ class JobsAndApiTest(unittest.TestCase):
             self.assertEqual(store.get(created.job_id).result["decision"], "allow")
             store.close()
 
+    def test_cancel_queued_never_cancels_claimed_work(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            store = JobStore(str(Path(directory) / "wordyeah.sqlite3"))
+            queued = store.enqueue("vision_review_1", {"fixture": 1}, "cravatar")
+            cancelled = store.cancel_queued(
+                queued.job_id,
+                reason="superseded by integrity-bound replacement",
+                error_kind="media_integrity_superseded",
+            )
+            self.assertEqual(cancelled.status, "cancelled")
+            self.assertEqual(cancelled.error_kind, "media_integrity_superseded")
+
+            running = store.enqueue("vision_review_1", {"fixture": 2}, "cravatar")
+            claimed = store.claim("worker-a", kinds=("vision_review_1",))
+            self.assertEqual(claimed.job_id, running.job_id)
+            with self.assertRaisesRegex(ValueError, "not queued"):
+                store.cancel_queued(running.job_id, reason="must not race running work")
+            self.assertEqual(store.get(running.job_id).status, "running")
+            store.close()
+
+    def test_supersede_queued_is_atomic_and_rejects_claimed_work(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            store = JobStore(str(Path(directory) / "wordyeah.sqlite3"))
+            source = store.enqueue("vision_review_1", {"legacy": True}, "cravatar")
+            cancelled, replacement, created = store.supersede_queued(
+                source.job_id,
+                kind="vision_review_1",
+                payload={"legacy": False},
+                consumer_id="cravatar",
+                max_attempts=3,
+                idempotency_key="replacement-1",
+                reason="integrity-bound replacement",
+                error_kind="media_integrity_superseded",
+            )
+            self.assertTrue(created)
+            self.assertEqual(cancelled.status, "cancelled")
+            self.assertEqual(replacement.status, "queued")
+
+            running = store.enqueue("vision_review_1", {"legacy": 2}, "isolated")
+            claimed = store.claim(
+                "worker-a", kinds=("vision_review_1",), consumer_id="isolated"
+            )
+            self.assertEqual(claimed.job_id, running.job_id)
+            before = store.connection.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]
+            with self.assertRaisesRegex(ValueError, "not queued"):
+                store.supersede_queued(
+                    running.job_id,
+                    kind="vision_review_1",
+                    payload={"legacy": False},
+                    consumer_id="isolated",
+                    max_attempts=3,
+                    idempotency_key="replacement-must-not-exist",
+                    reason="must not race running work",
+                    error_kind="media_integrity_superseded",
+                )
+            after = store.connection.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]
+            self.assertEqual(after, before)
+            store.close()
+
     def test_fastapi_image_and_controlled_job_contract(self) -> None:
         try:
             from fastapi.testclient import TestClient

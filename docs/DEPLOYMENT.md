@@ -98,6 +98,12 @@ the example keeps both disabled. The long-running service explicitly excludes
 their bounded, batch-specific workers and must never be mixed into the normal
 review lane.
 
+Before the first normal vision-worker start on a database created by an older
+build, run `scripts/recover_legacy_vision_media.py` without `--apply`. Apply is
+allowed only with a private 0600 database and zero running normal-lane vision
+jobs. The recovery preserves cancelled source jobs for audit and never writes
+an avatar or a human/quality decision.
+
 Before enabling anything, run one bounded cycle and inspect the watermark:
 
 ```bash

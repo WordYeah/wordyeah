@@ -110,6 +110,26 @@ python scripts/enqueue_corpus_ai_prelabels.py \
 只有携带完整 proposal metadata、两个精确 context 标记，并能由成功 job result 追溯到的
 attempt 才能进入质量建议；无来源 attempt 不参与路由或质量统计。
 
+早期队列可能只有源内容哈希，没有规范化预览文件的 `media_sha256`，或恢复 job 仍复用已经
+记录过的 attempt 编号。先停掉普通视觉 worker，执行只读计划；确认 `running_jobs=0` 后才可
+显式应用：
+
+```bash
+python scripts/recover_legacy_vision_media.py \
+  --database /private/wordyeah/avatar-corpus-review/wordyeah.sqlite3 \
+  --media-root /private/wordyeah/avatar-corpus-review/media \
+  --consumer-id corpus-avatar
+
+python scripts/recover_legacy_vision_media.py \
+  --database /private/wordyeah/avatar-corpus-review/wordyeah.sqlite3 \
+  --media-root /private/wordyeah/avatar-corpus-review/media \
+  --consumer-id corpus-avatar --apply
+```
+
+恢复器只处理非质量 lane 的 queued job 和明确的旧 attempt-conflict 失败记录。旧 queued job
+保留为 `cancelled` 审计记录，新 job 绑定实际受控媒体哈希并使用下一个可用 attempt 编号；
+人工决定、质量真值和头像状态在执行前后必须完全一致。重复执行不得再创建 job。
+
 高级视觉调用可能同时经历远端超时和本机模型排队。worker 在模型调用期间按租约时长的
 三分之一自动续租，避免超过默认 120 秒的请求被其他 worker 当成失联任务重新领取；续租
 失败时不会继续写 attempt 或最终路由，而是安全重试或返回已经被接管的任务状态。
