@@ -116,9 +116,37 @@ class ReviewPagesTest(unittest.TestCase):
             REVIEW_CSS,
         )
         self.assertIn(
-            ".toolbar-actions .service-status { display: inline-flex; }",
+            ".toolbar-actions .service-status { display: inline-grid;",
             REVIEW_CSS,
         )
+
+    def test_mobile_queue_uses_a_compact_single_header_and_scan_rows(self) -> None:
+        self.assertIn(".side-nav { display: none; }", REVIEW_CSS)
+        self.assertIn("min-height: 52px;", REVIEW_CSS)
+        self.assertIn("flex-direction: row;", REVIEW_CSS)
+        self.assertIn("white-space: nowrap;", REVIEW_CSS)
+        self.assertIn('.queue-list[data-view="list"] { padding: 8px 0; }', REVIEW_CSS)
+        self.assertIn("grid-template-columns: 52px minmax(0, 1fr) 16px;", REVIEW_CSS)
+        self.assertIn("grid-template-rows: auto auto;", REVIEW_CSS)
+        self.assertIn(".queue-tools .batch-toggle span { display: none; }", REVIEW_CSS)
+        self.assertIn('content: attr(data-mobile-label);', REVIEW_CSS)
+        self.assertIn("@media (max-width: 340px)", REVIEW_CSS)
+
+        page = render_review_workbench(
+            items=(),
+            events=(),
+            csrf_token="",
+            consumer_id="consumer-a",
+            reviewer_id="alice",
+            policy_profile="default",
+            service_ready=True,
+            service_error=None,
+            workspaces=(),
+        )
+        for label in ("待审", "留置", "终审", "全部"):
+            self.assertIn(f'data-mobile-label="{label}"', page)
+        for label in ("待处理 0", "暂缓留置 0", "已终审 0", "全部样本 0"):
+            self.assertIn(f'aria-label="{label}"', page)
 
     def test_queue_spacing_and_search_icon_alignment_are_explicit(self) -> None:
         self.assertIn('.queue-list[data-view="list"] { padding: 12px 0; }', REVIEW_CSS)

@@ -71,3 +71,12 @@
 - [CX] 搜索图标改由固定 16px 容器按输入框垂直中线定位，内部 Tabler 图标不再受 SVG 行盒影响。
 - [CX] 真实浏览器复核截图：`output/playwright/review-list-spacing-final-1440.png`、`output/playwright/review-list-spacing-final-390.png`、`output/playwright/review-health-neutral-1440.png`。
 - [CX] 隔离浏览器验收使用只读 corpus 数据库副本和三角色 reviewer runtime 运行，全部页面、下拉框、质量分页和移动端路径为 PASS；源数据库未变、未写生产头像。验收同时修正了历史页仍引用已删除移动工作区 selector 的测试代码。
+
+## 2026-08-09 移动端审核队列重做
+
+- [CX] 390px 旧版实测出现侧栏与顶栏重复、状态标签换行、筛选/批量控件纵向堆叠和列表卡片过高，按视觉验收规则判定为不通过后重做。
+- [CX] 760px 以下隐藏桌面侧栏，顶栏收为单个 52px sticky 行；工作区、主题、服务状态和账户入口保持同一尺寸节奏，布局宽窄切换在移动端隐藏。
+- [CX] 四个队列状态改为等宽短标签，搜索和风险筛选同排；视图切换与批量入口收为图标工具组，列表行压缩为 76px 双行信息结构。
+- [CX] 340px 以下隐藏重复页面标题并精简页码，只保留上一页、当前页、下一页和每页数量，320px 页面 `scrollWidth` 与 viewport 均为 320。
+- [CX] 工作区弹层按可用边缘对齐，390px 右对齐、340px 以下左对齐并限制宽度；浏览器门闸按真实可见图标测量，隐藏箭头不再形成假错位。
+- [CX] 最终截图：`output/playwright/review-mobile-ux-final-390.png`、`output/playwright/review-mobile-ux-final-320.png`。

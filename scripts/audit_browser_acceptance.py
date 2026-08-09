@@ -294,11 +294,20 @@ def main() -> int:
                                     + ':scope > .consumer-popover-menu, '
                                     + ':scope > .account-popover'
                                   );
-                                  const icon = trigger?.querySelector(
-                                    ':scope > .icon, '
-                                    + ':scope > .chevron > .icon, '
-                                    + ':scope > .dropdown-trigger__chevron > .icon'
-                                  );
+                                  const iconCandidates = trigger
+                                    ? [...trigger.querySelectorAll(
+                                        ':scope > .icon, '
+                                        + ':scope > .chevron > .icon, '
+                                        + ':scope > .dropdown-trigger__chevron > .icon'
+                                      )]
+                                    : [];
+                                  const icon = iconCandidates.find(candidate => {
+                                    const box = candidate.getBoundingClientRect();
+                                    const style = getComputedStyle(candidate);
+                                    return box.width > 0 && box.height > 0
+                                      && style.display !== 'none'
+                                      && style.visibility !== 'hidden';
+                                  }) || trigger?.querySelector(':scope > .reviewer-avatar');
                                   const label = trigger?.querySelector(
                                     ':scope > .menu-select__label, '
                                     + ':scope > .dropdown-trigger__label, '
@@ -632,7 +641,15 @@ def main() -> int:
                             and menu_box["x"] + menu_box["width"] <= width
                         )
                         trigger_measurement["anchorEdgeDelta"] = (
-                            abs(menu_box["x"] - trigger_box["x"])
+                            min(
+                                abs(menu_box["x"] - trigger_box["x"]),
+                                abs(
+                                    menu_box["x"]
+                                    + menu_box["width"]
+                                    - trigger_box["x"]
+                                    - trigger_box["width"]
+                                ),
+                            )
                             if menu_box and trigger_box
                             else None
                         )

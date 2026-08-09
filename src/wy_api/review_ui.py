@@ -2894,54 +2894,81 @@ details[open] > .dropdown-trigger > .dropdown-trigger__chevron > .icon {
 }
 
 @media (max-width: 760px) {
-  .app-frame { grid-template-rows: auto minmax(0, 1fr); }
-  .side-nav {
-    position: static;
-    min-height: 46px;
-    height: 46px;
-    padding: 8px 12px;
-  }
-  .brand span:last-child { display: none; }
-  .brand { padding: 0; }
-  .brand-mark { width: 30px; height: 30px; }
-  .nav-scroll { display: none; }
-
-  .nav-label,
-  .nav-spacer,
-  .consumer-switcher { display: none; }
-
-  .nav-item { flex: 0 0 auto; }
-  .nav-count { display: none; }
+  .app-frame { display: block; min-height: 100vh; }
+  .side-nav { display: none; }
 
   .topbar {
-    min-height: 60px;
-    padding: 12px 16px;
-    align-items: flex-start;
-    flex-direction: column;
+    position: sticky;
+    z-index: 18;
+    top: 0;
+    min-height: 52px;
+    padding: 7px 12px;
+    align-items: center;
+    flex-direction: row;
+    gap: 8px;
   }
 
-  .toolbar-actions { width: 100%; justify-content: flex-start; }
-  .mobile-workspace-switcher { display: block; margin-left: auto; }
+  .toolbar-title { min-width: 0; flex: 1 1 auto; }
+  .topbar-breadcrumbs { gap: 6px; font-size: 12px; white-space: nowrap; }
+  .topbar-breadcrumbs > * { flex: 0 0 auto; }
+  .topbar-breadcrumbs > a[href="/review/overview"],
+  .topbar-breadcrumbs > a[href="/review/overview"] + .divider { display: none; }
+  .topbar-breadcrumbs .current-crumb { min-width: 0; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; }
+  .toolbar-actions { width: auto; flex: 0 0 auto; flex-wrap: nowrap; justify-content: flex-end; gap: 2px; }
+  .mobile-workspace-switcher { display: block; width: 128px; margin-left: 0; }
+  .mobile-workspace-switcher summary { min-height: 34px; padding-inline: 9px; }
+  .mobile-workspace-switcher .consumer-popover-menu { right: 0; left: auto; }
+  .toolbar-actions .theme-toggle-btn[data-action="toggle-layout"] { display: none; }
+  .toolbar-actions .theme-toggle-btn { width: 34px; height: 34px; }
   .toolbar-actions .topbar-icon:not(.service-status) { display: none; }
-  .toolbar-actions .service-status { display: inline-flex; }
+  .toolbar-actions .service-status { display: inline-grid; width: 34px; height: 34px; }
+  .service-status::after { right: 5px; bottom: 5px; }
   .account-menu summary {
-    width: 58px;
-    min-height: 42px;
+    width: 38px;
+    min-height: 38px;
     justify-content: center;
     gap: 4px;
-    padding: 4px;
+    padding: 2px;
   }
+  .account-menu .reviewer-avatar { width: 30px; height: 30px; }
+  .account-menu summary .chevron { display: none; }
   .account-menu summary > span:not(.reviewer-avatar):not(.chevron) { display: none; }
   .account-popover {
     right: 0;
     left: auto;
     width: min(210px, calc(100vw - 32px));
   }
-  .shell { padding: 18px 16px 28px; }
+  .shell { padding: 12px 12px 24px; }
   .detail-header { align-items: flex-start; }
   .filter-bar { flex-wrap: wrap; align-items: stretch; }
   .search-control { flex-basis: 100%; }
-  .page-tabs { gap: 16px; overflow-x: auto; }
+  .tabs-header { gap: 10px; padding-bottom: 10px; border-bottom: 0; }
+  .page-tabs {
+    width: 100%;
+    gap: 6px;
+    padding: 0 0 2px;
+    overflow: visible;
+    border-bottom: 0;
+  }
+  .page-tabs a {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 34px;
+    justify-content: center;
+    gap: 5px;
+    padding: 0 6px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel);
+    font-size: 0;
+    white-space: nowrap;
+  }
+  .page-tabs a::before { content: attr(data-mobile-label); font-size: 12px; }
+  .page-tabs a.is-active { border-color: var(--line-strong); background: var(--panel-muted); }
+  .page-tabs a.is-active::after { display: none; }
+  .page-tabs span { min-width: 18px; padding: 1px 5px; font-size: 10px; }
+  .filter-controls { display: grid; grid-template-columns: minmax(0, 1fr) 126px; gap: 8px; }
+  .risk-filter-dropdown { width: 126px; min-width: 126px; }
   .control-dock {
     gap: 12px;
   }
@@ -2969,18 +2996,35 @@ details[open] > .dropdown-trigger > .dropdown-trigger__chevron > .icon {
   }
   .keyboard-help-btn span { display: none; }
   .queue-tool-note { display: none; }
+  .queue-tools { min-height: 36px; margin: 8px 0 6px; }
+  .filtered-count { font-size: 10.5px; line-height: 1.4; }
+  .queue-tool-actions { gap: 6px; }
+  .queue-tools .view-switch { gap: 2px; padding: 2px; border-radius: 9px; }
+  .queue-tools .view-switch a { width: 30px; min-height: 30px; border-radius: 7px; }
+  .queue-tools .batch-toggle { width: 34px; min-height: 34px; padding: 0; }
+  .queue-tools .batch-toggle span { display: none; }
   .queue-list { overflow: visible; }
+  .queue-list[data-view="list"] { padding: 8px 0; }
+  .review-card { margin-bottom: 6px; border-radius: 10px; }
   .review-row-link {
     position: relative;
     min-width: 0;
-    grid-template-columns: 72px minmax(0, 1fr) 20px;
-    gap: 12px;
-    padding: 12px;
+    min-height: 76px;
+    grid-template-columns: 52px minmax(0, 1fr) 16px;
+    grid-template-rows: auto auto;
+    gap: 3px 10px;
+    padding: 10px 12px;
   }
-  .row-preview { width: 72px; height: 58px; }
+  .row-preview { grid-row: 1 / span 2; width: 52px; height: 52px; border-radius: 10px; }
+  .row-identity { grid-column: 2; grid-row: 1; gap: 1px; align-self: end; }
+  .row-identity strong { font-size: 12.5px; }
+  .row-identity small { font-size: 10.5px; }
   .row-ai { display: none; }
-  .row-decision { grid-column: 2 / -1; display: flex; align-items: center; gap: 10px; }
-  .row-open { position: absolute; right: 16px; top: 20px; }
+  .row-decision { grid-column: 2; grid-row: 2; display: flex; align-self: start; align-items: center; gap: 8px; }
+  .row-decision small { font-size: 10.5px; }
+  .status-pill { min-height: 21px; padding: 0 8px; font-size: 10px; }
+  .row-open { grid-column: 3; grid-row: 1 / span 2; align-self: center; width: 16px; height: 16px; }
+  .row-open svg { width: 14px; height: 14px; }
   .detail-layout { grid-template-columns: 1fr; }
   .detail-stage { order: 1; }
   .detail-sidebar {
@@ -3018,6 +3062,21 @@ details[open] > .dropdown-trigger > .dropdown-trigger__chevron > .icon {
   .lightbox-toolbar { padding-left: 12px; }
   .lightbox-toolbar strong { display: none; }
   .lightbox-stage { padding: 12px; }
+}
+
+@media (max-width: 340px) {
+  .toolbar-title { display: none; }
+  .topbar { justify-content: flex-end; }
+  .mobile-workspace-switcher { margin-right: auto; }
+  .mobile-workspace-switcher .consumer-popover-menu {
+    right: auto;
+    left: 0;
+    width: min(216px, calc(100vw - 24px));
+  }
+  .pagination-controls { justify-content: flex-start; }
+  .page-numbers .page-num:not(.is-current),
+  .page-numbers .page-ellipsis { display: none; }
+  .per-page-dropdown { flex-basis: 104px; width: 104px; margin-left: auto; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -3745,16 +3804,16 @@ def render_review_workbench(
         <section class="workbench-main" id="review-queue">
           <div class="tabs-header">
             <div class="page-tabs" role="tablist" aria-label="审核状态维度">
-              <a class="tab-item{' is-active' if active_tab == 'pending' else ''}" href="{escape(_review_href(status='pending', risk=risk_filter, query=search_query, view=view_value, batch=batch_mode))}" role="tab" aria-selected="{'true' if active_tab == 'pending' else 'false'}">
+              <a class="tab-item{' is-active' if active_tab == 'pending' else ''}" data-mobile-label="待审" href="{escape(_review_href(status='pending', risk=risk_filter, query=search_query, view=view_value, batch=batch_mode))}" role="tab" aria-label="待处理 {pending_count}" aria-selected="{'true' if active_tab == 'pending' else 'false'}">
                 待处理<span class="badge">{pending_count}</span>
               </a>
-              <a class="tab-item{' is-active' if active_tab == 'held' else ''}" href="{escape(_review_href(status='held', risk=risk_filter, query=search_query, view=view_value, batch=batch_mode))}" role="tab" aria-selected="{'true' if active_tab == 'held' else 'false'}">
+              <a class="tab-item{' is-active' if active_tab == 'held' else ''}" data-mobile-label="留置" href="{escape(_review_href(status='held', risk=risk_filter, query=search_query, view=view_value, batch=batch_mode))}" role="tab" aria-label="暂缓留置 {held_count}" aria-selected="{'true' if active_tab == 'held' else 'false'}">
                 暂缓留置<span class="badge">{held_count}</span>
               </a>
-              <a class="tab-item{' is-active' if active_tab == 'reviewed' else ''}" href="{escape(_review_href(status='reviewed', risk=risk_filter, query=search_query, view=view_value, batch=batch_mode))}" role="tab" aria-selected="{'true' if active_tab == 'reviewed' else 'false'}">
+              <a class="tab-item{' is-active' if active_tab == 'reviewed' else ''}" data-mobile-label="终审" href="{escape(_review_href(status='reviewed', risk=risk_filter, query=search_query, view=view_value, batch=batch_mode))}" role="tab" aria-label="已终审 {reviewed_count}" aria-selected="{'true' if active_tab == 'reviewed' else 'false'}">
                 已终审<span class="badge">{reviewed_count}</span>
               </a>
-              <a class="tab-item{' is-active' if active_tab == 'all' else ''}" href="{escape(_review_href(status='all', risk=risk_filter, query=search_query, view=view_value, batch=batch_mode))}" role="tab" aria-selected="{'true' if active_tab == 'all' else 'false'}">
+              <a class="tab-item{' is-active' if active_tab == 'all' else ''}" data-mobile-label="全部" href="{escape(_review_href(status='all', risk=risk_filter, query=search_query, view=view_value, batch=batch_mode))}" role="tab" aria-label="全部样本 {total_count}" aria-selected="{'true' if active_tab == 'all' else 'false'}">
                 全部样本<span class="badge">{total_count}</span>
               </a>
             </div>
