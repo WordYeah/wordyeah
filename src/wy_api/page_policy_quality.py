@@ -77,6 +77,7 @@ CSS = r"""
 .pq-case-table td { padding: 14px; border-bottom: 1px solid var(--line); vertical-align: middle; text-align: left; background: var(--panel); }
 .pq-case-table tr:last-child td { border-bottom: 0; }
 .pq-case-table tr:hover td { background: var(--panel-soft); }
+.pq-case-table td[data-label]::before { content: attr(data-label); display: none; }
 .pq-ai-blind { color: var(--quiet); font-weight: 600; }
 
 .pq-sample-link { display: inline-flex; align-items: center; gap: 10px; font-weight: 600; color: var(--text); text-decoration: none; }
@@ -114,6 +115,20 @@ CSS = r"""
   .pq-release { align-items: flex-start; flex-direction: column; }
   .pq-release time { white-space: normal; overflow-wrap: anywhere; }
   .pq-quality-sheet { grid-template-columns: 1fr; }
+}
+@media (max-width: 720px) {
+  .pq-table-wrap { overflow: visible; }
+  .pq-case-table { width: 100%; min-width: 0; border-spacing: 0; }
+  .pq-case-table thead { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .pq-case-table tbody { display: grid; gap: 10px; }
+  .pq-case-table tr { display: grid; gap: 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+  .pq-case-table td { display: grid; grid-template-columns: minmax(96px, 38%) minmax(0, 1fr); gap: 10px; padding: 8px 0; border-bottom: 0; background: transparent; white-space: normal; }
+  .pq-case-table td[data-label]::before { display: block; content: attr(data-label); color: var(--muted); font-size: 10px; font-weight: 650; letter-spacing: .04em; text-transform: uppercase; }
+  .pq-case-table td[colspan] { display: block; padding: 8px 0; }
+  .pq-case-table td[colspan]::before { content: none; }
+  .pq-case-table td:first-child { padding-top: 0; }
+  .pq-case-table td:last-child { padding-bottom: 0; }
+  .pq-case-action { margin-top: 10px; }
 }
 """
 
@@ -239,6 +254,7 @@ def _quality_stats(source: Mapping[str, object]) -> str:
 def render_quality_body(data: object = None) -> str:
     """Render the sampling casebook, model disagreements, and evidence policy."""
     source = _map(data)
+    case_headers = ("样本", "AI 参考", "复核", "分歧", "处置")
     batch_links = "".join(
         f'<a href="{_e(_map(raw).get("url"))}"'
         + (' aria-current="page"' if _map(raw).get("active") else "")
@@ -301,10 +317,13 @@ def render_quality_body(data: object = None) -> str:
         )
         rows.append(
             '<tr data-quality-row>'
-            f'<td>{case_html}</td><td data-quality-ai-proposal data-blinded="{str(ai_blinded).lower()}"{ai_class}>{_e(ai)}</td><td>{_e(check)}</td><td>{_e(disagreement)}</td>'
-            f'<td><span class="pq-verdict" data-tone="{_tone(item.get("tone"))}">{_e(verdict)}</span>{action_html}</td></tr>'
+            f'<td data-label="{case_headers[0]}">{case_html}</td>'
+            f'<td data-label="{case_headers[1]}" data-quality-ai-proposal data-blinded="{str(ai_blinded).lower()}"{ai_class}>{_e(ai)}</td>'
+            f'<td data-label="{case_headers[2]}">{_e(check)}</td>'
+            f'<td data-label="{case_headers[3]}">{_e(disagreement)}</td>'
+            f'<td data-label="{case_headers[4]}"><span class="pq-verdict" data-tone="{_tone(item.get("tone"))}">{_e(verdict)}</span>{action_html}</td></tr>'
         )
-    rows_html = "".join(rows) or '<tr><td colspan="5"><div class="pq-empty" role="status">SKIP · 未提供抽检样本。</div></td></tr>'
+    rows_html = "".join(rows) or f'<tr><td colspan="{len(case_headers)}"><div class="pq-empty" role="status">SKIP · 未提供抽检样本。</div></td></tr>'
     pagination = _map(source.get("pagination"))
     total = int(pagination.get("total") or len(cases))
     offset = int(pagination.get("offset") or 0)

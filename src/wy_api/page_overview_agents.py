@@ -56,6 +56,7 @@ CSS = """
 .oa-page .oa-table caption { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .oa-page .oa-table th, .oa-page .oa-table td { padding: 12px 16px; border-top: 1px solid var(--line); text-align: left; font-size: 12px; line-height: 1.5; white-space: nowrap; }
 .oa-page .oa-table th { color: var(--muted); font-size: 10px; letter-spacing: .05em; text-transform: uppercase; }
+.oa-page .oa-table td[data-label]::before { content: attr(data-label); display: none; }
 .oa-page .oa-links { display: flex; flex-wrap: wrap; gap: 8px; }
 .oa-page .oa-link { display: inline-flex; min-height: 34px; align-items: center; padding: 0 13px; border: 1px solid var(--line); border-radius: 999px; color: var(--text); font-size: 11px; font-weight: 650; text-decoration: none; }
 .oa-page .oa-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -97,6 +98,17 @@ CSS = """
   .oa-page .oa-charts { grid-template-columns: 1fr; }
   .oa-page .oa-donut-body { grid-template-columns: 116px minmax(0, 1fr); }
   .oa-page .oa-donut { width: 116px; height: 116px; }
+  .oa-page .oa-table-wrap { overflow: visible; }
+  .oa-page .oa-table { width: 100%; min-width: 0; border-spacing: 0; }
+  .oa-page .oa-table thead { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .oa-page .oa-table tbody { display: grid; gap: 10px; }
+  .oa-page .oa-table tr { display: grid; gap: 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+  .oa-page .oa-table td { display: grid; grid-template-columns: minmax(92px, 38%) minmax(0, 1fr); gap: 10px; padding: 8px 0; border-top: 0; white-space: normal; }
+  .oa-page .oa-table td[data-label]::before { display: block; content: attr(data-label); color: var(--muted); font-size: 10px; font-weight: 650; letter-spacing: .04em; text-transform: uppercase; }
+  .oa-page .oa-table td[colspan] { display: block; padding: 8px 0; }
+  .oa-page .oa-table td[colspan]::before { content: none; }
+  .oa-page .oa-table td:first-child { padding-top: 0; }
+  .oa-page .oa-table td:last-child { padding-bottom: 0; }
 }
 """
 
@@ -197,7 +209,10 @@ def _table(value: object, empty_message: str) -> str:
     rows: list[str] = []
     for raw_row in _sequence(table.get("rows")):
         row = _sequence(raw_row)
-        cells = "".join(f'<td>{escape(_text(row[index])) if index < len(row) else ""}</td>' for index in range(len(columns)))
+        cells = "".join(
+            f'<td data-label="{escape(columns[index])}">{escape(_text(row[index])) if index < len(row) else ""}</td>'
+            for index in range(len(columns))
+        )
         rows.append(f'<tr>{cells}</tr>')
     body = "".join(rows) or f'<tr><td colspan="{len(columns)}">{escape(_text(table.get("empty_message"), empty_message))}</td></tr>'
     return (

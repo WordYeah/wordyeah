@@ -19,7 +19,12 @@ from wy_api.page_overview_agents import CSS as OVERVIEW_AGENTS_CSS
 from wy_api.page_overview_agents import render_agents_body
 from wy_api.page_policy_quality import CSS as POLICY_QUALITY_CSS
 from wy_api.page_policy_quality import render_policies_body, render_quality_body
-from wy_api.review_ui import CSS as REVIEW_CSS, THEME_INIT_JS, render_review_sidebar
+from wy_api.review_ui import (
+    CSS as REVIEW_CSS,
+    THEME_INIT_JS,
+    render_review_sidebar,
+    render_review_toolbar_actions,
+)
 
 
 @dataclass(frozen=True)
@@ -30,6 +35,7 @@ class ReviewPageContext:
     service_ready: bool = True
     service_error: str | None = None
     workspaces: tuple[tuple[str, str], ...] = ()
+    logout_available: bool = True
 
 
 @dataclass(frozen=True)
@@ -226,8 +232,6 @@ code,
   font-family: var(--font-mono);
 }
 
-.support-nav { display: grid; gap: 20px; }
-
 .service-status {
   position: relative;
   color: var(--green);
@@ -273,15 +277,6 @@ code,
 .topbar-breadcrumbs span.current-crumb {
   color: var(--text);
   font-weight: 700;
-}
-.support-mobile-workspace { display: none; position: relative; z-index: 1; }
-.support-mobile-workspace[open] { z-index: 120; }
-.support-mobile-workspace > summary { display: grid; grid-template-columns: minmax(0, 1fr) 16px; min-height: 34px; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); font-size: 11px; font-weight: 700; line-height: 1; cursor: pointer; }
-.support-mobile-workspace .consumer-popover-menu {
-  right: auto;
-  left: 0;
-  width: min(250px, calc(100vw - 32px));
-  min-width: 0;
 }
 
 .support-hero {
@@ -677,36 +672,11 @@ tbody tr:hover { background: var(--support-panel-soft); }
   line-height: 1.6;
 }
 
-@media (min-width: 761px) and (max-width: 980px) {
-  .side-nav > nav { min-width: 0; flex: 1 1 0; overflow: hidden; }
-  .support-nav { display: flex; gap: 4px; overflow-x: auto; }
-  .support-nav .nav-section { display: flex; flex: 0 0 auto; }
-  .support-mobile-workspace { display: block; margin-left: auto; }
-  .support-mobile-workspace .consumer-popover-menu {
-    top: calc(100% + 8px);
-    right: auto;
-    bottom: auto;
-    left: 0;
-    width: min(250px, calc(100vw - 48px));
-  }
-}
-
 @media (max-width: 760px) {
-  .side-nav > nav { display: none; }
-  .support-mobile-workspace { display: block; }
-  .support-mobile-workspace .consumer-popover-menu {
-    top: calc(100% + 8px);
-    right: auto;
-    bottom: auto;
-    left: 0;
-    width: min(250px, calc(100vw - 32px));
-  }
   .dashboard-grid,
   .charts-row { grid-template-columns: 1fr; }
   .donut-layout { grid-template-columns: 108px minmax(0, 1fr); }
   .donut-layout svg { width: 108px; height: 108px; }
-  .support-nav { display: flex; gap: 4px; overflow-x: auto; }
-  .support-nav .nav-section { display: flex; flex: 0 0 auto; }
   .support-hero {
     display: grid;
     gap: 14px;
@@ -965,6 +935,7 @@ def _coerce_context(
             and not isinstance(item, (str, bytes))
             and len(item) >= 2
         ),
+        logout_available=bool(raw.get("logout_available", True)),
     )
 
 
@@ -1143,6 +1114,7 @@ def _page_body(
     data: Mapping[str, object],
     *,
     csrf_token: str | None = None,
+    context_logout_available: bool = True,
 ) -> str:
     """Dispatch to page-specific information architectures."""
     notices = _render_notices(data.get("exceptions") or data.get("attention"))
@@ -1186,7 +1158,10 @@ def _page_body(
     if page == "health":
         return render_health_content(data)
     if page == "account":
-        return render_account_content(data, csrf_token=csrf_token)
+        return render_account_content(
+            data,
+            csrf_token=csrf_token if context_logout_available else None,
+        )
     if page == "guide":
         return render_guide_content(data)
     raise ValueError(f"unsupported review page: {page}")
@@ -1205,9 +1180,7 @@ def render_review_page(
     ctx = _coerce_context(context)
     title, subtitle, nav_label = _PAGE_META[page]
 
-    service_label = (
-        "Local scanner ready" if ctx.service_ready else "Local scanner blocked"
-    )
+    service_label = "本地扫描服务可用" if ctx.service_ready else "本地扫描服务受阻"
     service_tone = "success" if ctx.service_ready else "danger"
     service_notice = ""
     if not ctx.service_ready:
@@ -1215,7 +1188,12 @@ def render_review_page(
             (Notice("审核流水线受阻", ctx.service_error or "服务未就绪", "danger"),)
         )
 
-    body = _page_body(page, page_data, csrf_token=ctx.csrf_token)
+    body = _page_body(
+        page,
+        page_data,
+        csrf_token=ctx.csrf_token,
+        context_logout_available=ctx.logout_available,
+    )
     intent = _PAGE_INTENTS[page]
     service_icon = icon("spark")
     help_icon = icon("guide")
@@ -1247,6 +1225,7 @@ def render_review_page(
         workspace_menu=workspace_items,
         csrf_token=ctx.csrf_token or "",
         service_ready=ctx.service_ready,
+        logout_available=ctx.logout_available,
     )
     return f'''<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -1254,14 +1233,16 @@ def render_review_page(
 <body><a class="skip-link" href="#main-content">跳到主要内容</a><div class="app-frame">
 {sidebar_html}
 <div class="app-main"><header class="topbar"><div class="toolbar-title"><nav class="topbar-breadcrumbs" aria-label="面包屑"><a href="/review/overview">WordYeah</a><span class="divider" aria-hidden="true">/</span><span class="current-crumb">{escape(nav_label)}</span></nav></div>
-<div class="toolbar-actions">
-<details class="support-mobile-workspace" name="review-dropdown"><summary class="dropdown-trigger" aria-label="切换工作区"><span class="dropdown-trigger__label">{escape(ctx.consumer_id)}</span><span class="dropdown-trigger__chevron">{icon("chevron-down")}</span></summary><div class="consumer-popover-menu"><div class="consumer-popover-header">切换工作区</div><div class="consumer-popover-list">{workspace_items}</div></div></details>
-<button class="theme-toggle-btn" type="button" data-action="toggle-layout" title="切换全宽/盒装居中" aria-label="切换全宽/盒装居中">{icon("layout")}</button>
-<button class="theme-toggle-btn" type="button" data-action="toggle-theme" title="切换深色/浅色模式" aria-label="切换深色/浅色模式"><span class="theme-icon-sun">{icon("sun")}</span><span class="theme-icon-moon">{icon("moon")}</span></button>
-<span class="topbar-icon service-status" data-tone="{service_tone}" role="status" title="{service_label}" aria-label="{service_label}">{service_icon}</span>
-<a class="topbar-icon" href="/review/guide" title="审核说明" aria-label="审核说明">{help_icon}</a>
-<details class="account-menu" name="review-dropdown"><summary class="dropdown-trigger"><span class="reviewer-avatar">{escape(ctx.reviewer_id[:1].upper() or "R")}</span><span class="dropdown-trigger__label">{escape(ctx.reviewer_id)}</span><span class="chevron dropdown-trigger__chevron">{icon("chevron-down")}</span></summary>
-<div class="account-popover"><p>{escape(ctx.consumer_id)} · 受限审核会话</p>{'<form class="logout" method="post" action="/review/logout"><input type="hidden" name="csrf_token" value="' + escape(ctx.csrf_token) + '"><button type="submit">安全退出</button></form>' if ctx.csrf_token else '<a class="toolbar-link" href="/review/account">账户与会话</a>'}</div></details></div></header>
+{render_review_toolbar_actions(
+    consumer_id=ctx.consumer_id,
+    reviewer_id=ctx.reviewer_id,
+    workspace_menu=workspace_items,
+    csrf_token=ctx.csrf_token or "",
+    service_ready=ctx.service_ready,
+    service_label=service_label,
+    logout_available=ctx.logout_available,
+)}
+</header>
 <main class="shell" id="main-content"><header class="support-hero"><div class="support-hero-copy"><h1>{escape(title)}</h1><p>{escape(subtitle)}</p></div>
 <div class="hero-meta"><span class="status-pill" data-tone="{service_tone}">{service_icon}{service_label}</span><span class="intent-note">{help_icon}{escape(intent)}</span></div></header>
 <div class="content-stack">{service_notice}{body}</div><footer class="support-footer">当前 consumer：{escape(ctx.consumer_id)} · Reviewer：{escape(ctx.reviewer_id)}</footer></main></div></div><script src="/review/assets/workbench.js"></script></body></html>'''

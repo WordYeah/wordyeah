@@ -46,6 +46,33 @@ class AccountGuidePageTest(unittest.TestCase):
         self.assertIn('<th scope="col">会话</th>', page)
         self.assertIn("s-1", page)
 
+    def test_account_and_guide_tables_use_mobile_card_labels_and_css(self) -> None:
+        account = render_account_content(
+            {
+                "sessions": [
+                    {
+                        "session_id": "session-7",
+                        "created_at": "2026-08-05 09:00",
+                        "last_seen_at": "2026-08-05 09:12",
+                        "status": "当前",
+                    }
+                ]
+            }
+        )
+        guide = render_guide_content(
+            {
+                "risks": (("允许", "没有命中策略风险"),),
+                "reasons": (("safe_avatar", "允许", "未发现风险"),),
+                "shortcuts": (("A", "允许当前项"),),
+            }
+        )
+        self.assertIn('data-label="会话 ID"', account)
+        self.assertIn('data-label="状态"', account)
+        self.assertIn('data-label="处理"', guide)
+        self.assertIn('data-label="操作"', guide)
+        self.assertIn("@media (max-width: 640px)", CSS)
+        self.assertIn(".account-guide__table td[data-label]::before", CSS)
+
     def test_all_account_dynamic_content_is_escaped(self) -> None:
         attack = '<img src=x onerror="alert(1)">'
         page = render_account_content(

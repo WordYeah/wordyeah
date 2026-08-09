@@ -1325,6 +1325,7 @@ def create_app(
                 policy_profile=workspace.policy_profile,
                 service_ready=bool(app.state.ready),
                 service_error=app.state.ready_error,
+                logout_available=not settings.local_review_no_auth,
                 focus_item_id=focus_item_id,
                 metrics=review_store.metrics(workspace.workspace_id),
                 search_query=search_query,
@@ -1399,6 +1400,62 @@ def create_app(
             {"label": "需人工", "value": len(human), "detail": "AI 二审后仍不确定"},
             {"label": "模型失败", "value": len(failed_attempts), "detail": "追加式 attempt 记录"},
         ]
+        ready_status = "ready" if app.state.ready else "blocked"
+        ready_summary = (
+            "媒体模型启动检查已完成，可接收审核任务。"
+            if app.state.ready
+            else app.state.ready_error or "readiness 检查失败。"
+        )
+        health_pipeline = {
+            "status": ready_status,
+            "summary": ready_summary,
+            "stages": (
+                {
+                    "name": "媒体模型启动检查",
+                    "status": ready_status,
+                    "detail": ready_summary,
+                    "impact": "未就绪时将阻止新审核任务进入自动处理。",
+                    "dependency": "媒体分类服务",
+                },
+                {
+                    "name": "审核数据存储",
+                    "status": "ready",
+                    "detail": "审核、任务、结果、工作区与质量数据存储已完成初始化。",
+                    "impact": "支撑健康页、历史页和质量页读取追加式审计数据。",
+                    "dependency": "SQLite",
+                },
+                {
+                    "name": "审核路由器",
+                    "status": "ready",
+                    "detail": "审核阶段路由器已完成初始化。",
+                    "impact": "支撑健康页展示和待处理流水线路由说明。",
+                    "dependency": "ReviewRouter",
+                },
+            ),
+        }
+        health_components = (
+            {
+                "name": "media model",
+                "status": ready_status,
+                "detail": ready_summary,
+                "impact": "决定顶部 service_ready 与健康页整体状态是否阻塞。",
+                "dependency": "媒体分类服务",
+            },
+            {
+                "name": "review database",
+                "status": "ready",
+                "detail": "审核、任务、结果、工作区与质量数据存储已完成初始化。",
+                "impact": "支撑历史、质量、工作区和任务数据读写。",
+                "dependency": "SQLite",
+            },
+            {
+                "name": "review router",
+                "status": "ready",
+                "detail": "审核阶段路由器已完成初始化。",
+                "impact": "支撑阶段路由和健康页的可解释状态展示。",
+                "dependency": "ReviewRouter",
+            },
+        )
         if page == "overview":
             today = datetime.now(timezone.utc).date()
             days = [today - timedelta(days=offset) for offset in range(13, -1, -1)]
@@ -1852,17 +1909,25 @@ def create_app(
             return {
                 "exceptions": common_exceptions,
                 "metrics": metrics,
-                "services": {"columns": ("组件", "状态", "说明"), "rows": (
-                    ("media model", "ready" if app.state.ready else "blocked", app.state.ready_error or "warmup complete"),
-                    ("review database", "ready", "schema v5 + workspace/quality tables"),
-                    ("review router", "ready", "vendor-neutral deterministic routing"),
-                )},
+                "status": ready_status,
+                "summary": ready_summary,
+                "pipeline": health_pipeline,
+                "components": health_components,
             }
         if page == "account":
+            local_access = settings.local_review_no_auth
             return {
                 "exceptions": common_exceptions,
-                "profile": {"Reviewer": reviewer_id or settings.reviewer_id, "Consumer": consumer_id, "角色": "reviewer"},
-                "sessions": {"columns": ("会话", "有效期", "权限范围"), "rows": (("当前浏览器", "1 小时", consumer_id),)},
+                "profile": {
+                    "Reviewer": reviewer_id or settings.reviewer_id,
+                    "Consumer": consumer_id,
+                    "角色": "reviewer",
+                    "访问模式": "本地开发免登录" if local_access else "受限审核会话",
+                },
+                "sessions": () if local_access else {
+                    "columns": ("会话", "有效期", "权限范围"),
+                    "rows": (("当前浏览器", "1 小时", consumer_id),),
+                },
             }
         return {
             "exceptions": common_exceptions,
@@ -1916,6 +1981,7 @@ def create_app(
                     csrf_token=csrf_token,
                     service_ready=bool(app.state.ready),
                     service_error=app.state.ready_error,
+                    logout_available=not settings.local_review_no_auth,
                     workspaces=tuple(
                         (candidate.workspace_id, candidate.name)
                         for candidate in workspace_store.list_for_consumer(settings.consumer_id)

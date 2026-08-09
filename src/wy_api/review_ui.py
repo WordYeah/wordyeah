@@ -1104,6 +1104,24 @@ details[open] > .dropdown-trigger > .dropdown-trigger__chevron > .icon {
 .topbar-icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .topbar-icon[data-tone="danger"] { color: var(--red); }
 
+.service-status {
+  position: relative;
+  color: var(--green);
+}
+.service-status::after {
+  position: absolute;
+  right: 7px;
+  bottom: 7px;
+  width: 7px;
+  height: 7px;
+  border: 2px solid var(--app);
+  border-radius: 50%;
+  background: currentColor;
+  content: "";
+}
+.service-status[data-tone="success"] { color: var(--green); }
+.service-status[data-tone="danger"] { color: var(--red); }
+
 .toolbar-link,
 .toolbar-logout button {
   display: inline-flex;
@@ -2842,6 +2860,26 @@ details[open] > .dropdown-trigger > .dropdown-trigger__chevron > .icon {
   .control-actions { width: 100%; justify-content: space-between; }
 }
 
+@media (min-width: 761px) and (max-width: 980px) {
+  .nav-scroll {
+    justify-content: flex-end;
+    overflow: visible;
+    gap: 4px;
+  }
+  .nav-scroll .nav-section {
+    display: flex;
+    gap: 4px;
+  }
+  .nav-item {
+    width: 36px;
+    min-height: 36px;
+    justify-content: center;
+    gap: 0;
+    padding: 9px;
+  }
+  .nav-item > span:not(.nav-icon) { display: none; }
+}
+
 @media (max-width: 760px) {
   .app-frame { grid-template-rows: auto minmax(0, 1fr); }
   .side-nav {
@@ -2871,7 +2909,8 @@ details[open] > .dropdown-trigger > .dropdown-trigger__chevron > .icon {
 
   .toolbar-actions { width: 100%; justify-content: flex-start; }
   .mobile-workspace-switcher { display: block; margin-left: auto; }
-  .toolbar-actions .topbar-icon { display: none; }
+  .toolbar-actions .topbar-icon:not(.service-status) { display: none; }
+  .toolbar-actions .service-status { display: inline-flex; }
   .account-menu summary {
     width: 58px;
     min-height: 42px;
@@ -3349,6 +3388,7 @@ def render_review_sidebar(
     csrf_token: str = "",
     service_ready: bool = True,
     pending_count: int | None = None,
+    logout_available: bool = True,
 ) -> str:
     """Render the one canonical sidebar used by every review page."""
 
@@ -3381,7 +3421,7 @@ def render_review_sidebar(
         f'<input type="hidden" name="csrf_token" value="{escape(csrf_token)}">'
         f'<button class="popover-action-btn logout-btn" type="submit">{icon("logout")}<span>退出登录</span></button>'
         "</form>"
-        if csrf_token
+        if csrf_token and logout_available
         else '<a class="popover-action-btn" href="/review/account">Account Details</a>'
     )
 
@@ -3423,6 +3463,32 @@ def render_review_sidebar(
 </aside>'''
 
 
+def render_review_toolbar_actions(
+    *,
+    consumer_id: str,
+    reviewer_id: str,
+    workspace_menu: str,
+    csrf_token: str = "",
+    service_ready: bool = True,
+    service_label: str = "本地扫描服务可用",
+    service_title: str | None = None,
+    logout_available: bool = True,
+) -> str:
+    """Render the shared topbar controls used by review pages."""
+
+    service_tone = "success" if service_ready else "danger"
+    service_title = service_title or service_label
+    session_label = "受限审核会话" if logout_available else "本地开发免登录"
+    return f'''<div class="toolbar-actions">
+<details class="mobile-workspace-switcher" name="review-dropdown"><summary class="dropdown-trigger" aria-label="切换工作区"><span class="dropdown-trigger__label">{escape(consumer_id)}</span><span class="dropdown-trigger__chevron">{icon("chevron-down")}</span></summary><div class="consumer-popover-menu"><div class="consumer-popover-header">切换工作区</div><div class="consumer-popover-list">{workspace_menu}</div></div></details>
+<button class="theme-toggle-btn" type="button" data-action="toggle-layout" title="切换全宽/盒装居中" aria-label="切换全宽/盒装居中">{icon("layout")}</button>
+<button class="theme-toggle-btn" type="button" data-action="toggle-theme" title="切换深色/浅色模式" aria-label="切换深色/浅色模式"><span class="theme-icon-sun">{icon("sun")}</span><span class="theme-icon-moon">{icon("moon")}</span></button>
+<span class="topbar-icon service-status" data-tone="{service_tone}" role="status" title="{escape(service_title)}" aria-label="{escape(service_title)}">{icon("spark")}</span>
+<a class="topbar-icon" href="/review/guide" title="审核说明" aria-label="审核说明">{icon("guide")}</a>
+<details class="account-menu" name="review-dropdown"><summary class="dropdown-trigger"><span class="reviewer-avatar">{escape(reviewer_id[:1].upper() or "R")}</span><span class="dropdown-trigger__label">{escape(reviewer_id)}</span><span class="chevron dropdown-trigger__chevron">{icon("chevron-down")}</span></summary>
+<div class="account-popover"><p>{escape(consumer_id)} · {session_label}</p>{'<form class="toolbar-logout" method="post" action="/review/logout"><input type="hidden" name="csrf_token" value="' + escape(csrf_token) + '"><button type="submit">安全退出</button></form>' if csrf_token and logout_available else '<a class="toolbar-link" href="/review/account">账户与会话</a>'}</div></details></div>'''
+
+
 def render_review_workbench(
     *,
     items: Iterable[ReviewItem],
@@ -3444,6 +3510,7 @@ def render_review_workbench(
     page: int = 1,
     per_page: int = 20,
     workspaces: Iterable[Mapping[str, str]] = (),
+    logout_available: bool = True,
 ) -> str:
     all_items = list(items)
     view_value = view_mode if view_mode in {"list", "grid", "focus"} else "list"
@@ -3478,7 +3545,7 @@ def render_review_workbench(
     )
     current_ts = datetime.now(timezone.utc)
     page_title = "WordYeah · 图像审核"
-    ready_tone = "ready" if service_ready else "danger"
+    service_label = "本地扫描服务可用" if service_ready else "本地扫描服务受阻"
     status_value = _status_filter_value(status_filter)
     risk_value = _risk_filter_value(risk_filter)
     risk_choices = (
@@ -3622,6 +3689,7 @@ def render_review_workbench(
         csrf_token=csrf_token,
         service_ready=service_ready,
         pending_count=pending_count,
+        logout_available=logout_available,
     )
 
     return f"""<!doctype html>
@@ -3648,39 +3716,15 @@ def render_review_workbench(
             {f'<a href="/review#review-queue">审核队列</a><span class="divider" aria-hidden="true">/</span><span class="current-crumb">{escape(summary.focus_item.item_id[:12])}</span>' if focus_item_id and summary.focus_item else '<span class="current-crumb">审核队列</span>'}
           </nav>
         </div>
-        <div class="toolbar-actions">
-          <details class="mobile-workspace-switcher" name="review-dropdown">
-            <summary class="dropdown-trigger" aria-label="切换工作区"><span class="dropdown-trigger__label">{escape(consumer_id)}</span><span class="dropdown-trigger__chevron">{icon('chevron-down')}</span></summary>
-            <div class="consumer-popover-menu">
-              <div class="consumer-popover-header">切换工作区</div>
-              <div class="consumer-popover-list">{workspace_menu}</div>
-            </div>
-          </details>
-          <button class="theme-toggle-btn" type="button" data-action="toggle-layout" title="切换全宽/盒装居中" aria-label="切换全宽/盒装居中">
-            {icon('layout')}
-          </button>
-          <button class="theme-toggle-btn" type="button" data-action="toggle-theme" title="切换深色/浅色模式" aria-label="切换深色/浅色模式">
-            <span class="theme-icon-sun">{icon('sun')}</span>
-            <span class="theme-icon-moon">{icon('moon')}</span>
-          </button>
-          <span class="topbar-icon service-status" data-tone="{ready_tone}" role="status" title="本地多模型引擎及扫描服务" aria-label="本地多模型引擎及扫描服务">
-            {icon('spark')}
-          </span>
-          <a class="topbar-icon" href="/review/guide" title="查看审核系统使用指引" aria-label="查看审核系统使用指引">
-            {icon('guide')}
-          </a>
-          <details class="account-menu" name="review-dropdown">
-            <summary class="dropdown-trigger">
-              <span class="reviewer-avatar">{escape(reviewer_id[:1].upper() or 'R')}</span>
-              <span class="dropdown-trigger__label">{escape(reviewer_id)}</span>
-              <span class="chevron dropdown-trigger__chevron">{icon('chevron-down')}</span>
-            </summary>
-            <div class="account-popover">
-              <p>{escape(consumer_id)} · 受限审核会话</p>
-              {'<form class="toolbar-logout" method="post" action="/review/logout"><input type="hidden" name="csrf_token" value="' + escape(csrf_token) + '"><button type="submit">安全退出</button></form>' if csrf_token else '<a class="toolbar-link" href="/review/account">账户与会话</a>'}
-            </div>
-          </details>
-        </div>
+        {render_review_toolbar_actions(
+          consumer_id=consumer_id,
+          reviewer_id=reviewer_id,
+          workspace_menu=workspace_menu,
+          csrf_token=csrf_token,
+            service_ready=service_ready,
+            service_label=service_label,
+            logout_available=logout_available,
+        )}
       </header>
 
       <main class="shell" id="main-content">

@@ -75,6 +75,26 @@ class PolicyQualityPageTest(unittest.TestCase):
         self.assertNotIn("<form", page)
         self.assertNotIn("<button", page)
 
+    def test_quality_case_table_uses_mobile_card_labels_and_breakpoint_css(self) -> None:
+        page = render_quality_body(
+            {
+                "samples": [
+                    {
+                        "id": "sample-18",
+                        "model": "allow",
+                        "review": "误判确认",
+                        "disagreement": "vision ↔ rules",
+                        "verdict": "进入仲裁",
+                    }
+                ]
+            }
+        )
+        self.assertIn('data-label="样本"', page)
+        self.assertIn('data-label="AI 参考"', page)
+        self.assertIn('data-label="处置"', page)
+        self.assertIn("@media (max-width: 720px)", CSS)
+        self.assertIn(".pq-case-table td[data-label]::before", CSS)
+
     def test_empty_quality_data_is_skip_not_success(self) -> None:
         page = render_quality_body()
         self.assertIn("SKIP · 未提供抽检样本", page)

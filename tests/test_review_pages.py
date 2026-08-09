@@ -19,6 +19,8 @@ from wy_api.review_pages import (
     render_quality_page,
     render_review_page,
 )
+from wy_api.review_ui import CSS as REVIEW_CSS
+from wy_api.review_ui import render_review_workbench
 
 
 class ReviewPagesTest(unittest.TestCase):
@@ -53,6 +55,68 @@ class ReviewPagesTest(unittest.TestCase):
                 self.assertIn(f"<h1>{heading}</h1>", page)
                 self.assertIn('href="#main-content"', page)
                 self.assertIn('role="status"', page)
+
+    def test_support_pages_use_the_shared_topbar_controls_and_success_tone(self) -> None:
+        page = render_overview_page(
+            context=ReviewPageContext(
+                consumer_id="consumer-a",
+                reviewer_id="alice",
+                service_ready=True,
+            )
+        )
+        self.assertIn('class="mobile-workspace-switcher"', page)
+        self.assertNotIn("support-mobile-workspace", page)
+        self.assertIn('class="topbar-icon service-status" data-tone="success"', page)
+        self.assertIn("本地扫描服务可用", page)
+
+    def test_local_no_auth_context_hides_logout_without_removing_csrf(self) -> None:
+        page = render_account_page(
+            context=ReviewPageContext(
+                consumer_id="consumer-a",
+                reviewer_id="local-reviewer",
+                csrf_token="local-csrf",
+                logout_available=False,
+            )
+        )
+        self.assertNotIn('action="/review/logout"', page)
+        self.assertIn("账户与会话", page)
+        self.assertIn("本地开发免登录", page)
+
+    def test_workbench_uses_shared_topbar_controls_and_success_service_status(self) -> None:
+        page = render_review_workbench(
+            items=(),
+            events=(),
+            csrf_token="",
+            consumer_id="consumer-a",
+            reviewer_id="alice",
+            policy_profile="default",
+            service_ready=True,
+            service_error=None,
+            workspaces=(),
+        )
+        self.assertIn('class="mobile-workspace-switcher"', page)
+        self.assertNotIn('data-tone="ready"', page)
+        self.assertIn('class="topbar-icon service-status" data-tone="success"', page)
+        self.assertIn("本地扫描服务可用", page)
+
+    def test_tablet_sidebar_uses_compact_icon_navigation(self) -> None:
+        self.assertIn(
+            "@media (min-width: 761px) and (max-width: 980px)",
+            REVIEW_CSS,
+        )
+        self.assertIn("justify-content: flex-end;", REVIEW_CSS)
+        self.assertIn("width: 36px;", REVIEW_CSS)
+        self.assertIn(".nav-item > span:not(.nav-icon) { display: none; }", REVIEW_CSS)
+
+    def test_mobile_topbar_keeps_service_status_visible(self) -> None:
+        self.assertIn(
+            ".toolbar-actions .topbar-icon:not(.service-status) { display: none; }",
+            REVIEW_CSS,
+        )
+        self.assertIn(
+            ".toolbar-actions .service-status { display: inline-flex; }",
+            REVIEW_CSS,
+        )
 
     def test_overview_accepts_typed_and_plain_inputs(self) -> None:
         page = render_overview_page(

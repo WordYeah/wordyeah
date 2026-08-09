@@ -42,6 +42,21 @@ class OverviewAgentsPageTest(unittest.TestCase):
         self.assertIn('<th scope="col">阶段</th>', body)
         self.assertIn("vision_review_2", body)
 
+    def test_agents_table_has_mobile_card_labels_and_breakpoint_css(self) -> None:
+        body = render_agents_body(
+            {
+                "agents": {
+                    "columns": ("阶段", "状态", "积压"),
+                    "rows": (("fast_scan", "ready", 0),),
+                }
+            }
+        )
+        self.assertIn('data-label="阶段"', body)
+        self.assertIn('data-label="状态"', body)
+        self.assertIn('data-label="积压"', body)
+        self.assertIn("@media (max-width: 720px)", CSS)
+        self.assertIn(".oa-table td[data-label]::before", CSS)
+
     def test_all_dynamic_content_is_escaped_and_tone_is_allowlisted(self) -> None:
         attack = '<script>alert("x")</script><img src=x onerror=alert(1)>'
         body = render_overview_body(

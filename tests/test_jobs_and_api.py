@@ -26,6 +26,11 @@ class FakeClassifier:
         return ImageScores(normal=0.05, nsfw=0.95)
 
 
+class FailingWarmupClassifier(FakeClassifier):
+    def warmup(self) -> None:
+        raise RuntimeError("model warmup failed")
+
+
 class JobsAndApiTest(unittest.TestCase):
     def test_job_lease_can_be_recovered(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -235,6 +240,37 @@ class JobsAndApiTest(unittest.TestCase):
                 )
                 self.assertEqual(invalid.status_code, 400)
 
+    def test_review_health_page_reports_ready_state_in_body(self) -> None:
+        try:
+            from fastapi.testclient import TestClient
+        except ImportError as exc:  # pragma: no cover - optional api extra
+            self.skipTest(str(exc))
+
+        with tempfile.TemporaryDirectory() as directory:
+            database = str(Path(directory) / "wordyeah.sqlite3")
+            settings = ApiSettings(
+                database_path=database,
+                media_root=Path(directory) / "media",
+                local_review_no_auth=True,
+            )
+            app = create_app(settings=settings, service=MediaModerationService(FakeClassifier()))
+            with TestClient(app) as client:
+                page = client.get("/review/health")
+                self.assertEqual(page.status_code, 200)
+                self.assertIn("本地扫描服务可用", page.text)
+                self.assertIn('data-tone="success"', page.text)
+                self.assertIn("媒体模型启动检查已完成，可接收审核任务。", page.text)
+                self.assertIn("媒体模型启动检查", page.text)
+                self.assertIn("review database", page.text)
+                self.assertIn("review router", page.text)
+                self.assertNotIn("unknown", page.text)
+                self.assertNotIn("未提供流水线整体说明。", page.text)
+                self.assertNotIn("未提供流水线阶段状态。", page.text)
+                self.assertNotIn("未提供组件状态与影响范围。", page.text)
+                for local_page in (client.get("/review"), client.get("/review/account")):
+                    self.assertNotIn('action="/review/logout"', local_page.text)
+                    self.assertIn("本地开发免登录", local_page.text)
+
     def test_fastapi_rejects_jobs_after_consumer_queue_limit(self) -> None:
         try:
             from fastapi.testclient import TestClient
@@ -255,6 +291,33 @@ class JobsAndApiTest(unittest.TestCase):
                 response = client.post("/v1/jobs", json=payload)
                 self.assertEqual(response.status_code, 429)
                 self.assertEqual(response.headers["Retry-After"], "1")
+
+    def test_review_health_page_preserves_error_when_warmup_blocks(self) -> None:
+        try:
+            from fastapi.testclient import TestClient
+        except ImportError as exc:  # pragma: no cover - optional api extra
+            self.skipTest(str(exc))
+
+        with tempfile.TemporaryDirectory() as directory:
+            database = str(Path(directory) / "wordyeah.sqlite3")
+            settings = ApiSettings(
+                database_path=database,
+                media_root=Path(directory) / "media",
+                local_review_no_auth=True,
+            )
+            app = create_app(settings=settings, service=MediaModerationService(FailingWarmupClassifier()))
+            with TestClient(app) as client:
+                page = client.get("/review/health")
+                self.assertEqual(page.status_code, 200)
+                self.assertIn("本地扫描服务受阻", page.text)
+                self.assertIn('data-tone="danger"', page.text)
+                self.assertIn("RuntimeError: model warmup failed", page.text)
+                self.assertIn("blocked", page.text)
+                self.assertIn("媒体模型启动检查", page.text)
+                self.assertNotIn("unknown", page.text)
+                self.assertNotIn("未提供流水线整体说明。", page.text)
+                self.assertNotIn("未提供流水线阶段状态。", page.text)
+                self.assertNotIn("未提供组件状态与影响范围。", page.text)
 
     def test_missing_policy_keeps_api_alive_but_not_ready(self) -> None:
         try:

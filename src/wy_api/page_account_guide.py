@@ -45,6 +45,7 @@ CSS = """
 .account-guide__table td { background: var(--panel); }
 .account-guide__table tbody tr:last-child td { border-bottom: 0; }
 .account-guide__table tbody tr:hover td { background: var(--panel-soft); }
+.account-guide__table td[data-label]::before { content: attr(data-label); display: none; }
 .account-guide__badge { display: inline-flex; align-items: center; gap: 6px; min-height: 24px; padding: 2px 9px; border-radius: 999px; background: var(--panel-soft); border: 1px solid var(--line); font-size: 11px; font-weight: 600; }
 .account-guide__badge::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
 .account-guide__action {
@@ -72,6 +73,18 @@ CSS = """
   .account-guide__facts { grid-template-columns: 1fr; }
   .account-guide__panel > header,
   .account-guide__body { padding-left: 16px; padding-right: 16px; }
+  .account-guide__table-wrap { overflow: visible; }
+  .account-guide__table { width: 100%; min-width: 0; border-spacing: 0; }
+  .account-guide__table thead { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .account-guide__table tbody { display: grid; gap: 10px; }
+  .account-guide__table tr { display: grid; gap: 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+  .account-guide__table td { display: grid; grid-template-columns: minmax(88px, 38%) minmax(0, 1fr); gap: 10px; padding: 8px 0; border-bottom: 0; background: transparent; white-space: normal; overflow-wrap: anywhere; }
+  .account-guide__table td[data-label]::before { display: block; content: attr(data-label); color: var(--muted); font-size: 10px; font-weight: 650; letter-spacing: .04em; text-transform: uppercase; }
+  .account-guide__table td[colspan] { display: block; padding: 8px 0; }
+  .account-guide__table td[colspan]::before { content: none; }
+  .account-guide__table td:first-child { padding-top: 0; }
+  .account-guide__table td:last-child { padding-bottom: 0; }
+  .account-guide__item { align-items: flex-start; flex-direction: column; }
 }
 """
 
@@ -164,16 +177,17 @@ def render_account_content(data: object = None, *, csrf_token: str | None = None
     sessions = _items(sessions_value)
 
     session_rows: list[str] = []
+    session_headers = ("会话 ID", "建立时间", "最近活动", "状态")
     for raw in sessions:
         item = _mapping(raw)
         if not item:
             continue
         session_rows.append(
             "<tr>"
-            f'<td><code style="font-family: var(--mono); font-size: 11.5px; padding: 2px 6px; border-radius: 4px; background: var(--panel-soft); border: 1px solid var(--line);">{escape(_text(item.get("session_id") or item.get("id"), "—"))}</code></td>'
-            f'<td>{escape(_text(item.get("created_at"), "—"))}</td>'
-            f'<td>{escape(_text(item.get("last_seen_at") or item.get("last_seen"), "—"))}</td>'
-            f'<td><span class="account-guide__badge">{escape(_text(item.get("status"), "当前活动"))}</span></td>'
+            f'<td data-label="{session_headers[0]}"><code style="font-family: var(--mono); font-size: 11.5px; padding: 2px 6px; border-radius: 4px; background: var(--panel-soft); border: 1px solid var(--line);">{escape(_text(item.get("session_id") or item.get("id"), "—"))}</code></td>'
+            f'<td data-label="{session_headers[1]}">{escape(_text(item.get("created_at"), "—"))}</td>'
+            f'<td data-label="{session_headers[2]}">{escape(_text(item.get("last_seen_at") or item.get("last_seen"), "—"))}</td>'
+            f'<td data-label="{session_headers[3]}"><span class="account-guide__badge">{escape(_text(item.get("status"), "当前活动"))}</span></td>'
             "</tr>"
         )
     if sessions_table.get("columns"):
@@ -223,7 +237,16 @@ def render_account_content(data: object = None, *, csrf_token: str | None = None
 def _guide_table(caption: str, headings: Sequence[str], rows: Sequence[Sequence[object]]) -> str:
     head = "".join(f'<th scope="col">{escape(item)}</th>' for item in headings)
     body = "".join(
-        "<tr>" + "".join(f"<td>{escape(_text(cell))}</td>" for cell in row) + "</tr>"
+        "<tr>"
+        + "".join(
+            f'<td data-label="{escape(headings[index])}">{escape(_text(cell))}</td>'
+            for index, cell in enumerate(row)
+        )
+        + "".join(
+            f'<td data-label="{escape(headings[index])}"></td>'
+            for index in range(len(row), len(headings))
+        )
+        + "</tr>"
         for row in rows
     )
     return (
@@ -239,7 +262,7 @@ def _shortcuts_table(rows: Sequence[object]) -> str:
         key = _text(row[0], "—") if row else "—"
         action = _text(row[1], "—") if len(row) > 1 else "—"
         rendered.append(
-            f'<tr><td><kbd>{escape(key)}</kbd></td><td>{escape(action)}</td></tr>'
+            f'<tr><td data-label="按键"><kbd>{escape(key)}</kbd></td><td data-label="操作">{escape(action)}</td></tr>'
         )
     return (
         '<div class="account-guide__table-wrap"><table class="account-guide__table">'
