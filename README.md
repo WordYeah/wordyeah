@@ -39,3 +39,14 @@ API 合同见 `docs/openapi-avatar-v1.yaml`；当前首版默认绑定 loopback�
 Linuxjoy 立项计划：`../linuxjoy/.omx/plans/2026-08-04-wordyeah-kickoff.md`
 
 完整开发计划：`.omx/plans/2026-08-04-wordyeah-development.md`
+
+## 文档入口
+
+- 长期开发、维护、发布与回滚：`docs/PROJECT_MAINTENANCE.md`
+- 在线只读数据接入和分阶段放量：`docs/ONLINE_DATA_RUNBOOK.md`
+- API 与鉴权合同：`docs/API.md`
+- AI 多级审核与人工工作台：`docs/REVIEW_WORKBENCH.md`
+- 部署目录和服务边界：`docs/DEPLOYMENT.md`
+- 质量、安全、负载和浏览器验收：`docs/ACCEPTANCE.md`
+- Cravatar/Gravatar 全量历史审核计划：`docs/CRAVATAR_FULL_REGISTRY_REVIEW_PLAN.md`
+- 已实现、已验证和未完成事实：`docs/STATUS.md`

@@ -48,3 +48,9 @@ def test_browser_acceptance_runtime_requires_private_three_role_file(
     runtime.chmod(0o644)
     with pytest.raises(ValueError, match="0600"):
         MODULE._load_runtime(runtime)
+
+
+def test_browser_acceptance_uses_the_shared_mobile_workspace_selector() -> None:
+    source = SCRIPT.read_text(encoding="utf-8")
+    assert ".support-mobile-workspace > summary" not in source
+    assert source.count(".mobile-workspace-switcher > summary") >= 2

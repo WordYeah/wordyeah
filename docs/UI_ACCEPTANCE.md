@@ -63,3 +63,11 @@
 - [CX] Cravatar 预览支持严格的 `cravatar://<MD5>` 引用，并拼接到 allowlisted `cn.cravatar.com/avatar/`；不把图片 SHA-256 当邮箱 MD5。
 - 视觉证据：`output/playwright/review-multiview-list-1440.png`、`output/playwright/review-multiview-grid-1440.png`、`output/playwright/review-batch-grid-1440.png`、`output/playwright/review-cravatar-api-preview-1440.png`。
 - [CX] 独立视觉子代理复核为 84/100、无阻断项；指出列表横向留白、批量模式层级和单结果空白仍可继续收敛。随后已收紧列表列宽、强化批量条并增加当前结果数；精修后的截图尚未再次评分。
+
+## 2026-08-09 列表节奏与模块边线复查
+
+- [CX] 删除系统健康阶段卡片的彩色顶部边线和质量页人工规则的紫色左边线；状态继续通过文字与低饱和状态标签表达。
+- [CX] 审核列表在首项顶部和末项底部各保留 12px，行高调整为 86px，头像缩至 56px，并消除最后一项多余的外间距。
+- [CX] 搜索图标改由固定 16px 容器按输入框垂直中线定位，内部 Tabler 图标不再受 SVG 行盒影响。
+- [CX] 真实浏览器复核截图：`output/playwright/review-list-spacing-final-1440.png`、`output/playwright/review-list-spacing-final-390.png`、`output/playwright/review-health-neutral-1440.png`。
+- [CX] 隔离浏览器验收使用只读 corpus 数据库副本和三角色 reviewer runtime 运行，全部页面、下拉框、质量分页和移动端路径为 PASS；源数据库未变、未写生产头像。验收同时修正了历史页仍引用已删除移动工作区 selector 的测试代码。

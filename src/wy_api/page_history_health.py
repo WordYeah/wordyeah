@@ -215,14 +215,9 @@ CSS = """
   min-height: 126px;
   padding: 15px;
   border: 1px solid var(--line);
-  border-top: 3px solid var(--line-strong);
   border-radius: 10px;
   background: var(--panel);
 }
-.pipeline-stage[data-tone="success"] { border-top-color: var(--green); }
-.pipeline-stage[data-tone="warning"] { border-top-color: var(--amber); }
-.pipeline-stage[data-tone="danger"] { border-top-color: var(--red); }
-.pipeline-stage[data-tone="info"] { border-top-color: var(--accent); }
 .pipeline-order { color: var(--quiet); font-family: var(--mono); font-size: 10px; }
 .pipeline-stage strong { font-size: 12px; overflow-wrap: anywhere; }
 .pipeline-detail { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.55; }

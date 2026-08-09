@@ -1,5 +1,9 @@
 # WordYeah avatar MVP deployment boundary
 
+在线数据分阶段接入、监控、暂停和批次验收见
+[`ONLINE_DATA_RUNBOOK.md`](ONLINE_DATA_RUNBOOK.md)；长期维护和发布约定见
+[`PROJECT_MAINTENANCE.md`](PROJECT_MAINTENANCE.md)。两份文档都不授权生产写回。
+
 The repository ships a disabled systemd template for continuous Cravatar
 shadow ingestion. Installing the files does not enable or start a service.
 Deployment remains `enforce=false` and the runner has no WordPress, Cavalcade,

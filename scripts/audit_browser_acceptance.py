@@ -601,7 +601,7 @@ def main() -> int:
                             "/review?status=all&view=list&per_page=20",
                             ".mobile-workspace-switcher > summary",
                         ),
-                        ("/review/history", ".support-mobile-workspace > summary"),
+                        ("/review/history", ".mobile-workspace-switcher > summary"),
                     ):
                         page.goto(base + path, wait_until="networkidle")
                         trigger = page.locator(selector)

@@ -103,7 +103,7 @@ CSS = r"""
 .pq-pair dd { margin: 0; font-family: var(--mono); font-size: 12px; font-weight: 700; }
 .pq-tag-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .pq-tag { padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel-soft); font-size: 11px; color: var(--muted); }
-.pq-human-rule { margin: 0; padding-left: 12px; border-left: 3px solid var(--accent); color: var(--muted); font-size: 12px; line-height: 1.55; }
+.pq-human-rule { margin: 0; padding: 10px 12px; border-radius: 8px; background: var(--panel-soft); color: var(--muted); font-size: 12px; line-height: 1.55; }
 .pq-empty { padding: 18px 0; color: var(--quiet); font-size: 12px; text-align: center; }
 .pq-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 @media (max-width: 760px) {

@@ -4,6 +4,8 @@ import unittest
 
 from wy_api.icons import TABLER_ICONS_VERSION, icon
 from wy_api.login_ui import render_login_page
+from wy_api.page_history_health import CSS as HISTORY_HEALTH_CSS
+from wy_api.page_policy_quality import CSS as POLICY_QUALITY_CSS
 from wy_api.review_pages import (
     Metric,
     Notice,
@@ -117,6 +119,22 @@ class ReviewPagesTest(unittest.TestCase):
             ".toolbar-actions .service-status { display: inline-flex; }",
             REVIEW_CSS,
         )
+
+    def test_queue_spacing_and_search_icon_alignment_are_explicit(self) -> None:
+        self.assertIn('.queue-list[data-view="list"] { padding: 12px 0; }', REVIEW_CSS)
+        self.assertIn("min-height: 86px;", REVIEW_CSS)
+        self.assertIn(".review-card:last-child { margin-bottom: 0; }", REVIEW_CSS)
+        self.assertIn(".search-box .search-icon {", REVIEW_CSS)
+        self.assertIn("transform: translateY(-50%);", REVIEW_CSS)
+        self.assertIn(".search-box .search-icon > .icon {", REVIEW_CSS)
+
+    def test_content_modules_do_not_use_decorative_colored_edges(self) -> None:
+        self.assertNotIn("border-top: 3px", HISTORY_HEALTH_CSS)
+        self.assertNotIn("border-top-color: var(--green)", HISTORY_HEALTH_CSS)
+        self.assertNotIn("border-top-color: var(--amber)", HISTORY_HEALTH_CSS)
+        self.assertNotIn("border-top-color: var(--red)", HISTORY_HEALTH_CSS)
+        self.assertNotIn("border-top-color: var(--accent)", HISTORY_HEALTH_CSS)
+        self.assertNotIn("border-left: 3px solid var(--accent)", POLICY_QUALITY_CSS)
 
     def test_overview_accepts_typed_and_plain_inputs(self) -> None:
         page = render_overview_page(
