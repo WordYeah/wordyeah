@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import importlib.util
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -59,7 +60,7 @@ class FakeWpdb {
             'image_md5' => 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
             'type' => 'gravatar',
             'status' => 0,
-            'url' => 'https://cravatar.cn/avatar/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            'url' => getenv('FAKE_URL') ?: 'https://cravatar.cn/avatar/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
         ]];
     }
 }
@@ -77,6 +78,54 @@ require """
     assert row["registry_status"] == 0
     assert row["avatar_url"].startswith("https://cravatar.com/avatar/")
     assert row["registry_url"].startswith("https://cravatar.com/avatar/")
+
+
+@pytest.mark.skipif(shutil.which("php") is None, reason="PHP CLI is unavailable")
+def test_registry_export_is_bounded_keyset_and_canonicalizes_legacy_url(tmp_path: Path) -> None:
+    exporter = ROOT / "scripts" / "cravatar_registry_export.php"
+    harness = tmp_path / "registry-export-harness.php"
+    harness.write_text(
+        """<?php
+define('ABSPATH', __DIR__);
+define('ARRAY_A', 'ARRAY_A');
+function wp_json_encode($value) { return json_encode($value, JSON_UNESCAPED_SLASHES); }
+function wp_parse_url($value) { return parse_url($value); }
+class FakeWpdb {
+    public $prepared_sql = '';
+    public function prepare($sql, $parameters) { $this->prepared_sql = $sql; return $sql; }
+    public function get_blog_prefix($site_id) { return 'wp_' . $site_id . '_'; }
+    public function get_results($sql, $format) {
+        if (strpos($sql, 'ORDER BY image_md5 ASC LIMIT') === false) { throw new Exception('not keyset'); }
+        return [[
+            'image_md5' => 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+            'url' => getenv('FAKE_URL') ?: 'https://cravatar.cn/avatar/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            'type' => 'gravatar', 'hash_type' => 'md5', 'status' => 0,
+        ]];
+    }
+}
+$wpdb = new FakeWpdb();
+require """
+        + repr(str(exporter))
+        + ";\n",
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        ["php", str(harness)], check=True, capture_output=True, text=True
+    )
+    row = json.loads(result.stdout)
+    assert row["metadata_valid"] is True
+    assert row["avatar_url"] == f"https://cravatar.com/avatar/{'a' * 32}"
+    assert row["mutates_avatar"] is False
+    invalid = subprocess.run(
+        ["php", str(harness)],
+        check=True,
+        capture_output=True,
+        text=True,
+        env={**os.environ, "FAKE_URL": f"https://evil.example/avatar/{'a' * 32}"},
+    )
+    invalid_row = json.loads(invalid.stdout)
+    assert invalid_row["metadata_valid"] is False
+    assert "invalid_avatar_url" in invalid_row["errors"]
 
 
 @pytest.mark.skipif(shutil.which("php") is None, reason="PHP CLI is unavailable")

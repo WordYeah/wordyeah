@@ -706,12 +706,18 @@ def create_app(
             except (ValueError, TypeError) as exc:
                 raise HTTPException(status_code=400, detail="invalid source metadata") from exc
             allowed_keys = {
+                "source_kind",
+                "registry_snapshot_id",
                 "avatar_origin",
                 "origin_verified",
                 "registry_status",
+                "hash_type",
+                "url_hash",
+                "collection_url_host",
                 "image_md5",
                 "collected_content_md5",
                 "matches_queued_image_md5",
+                "matches_registry_image_md5",
                 "requires_ai_review",
             }
             if not isinstance(decoded, dict) or not set(decoded).issubset(allowed_keys):
@@ -719,9 +725,33 @@ def create_app(
             origin = decoded.get("avatar_origin")
             if origin not in {None, "cravatar", "gravatar", "unknown"}:
                 raise HTTPException(status_code=400, detail="invalid avatar origin")
+            source_kind = decoded.get("source_kind")
+            if source_kind not in {None, "registry-read-only-keyset"}:
+                raise HTTPException(status_code=400, detail="invalid source_kind")
+            snapshot_id = decoded.get("registry_snapshot_id")
+            if snapshot_id is not None and (
+                not isinstance(snapshot_id, str)
+                or not 1 <= len(snapshot_id) <= 128
+                or any(char not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._:-" for char in snapshot_id)
+            ):
+                raise HTTPException(status_code=400, detail="invalid registry_snapshot_id")
+            hash_type = decoded.get("hash_type")
+            if hash_type not in {None, "md5", "sha256"}:
+                raise HTTPException(status_code=400, detail="invalid hash_type")
+            url_hash = decoded.get("url_hash")
+            if url_hash is not None and (
+                not isinstance(url_hash, str)
+                or len(url_hash) != 64
+                or any(char not in "0123456789abcdef" for char in url_hash)
+            ):
+                raise HTTPException(status_code=400, detail="invalid url_hash")
+            collection_url_host = decoded.get("collection_url_host")
+            if collection_url_host not in {None, "cn.cravatar.com"}:
+                raise HTTPException(status_code=400, detail="invalid collection_url_host")
             for key in (
                 "origin_verified",
                 "matches_queued_image_md5",
+                "matches_registry_image_md5",
                 "requires_ai_review",
             ):
                 if key in decoded and not isinstance(decoded[key], bool):
@@ -1014,33 +1044,52 @@ def create_app(
         force_ai_review: bool = False,
     ) -> None:
         target_consumer = consumer_id or settings.consumer_id
-        if attempt_store.list_attempts(
+        fast_attempts = attempt_store.list_attempts(
             item_id, "fast_scan", consumer_id=target_consumer
-        ):
-            return
-        attempt_store.append_attempt(
-            item_id=item_id,
-            consumer_id=target_consumer,
-            stage="fast_scan",
-            attempt_number=1,
-            actor_type="agent",
-            provider="local",
-            model_id="media.nsfw",
-            model_version=result.model_versions.get("media.nsfw"),
-            prompt_version="none",
-            decision=result.decision,
-            confidence=result.top_score,
-            reasons=result.reasons,
-            findings=result.to_dict()["findings"],
-            status="failed" if result.decision == "error" else "succeeded",
-            elapsed_ms=result.elapsed_ms,
-            error=result.error,
         )
+        item = review_store.get(item_id, consumer_id=target_consumer)
+        if fast_attempts:
+            if not force_ai_review:
+                return
+            if item.stage not in {"fast_scan", "model_error"}:
+                return
+            if item.stage == "model_error":
+                events = review_store.list_events(item_id, consumer_id=target_consumer)
+                if not events or events[-1].reason_code != "vision_queue_full":
+                    return
+        if force_ai_review and job_store.count_active(target_consumer) >= settings.max_queue_depth:
+            if item.stage != "model_error":
+                review_store.apply_route(
+                    item_id,
+                    stage="model_error",
+                    final_decision=None,
+                    reason_code="vision_queue_full",
+                    consumer_id=target_consumer,
+                )
+            raise HTTPException(status_code=429, detail="vision review queue is full")
+        if not fast_attempts:
+            attempt_store.append_attempt(
+                item_id=item_id,
+                consumer_id=target_consumer,
+                stage="fast_scan",
+                attempt_number=1,
+                actor_type="agent",
+                provider="local",
+                model_id="media.nsfw",
+                model_version=result.model_versions.get("media.nsfw"),
+                prompt_version="none",
+                decision=result.decision,
+                confidence=result.top_score,
+                reasons=result.reasons,
+                findings=result.to_dict()["findings"],
+                status="failed" if result.decision == "error" else "succeeded",
+                elapsed_ms=result.elapsed_ms,
+                error=result.error,
+            )
         if not force_ai_review:
             _route_item(item_id, risk_score=result.top_score, consumer_id=target_consumer)
             return
 
-        item = review_store.get(item_id, consumer_id=target_consumer)
         attempts = attempt_store.list_attempts(item_id, consumer_id=target_consumer)
         review_store.apply_route(
             item_id,
@@ -1049,15 +1098,6 @@ def create_app(
             reason_code="source_requires_ai_review",
             consumer_id=target_consumer,
         )
-        if job_store.count_active(target_consumer) >= settings.max_queue_depth:
-            review_store.apply_route(
-                item_id,
-                stage="model_error",
-                final_decision=None,
-                reason_code="vision_queue_full",
-                consumer_id=target_consumer,
-            )
-            return
         payload = VisionReviewJobPayload(
             item_id=item.item_id,
             media_ref=item.media_ref,
@@ -1254,6 +1294,8 @@ def create_app(
                     consumer_id=target_consumer,
                     force_ai_review=force_ai_review,
                 )
+            except HTTPException:
+                raise
             except Exception as exc:
                 result = _error_result(result, "review_queue_failed", f"{type(exc).__name__}: {exc}")
         status_code = 422 if result.decision == "error" else 200

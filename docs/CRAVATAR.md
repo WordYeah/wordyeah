@@ -2,7 +2,7 @@
 
 首次覆盖 `wp_9_avatar_verify` 全量登记记录的计划见
 [`CRAVATAR_FULL_REGISTRY_REVIEW_PLAN.md`](CRAVATAR_FULL_REGISTRY_REVIEW_PLAN.md)。
-该文档为 plan-only，不授权生产扫描或写回。
+该文档已记录 1,000 条生产只读 Shadow canary；该 canary 不授权 10,000 条及以上放量，也不授权生产写回。
 
 The current production code still has the WordPress queue entry at:
 
@@ -85,6 +85,17 @@ were already closed keep their prior result; repeating one is idempotent even
 after its earlier review item has reached a final state.
 This rule applies equally to native Cravatar avatars and avatars served through
 the Gravatar mirror; `avatar_origin` is provenance, not an audit exemption.
+
+全量登记表不再复用 Cavalcade 导出器。`scripts/cravatar_registry_export.php` 按
+`wp_9_avatar_verify.image_md5` 做有界 keyset SELECT；`src/wy_cravatar/registry.py` 把 URL
+身份与当前内容 SHA-256 分开保存，并通过 `registry_assets`/`content_assets` 保留多 source
+到单内容的映射。无效 metadata 进入独立终态，不会因为缺图而产生安全结论。该路径只有
+本地 Shadow 账本和受控媒体写入，不包含 WordPress 或头像状态更新代码。
+
+2026-08-09 的首个 1,000 条批次中，963 条来源采集成功并映射为 960 个唯一内容，27 条为
+`invalid_metadata`，10 条为 `fetch_missing`。960 个唯一内容已幂等提交本地 WordYeah，失败 0；
+生产数据库和头像写入均为 0。由于首轮完整延迟指标缺失且 AI 队列未到终态，批次结论为
+`INCOMPLETE`，不得据此启动 10,000 条阶段。
 
 For larger read-only exports, `scripts/cravatar_cavalcade_export.php` performs a
 bounded Cavalcade query plus a bounded read from `wp_9_avatar_verify`, joined by

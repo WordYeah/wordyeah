@@ -339,6 +339,131 @@ def test_historical_allow_submission_is_forced_into_ai_review() -> None:
             assert invalid.status_code == 400
 
 
+def test_registry_shadow_provenance_is_validated_and_persisted() -> None:
+    with tempfile.TemporaryDirectory() as directory:
+        database = str(Path(directory) / "wordyeah.sqlite3")
+        workspaces = WorkspaceStore(database)
+        workspaces.create(
+            workspace_id="cravatar",
+            consumer_id="default",
+            name="Cravatar",
+            adapter="cravatar",
+            policy_profile="avatar-default",
+        )
+        app = create_app(
+            settings=ApiSettings(
+                database_path=database,
+                media_root=Path(directory) / "media",
+                local_review_no_auth=True,
+            ),
+            service=MediaModerationService(AllowClassifier()),
+            workspace_store=workspaces,
+        )
+        image = io.BytesIO()
+        Image.new("RGB", (8, 8), (10, 20, 30)).save(image, format="PNG")
+        metadata = (
+            '{"source_kind":"registry-read-only-keyset",'
+            '"registry_snapshot_id":"registry-canary-20260809-1000",'
+            '"avatar_origin":"gravatar","origin_verified":true,'
+            '"registry_status":0,"hash_type":"sha256",'
+            f'"url_hash":"{"c" * 64}",'
+            '"collection_url_host":"cn.cravatar.com",'
+            f'"image_md5":"{"b" * 32}",'
+            f'"collected_content_md5":"{"d" * 32}",'
+            '"matches_registry_image_md5":false,"requires_ai_review":true}'
+        )
+        headers = {
+            "Content-Type": "image/png",
+            "Content-Length": str(len(image.getvalue())),
+            "X-WordYeah-Workspace": "cravatar",
+            "X-WordYeah-Source-ID": "cravatar-registry%3Afixture",
+            "X-WordYeah-Source-Metadata": metadata,
+        }
+        with TestClient(app) as client:
+            response = client.post("/v1/moderate/image", content=image.getvalue(), headers=headers)
+            assert response.status_code == 200
+            items = app.state.review_store.list_items(status=None, consumer_id="cravatar")
+            assert len(items) == 1
+            assert items[0].source_metadata["registry_snapshot_id"] == (
+                "registry-canary-20260809-1000"
+            )
+            assert items[0].source_metadata["matches_registry_image_md5"] is False
+
+            for invalid_metadata in (
+                metadata.replace("cn.cravatar.com", "cravatar.example"),
+                metadata.replace("registry-canary-20260809-1000", "bad snapshot"),
+                metadata.replace("c" * 64, "C" * 64),
+            ):
+                invalid = client.post(
+                    "/v1/moderate/image",
+                    content=image.getvalue(),
+                    headers={
+                        **headers,
+                        "X-WordYeah-Source-ID": "cravatar-registry%3Ainvalid",
+                        "X-WordYeah-Source-Metadata": invalid_metadata,
+                    },
+                )
+                assert invalid.status_code == 400
+
+
+def test_forced_ai_submission_backpressure_is_replayable() -> None:
+    with tempfile.TemporaryDirectory() as directory:
+        database = str(Path(directory) / "wordyeah.sqlite3")
+        workspaces = WorkspaceStore(database)
+        workspaces.create(
+            workspace_id="cravatar",
+            consumer_id="default",
+            name="Cravatar",
+            adapter="cravatar",
+            policy_profile="avatar-default",
+        )
+        app = create_app(
+            settings=ApiSettings(
+                database_path=database,
+                media_root=Path(directory) / "media",
+                local_review_no_auth=True,
+                max_queue_depth=1,
+            ),
+            service=MediaModerationService(AllowClassifier()),
+            workspace_store=workspaces,
+        )
+        app.state.job_store.enqueue("fixture", {"fixture": True}, "cravatar")
+        image = io.BytesIO()
+        Image.new("RGB", (8, 8), (10, 20, 30)).save(image, format="PNG")
+        headers = {
+            "Content-Type": "image/png",
+            "Content-Length": str(len(image.getvalue())),
+            "X-WordYeah-Workspace": "cravatar",
+            "X-WordYeah-Source-ID": "cravatar-registry%3Abackpressure",
+            "X-WordYeah-Source-Metadata": "%7B%22requires_ai_review%22%3Atrue%7D",
+        }
+        with TestClient(app) as client:
+            full = client.post("/v1/moderate/image", content=image.getvalue(), headers=headers)
+            assert full.status_code == 429
+            held = app.state.review_store.get_by_source_id(
+                "cravatar-registry:backpressure", consumer_id="cravatar"
+            )
+            assert held.stage == "model_error"
+
+            fixture_job = app.state.job_store.connection.execute(
+                "SELECT job_id FROM jobs WHERE kind='fixture'"
+            ).fetchone()["job_id"]
+            app.state.job_store.cancel(fixture_job)
+            replay = client.post("/v1/moderate/image", content=image.getvalue(), headers=headers)
+            assert replay.status_code == 200
+            recovered = app.state.review_store.get_by_source_id(
+                "cravatar-registry:backpressure", consumer_id="cravatar"
+            )
+            assert recovered.stage == "vision_review_1"
+            assert recovered.status == "pending"
+            jobs = app.state.job_store.connection.execute(
+                "SELECT kind, status FROM jobs WHERE kind='vision_review_1'"
+            ).fetchall()
+            assert [(row["kind"], row["status"]) for row in jobs] == [
+                ("vision_review_1", "queued")
+            ]
+
+
 def test_workspace_definitions_load_from_environment(monkeypatch) -> None:
     monkeypatch.setenv(
         "WORDYEAH_WORKSPACES_JSON",

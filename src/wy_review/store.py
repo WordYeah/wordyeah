@@ -474,7 +474,10 @@ class ReviewStore:
                 status = "rejected"
             elif stage == "model_error":
                 status = "held"
-            elif stage == "human_required" and status not in {"approved", "rejected"}:
+            elif stage in {"vision_review_1", "vision_review_2", "human_required"} and status not in {
+                "approved",
+                "rejected",
+            }:
                 status = "pending"
             avatar_action = _route_avatar_action(row, stage)
             if (

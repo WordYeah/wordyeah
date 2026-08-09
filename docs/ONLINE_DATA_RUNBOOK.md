@@ -39,6 +39,10 @@
 
 来源 ID 用于幂等，内容 SHA-256 用于内容去重；历史邮箱 MD5、来源 URL 和当前内容身份必须分开保存。相同来源重跑不得新增审核对象，内容变化必须产生新的内容证据，不能冒充旧图重放。
 
+当高级视觉 active job 达到 `WORDYEAH_MAX_QUEUE_DEPTH` 时，强制 AI 审核的提交返回 HTTP
+429，并留在本地失败账本等待重放，不得以 fast-scan 结果冒充已经排队。因并发竞争已经建立的
+`vision_queue_full` 留置项允许使用同一 source ID 幂等恢复；其他 `model_error` 不自动重排。
+
 ## 4. 放量阶段
 
 ### A. 1,000 条在线只读 canary
@@ -46,6 +50,35 @@
 - 同时覆盖 Cravatar 与 Gravatar、不同 registry 状态、URL 形态、图片类型和失败样本。
 - 验证暂停、恢复、失败重放、重跑幂等、源记录前后不变和生产零写入。
 - 输出采集成功率、去重率、快筛分布、provider 成功率和人工升级率。
+
+登记表导出使用 `scripts/cravatar_registry_export.php`。它只执行一条按 `image_md5` 主键
+排序的有界 SELECT，单页最多 5,000 条，stderr 输出实际 SQL 耗时；游标使用
+`WORDYEAH_CRAVATAR_EXPORT_AFTER_KEY`，固定快照上界时同时设置
+`WORDYEAH_CRAVATAR_EXPORT_MAX_KEY`。旧 `cravatar.cn` 只作为输入元数据解析，导出 URL
+立即改写为 `cravatar.com`。
+
+本地采集入口：
+
+```bash
+python scripts/cravatar_registry_collect.py export.jsonl \
+  --database /private/wordyeah/registry/wordyeah.sqlite3 \
+  --snapshot-id registry-YYYYMMDD \
+  --source-mode live_keyset \
+  --root /private/wordyeah/registry/media \
+  --manifest /private/wordyeah/registry/manifest.jsonl \
+  --workers 8
+```
+
+采集只向 `cn.cravatar.com` 请求当前图片，使用内容 SHA-256 地址存储；每条登记 source
+保留独立映射，相同内容只保存一份。`invalid_metadata`、下载失败和缺失图片不进入 allow。
+生产导出文件、manifest、ledger 和报告必须保持 0600，且不得放进仓库。
+
+2026-08-09 的 1,000 条 canary 已完成采集与本地提交完整性检查，但整体仍为 `INCOMPLETE`：
+963 条来源采集成功，27 条 metadata 无效，10 条 CDN 404；960 个唯一内容提交失败 0，幂等
+重跑新增 0。首次提交暴露了既有队列达到 1,000 active job 时仍返回成功的问题；API 已改为
+429 背压，并启动本地幂等调和，把仅因 `vision_queue_full` 留置的项目随水位下降重新排队。
+首轮采集缺少完整延迟分位数且 AI 队列未到终态，因此不能进入 10,000 条阶段。
+证据保存在仓库外 `registry-canary-evidence.json`，不得提交图片、manifest、cursor 或运行数据库。
 
 ### B. 10,000 条 pilot
 

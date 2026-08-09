@@ -13,12 +13,18 @@ from wy_media.image_safety import ImageLimits, decode_image
 PathField = Literal["path", "local_path", "image_path"]
 PATH_FIELDS: tuple[PathField, ...] = ("path", "local_path", "image_path")
 MODERATION_SOURCE_METADATA_FIELDS = (
+    "source_kind",
+    "registry_snapshot_id",
     "avatar_origin",
     "origin_verified",
     "registry_status",
+    "hash_type",
+    "url_hash",
+    "collection_url_host",
     "image_md5",
     "collected_content_md5",
     "matches_queued_image_md5",
+    "matches_registry_image_md5",
     "requires_ai_review",
 )
 

@@ -101,3 +101,5 @@
 - [CX] 2026-08-09 移动端审核队列已重做：760px 以下使用单行 52px 顶栏、四个等宽状态按钮、同排筛选和紧凑 76px 审核行；320px 精简分页后无横向溢出。隔离 Chromium 验收为 PASS，源数据库与生产头像均未写入。
 - [CX] 2026-08-09 已开始生产接入计划的账户阶段：新增 reviewer 用户名、显示名称、邮箱、角色和允许工作区配置；服务端规范化邮箱并只向页面输出 Cravatar MD5 头像 URL，顶栏、账户菜单和账户页共用同一资料。测试资料在 1440px/390px Chromium 下显示正常且无横向溢出；真实账户值仍需写入目标主机 0600 运行配置，生产写回继续关闭。
 - [CX] 2026-08-09 已完成 reviewer 工作区与动作权限的服务端校验：配置 profile 后缺失资料的账户 fail-closed；普通审核、高级操作、质量抽样和仲裁按角色分离。审核 session 已写入 SQLite 账本并记录建立、最近活动、到期、撤销和 IP 哈希，退出会撤销服务端会话，账户页展示截断 ID 和实际状态。304 个 pytest、12 个 subtest、compileall 和隔离 Chromium reviewer session 验收通过；源数据库未变，生产头像写回仍关闭。
+- [CX] 2026-08-09 已完成 `wp_9_avatar_verify` 首批 1,000 条生产只读 keyset Shadow：995 条 Gravatar、5 条 Cravatar；本地账本终态为 963 collected、27 invalid_metadata、10 fetch_missing，963 条来源映射到 960 个唯一内容。960 个唯一内容已提交本地 WordYeah，失败 0，幂等重跑新增 0；生产查询 4–5ms，业务字段语义摘要前后一致，生产数据库和头像写入均为 0。G2A 真实单图 canary PASS，但整批 AI 队列尚未到终态，且首轮采集缺少完整延迟分位数，因此批次为 INCOMPLETE，不授权 10,000 条阶段。
+- [CX] 2026-08-09 首批提交暴露高级视觉 active job 达 1,000 时 `vision_queue_full` 留置仍返回成功；API 已改为 HTTP 429 背压，同一 source ID 可幂等恢复该类留置，其他 model error 不自动重排。现有留置项的本地调和进程已启动，整批 AI 终态仍未完成。
