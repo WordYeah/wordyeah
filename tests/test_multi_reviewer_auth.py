@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sqlite3
 import tempfile
 from pathlib import Path
 
@@ -40,6 +41,29 @@ def test_three_reviewer_sessions_complete_independent_dual_review_and_arbitratio
         "reviewer-b": "token-b-1234567890",
         "arbitrator": "token-c-1234567890",
     }
+    profiles = (
+        ReviewerProfile(
+            reviewer_id="reviewer-a",
+            username="reviewer-a",
+            display_name="Reviewer A",
+            role="senior_reviewer",
+            workspace_ids=("default",),
+        ),
+        ReviewerProfile(
+            reviewer_id="reviewer-b",
+            username="reviewer-b",
+            display_name="Reviewer B",
+            role="reviewer",
+            workspace_ids=("default",),
+        ),
+        ReviewerProfile(
+            reviewer_id="arbitrator",
+            username="arbitrator",
+            display_name="Arbitrator",
+            role="arbitrator",
+            workspace_ids=("default",),
+        ),
+    )
     with tempfile.TemporaryDirectory() as directory:
         database = str(Path(directory) / "wordyeah.sqlite3")
         reviews = ReviewStore(database)
@@ -60,6 +84,7 @@ def test_three_reviewer_sessions_complete_independent_dual_review_and_arbitratio
                 database_path=database,
                 media_root=Path(directory) / "media",
                 reviewer_credentials=tuple(sorted(credentials.items())),
+                reviewer_profiles=profiles,
                 review_session_secret="session-secret-for-tests",
             ),
             service=MediaModerationService(Classifier()),
@@ -102,6 +127,12 @@ def test_three_reviewer_sessions_complete_independent_dual_review_and_arbitratio
             assert second.status_code == 200
             assert second.json()["status"] == "arbitration_required"
             assert second.json()["arbitration_required"] is True
+            forbidden = client.post(
+                f"/review/quality/samples/{sample_id}/arbitrate",
+                json={"decision": "allow", "csrf_token": csrf_b},
+                headers={"X-CSRF-Token": csrf_b},
+            )
+            assert forbidden.status_code == 403
 
             csrf_c = _login(client, "arbitrator", credentials["arbitrator"])
             assert "arbitrator" in client.get("/review/account").text
@@ -179,6 +210,47 @@ def test_authenticated_account_uses_profile_and_cravatar() -> None:
             assert "alice@example.com" in page.text
             assert "senior_reviewer" in page.text
             assert profile.avatar_url.replace("&", "&amp;") in page.text
+            assert "当前活动" in page.text
+            assert "会话 ID" in page.text
+
+
+def test_logout_revokes_persisted_reviewer_session() -> None:
+    token = "token-a-1234567890"
+    profile = ReviewerProfile(
+        reviewer_id="reviewer-a",
+        username="alice",
+        display_name="Alice Chen",
+        role="reviewer",
+        workspace_ids=("default",),
+    )
+    with tempfile.TemporaryDirectory() as directory:
+        database = str(Path(directory) / "wordyeah.sqlite3")
+        app = create_app(
+            settings=ApiSettings(
+                database_path=database,
+                media_root=Path(directory) / "media",
+                reviewer_credentials=(("reviewer-a", token),),
+                reviewer_profiles=(profile,),
+                review_session_secret="session-secret-for-tests",
+            ),
+            service=MediaModerationService(Classifier()),
+        )
+        with TestClient(app) as client:
+            csrf = _login(client, "reviewer-a", token)
+            response = client.post(
+                "/review/logout",
+                json={"csrf_token": csrf},
+                headers={"X-CSRF-Token": csrf},
+            )
+            assert response.status_code == 200
+
+        with sqlite3.connect(database) as connection:
+            row = connection.execute(
+                "SELECT revoked_at FROM reviewer_sessions WHERE reviewer_id = ?",
+                ("reviewer-a",),
+            ).fetchone()
+        assert row is not None
+        assert row[0] is not None
 
 
 def test_reviewer_credentials_load_from_environment(monkeypatch: pytest.MonkeyPatch) -> None:

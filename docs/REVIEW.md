@@ -17,6 +17,19 @@ WORDYEAH_REVIEW_SESSION_SECRET='independent-runtime-session-secret'
 
 同一 reviewer 不能提交两次双审，也不能仲裁自己参与过的样本。
 
+`WORDYEAH_REVIEWER_PROFILES_JSON` 一旦非空，所有可登录 reviewer 都必须有对应资料；缺失
+资料的账户无法访问工作区或执行动作。角色权限如下：
+
+- `reviewer`：通过、拒绝、留置和质量独立结论。
+- `senior_reviewer`：包含普通 reviewer 权限，并可重试、加入黑名单、创建质量样本和标签。
+- `arbitrator`：处理质量分歧仲裁；不执行运营队列处置。
+- `admin`：包含上述动作权限。
+
+登录成功后会话写入同一 SQLite 的 `reviewer_sessions` 账本，保存随机会话 ID、建立时间、
+最近活动、到期时间、撤销时间和不可逆 IP 哈希。账户页只显示截断后的会话 ID；退出会撤销
+服务端记录，因此旧 cookie 不能复用。会话 cookie 仍为 HttpOnly、SameSite=Strict，并受
+独立 session secret 签名。
+
 真实 corpus 验收不要使用 `WORDYEAH_LOCAL_REVIEW_NO_AUTH`。运行时凭据保存在仓库外
 0600 JSON，固定包含 `reviewer-a`、`reviewer-b`、`arbitrator` 和独立 session secret；
 token 不写入文档、日志或验收证据。服务启动后可执行只读登录验收：

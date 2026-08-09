@@ -5,6 +5,7 @@ import hmac
 import html
 import json
 import os
+import sqlite3
 import stat
 import time
 from contextlib import asynccontextmanager
@@ -458,6 +459,28 @@ def create_app(
         review_secret = None
     reviewer_profiles = {profile.reviewer_id: profile for profile in settings.reviewer_profiles}
 
+    def _session_connection() -> sqlite3.Connection:
+        connection = sqlite3.connect(settings.database_path, timeout=5.0)
+        connection.row_factory = sqlite3.Row
+        return connection
+
+    with _session_connection() as connection:
+        connection.execute(
+            """CREATE TABLE IF NOT EXISTS reviewer_sessions (
+                   session_id TEXT PRIMARY KEY,
+                   reviewer_id TEXT NOT NULL,
+                   created_at INTEGER NOT NULL,
+                   last_seen_at INTEGER NOT NULL,
+                   expires_at INTEGER NOT NULL,
+                   revoked_at INTEGER,
+                   ip_hash TEXT NOT NULL
+               )"""
+        )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS reviewer_sessions_reviewer_idx "
+            "ON reviewer_sessions(reviewer_id, created_at DESC)"
+        )
+
     def _reviewer_profile(reviewer_id: str) -> ReviewerProfile:
         return reviewer_profiles.get(
             reviewer_id,
@@ -466,6 +489,29 @@ def create_app(
                 username=reviewer_id,
                 display_name=reviewer_id,
             ),
+        )
+
+    def _reviewer_session_rows(reviewer_id: str) -> tuple[tuple[str, str, str, str], ...]:
+        now = int(time.time())
+        with _session_connection() as connection:
+            rows = connection.execute(
+                """SELECT session_id, created_at, last_seen_at, expires_at, revoked_at
+                   FROM reviewer_sessions WHERE reviewer_id = ?
+                   ORDER BY created_at DESC LIMIT 20""",
+                (reviewer_id,),
+            ).fetchall()
+        return tuple(
+            (
+                str(row["session_id"])[:10] + "…",
+                datetime.fromtimestamp(int(row["created_at"]), timezone.utc).isoformat(),
+                datetime.fromtimestamp(int(row["last_seen_at"]), timezone.utc).isoformat(),
+                "已撤销"
+                if row["revoked_at"] is not None
+                else "已过期"
+                if int(row["expires_at"]) < now
+                else "当前活动",
+            )
+            for row in rows
         )
     failed_logins: dict[str, list[float]] = {}
     session_ttl_seconds = 3600
@@ -512,14 +558,23 @@ def create_app(
     def _ip_hash(request: Request) -> str:
         return hashlib.sha256(_client_ip(request).encode("utf-8")).hexdigest()[:24]
 
-    def _issue_review_session(reviewer_id: str) -> tuple[str, str]:
+    def _issue_review_session(reviewer_id: str, request: Request) -> tuple[str, str]:
         if review_secret is None:
             raise HTTPException(status_code=503, detail="reviewer authentication is not configured")
         csrf_token = base64.urlsafe_b64encode(os.urandom(18)).decode("ascii").rstrip("=")
+        session_id = base64.urlsafe_b64encode(os.urandom(24)).decode("ascii").rstrip("=")
+        issued_at = int(time.time())
         expires = int(time.time()) + session_ttl_seconds
-        payload = f"{reviewer_id}\x00{expires}\x00{csrf_token}".encode("utf-8")
+        payload = f"{reviewer_id}\x00{expires}\x00{csrf_token}\x00{session_id}".encode("utf-8")
         encoded = base64.urlsafe_b64encode(payload).decode("ascii").rstrip("=")
         signature = hmac.new(review_secret.encode("utf-8"), payload, hashlib.sha256).hexdigest()
+        with _session_connection() as connection:
+            connection.execute(
+                """INSERT INTO reviewer_sessions
+                       (session_id, reviewer_id, created_at, last_seen_at, expires_at, ip_hash)
+                       VALUES (?, ?, ?, ?, ?, ?)""",
+                (session_id, reviewer_id, issued_at, issued_at, expires, _ip_hash(request)),
+            )
         return f"{encoded}.{signature}", csrf_token
 
     def _read_review_session(request: Request) -> tuple[str, str]:
@@ -535,9 +590,28 @@ def create_app(
             expected = hmac.new(review_secret.encode("utf-8"), payload, hashlib.sha256).hexdigest()
             if not hmac.compare_digest(signature, expected):
                 raise ValueError("invalid signature")
-            reviewer, expires_text, csrf_token = payload.decode("utf-8").split("\x00", 2)
+            reviewer, expires_text, csrf_token, session_id = payload.decode("utf-8").split("\x00", 3)
             if reviewer not in reviewer_credentials or int(expires_text) < int(time.time()) or not csrf_token:
                 raise ValueError("expired session")
+            now = int(time.time())
+            with _session_connection() as connection:
+                session = connection.execute(
+                    """SELECT reviewer_id, expires_at, revoked_at FROM reviewer_sessions
+                       WHERE session_id = ?""",
+                    (session_id,),
+                ).fetchone()
+                if (
+                    session is None
+                    or session["reviewer_id"] != reviewer
+                    or int(session["expires_at"]) < now
+                    or session["revoked_at"] is not None
+                ):
+                    raise ValueError("revoked session")
+                connection.execute(
+                    "UPDATE reviewer_sessions SET last_seen_at = ? WHERE session_id = ?",
+                    (now, session_id),
+                )
+            request.state.review_session_id = session_id
         except (ValueError, UnicodeError, base64.binascii.Error) as exc:
             raise HTTPException(status_code=401, detail="reviewer session required") from exc
         return reviewer, csrf_token
@@ -550,8 +624,39 @@ def create_app(
         if not supplied or not hmac.compare_digest(supplied, session_csrf):
             raise HTTPException(status_code=403, detail="csrf token required")
 
-    def _review_workspace(request: Request) -> Workspace:
-        workspace_id = request.cookies.get("wordyeah_review_workspace") or settings.consumer_id
+    def _reviewer_can_access_workspace(reviewer_id: str, workspace_id: str) -> bool:
+        profile = reviewer_profiles.get(reviewer_id)
+        if profile is None:
+            return not reviewer_profiles
+        return not profile.workspace_ids or workspace_id in profile.workspace_ids
+
+    def _require_reviewer_roles(reviewer_id: str, *allowed_roles: str) -> None:
+        profile = reviewer_profiles.get(reviewer_id)
+        if profile is None and reviewer_profiles:
+            raise HTTPException(status_code=403, detail="reviewer profile is not configured")
+        if profile is not None and profile.role not in allowed_roles:
+            raise HTTPException(status_code=403, detail="reviewer role does not permit this action")
+
+    def _visible_review_workspaces(reviewer_id: str) -> tuple[Workspace, ...]:
+        return tuple(
+            workspace
+            for workspace in workspace_store.list_for_consumer(settings.consumer_id)
+            if workspace.enabled
+            and _reviewer_can_access_workspace(reviewer_id, workspace.workspace_id)
+        )
+
+    def _review_workspace(request: Request, reviewer_id: str | None = None) -> Workspace:
+        if reviewer_id is None:
+            reviewer_id, _ = _read_review_session(request)
+        selected_workspace = request.cookies.get("wordyeah_review_workspace")
+        workspace_id = selected_workspace or settings.consumer_id
+        if selected_workspace is None and not _reviewer_can_access_workspace(reviewer_id, workspace_id):
+            visible = _visible_review_workspaces(reviewer_id)
+            if not visible:
+                raise HTTPException(status_code=403, detail="reviewer has no enabled workspace")
+            workspace_id = visible[0].workspace_id
+        if not _reviewer_can_access_workspace(reviewer_id, workspace_id):
+            raise HTTPException(status_code=403, detail="review workspace is outside reviewer scope")
         try:
             workspace = workspace_store.get(workspace_id, settings.consumer_id)
         except KeyError:
@@ -1269,7 +1374,7 @@ def create_app(
             failed_logins[ip] = recent
             raise HTTPException(status_code=401, detail="invalid reviewer token")
         failed_logins.pop(ip, None)
-        cookie, csrf_token = _issue_review_session(reviewer_id)
+        cookie, csrf_token = _issue_review_session(reviewer_id, request)
         if "text/html" in request.headers.get("Accept", ""):
             response: JSONResponse | RedirectResponse = RedirectResponse("/review", status_code=303)
         else:
@@ -1293,6 +1398,13 @@ def create_app(
             if "text/html" in request.headers.get("Accept", ""):
                 return RedirectResponse("/review", status_code=303)
             return JSONResponse({"status": "ok"})
+        session_id = getattr(request.state, "review_session_id", None)
+        if isinstance(session_id, str):
+            with _session_connection() as connection:
+                connection.execute(
+                    "UPDATE reviewer_sessions SET revoked_at = ? WHERE session_id = ?",
+                    (int(time.time()), session_id),
+                )
         if "text/html" in request.headers.get("Accept", ""):
             response: JSONResponse | RedirectResponse = RedirectResponse("/review/login", status_code=303)
         else:
@@ -1302,13 +1414,9 @@ def create_app(
 
     @app.get("/review/workspaces")
     async def list_review_workspaces(request: Request) -> dict[str, object]:
-        require_reviewer(request)
-        active = _review_workspace(request)
-        workspaces = [
-            workspace
-            for workspace in workspace_store.list_for_consumer(settings.consumer_id)
-            if workspace.enabled
-        ]
+        reviewer, _ = require_reviewer(request)
+        active = _review_workspace(request, reviewer)
+        workspaces = list(_visible_review_workspaces(reviewer))
         return {
             "active_workspace_id": active.workspace_id,
             "workspaces": [
@@ -1326,9 +1434,11 @@ def create_app(
     async def select_review_workspace(
         workspace_id: str, request: Request
     ) -> JSONResponse | RedirectResponse:
-        _, session_csrf = require_reviewer(request)
+        reviewer, session_csrf = require_reviewer(request)
         payload = await read_review_payload(request)
         require_csrf(request, payload.get("csrf_token"), session_csrf)
+        if not _reviewer_can_access_workspace(reviewer, workspace_id):
+            raise HTTPException(status_code=403, detail="review workspace is outside reviewer scope")
         try:
             workspace = workspace_store.get(workspace_id, settings.consumer_id)
         except KeyError as exc:
@@ -1388,7 +1498,7 @@ def create_app(
             per_page = max(5, min(200, int(request.query_params.get("per_page", "20"))))
         except ValueError:
             per_page = 20
-        workspace = _review_workspace(request)
+        workspace = _review_workspace(request, reviewer)
         reviewer_profile = _reviewer_profile(reviewer)
         items = review_store.list_items(
             status=None, consumer_id=workspace.workspace_id, limit=5000
@@ -1423,8 +1533,7 @@ def create_app(
                         "name": candidate.name,
                         "adapter": candidate.adapter,
                     }
-                    for candidate in workspace_store.list_for_consumer(settings.consumer_id)
-                    if candidate.enabled
+                    for candidate in _visible_review_workspaces(reviewer)
                 ),
             )
         )
@@ -2011,9 +2120,11 @@ def create_app(
                     "访问模式": "本地开发免登录" if local_access else "受限审核会话",
                 },
                 "permissions": profile.workspace_ids or (consumer_id,),
-                "sessions": () if local_access else {
-                    "columns": ("会话", "有效期", "权限范围"),
-                    "rows": (("当前浏览器", "1 小时", consumer_id),),
+                "sessions": ()
+                if local_access
+                else {
+                    "columns": ("会话 ID", "建立时间", "最近活动", "状态"),
+                    "rows": _reviewer_session_rows(profile.reviewer_id),
                 },
             }
         return {
@@ -2035,7 +2146,7 @@ def create_app(
             if exc.status_code == 401 and "text/html" in request.headers.get("Accept", ""):
                 return RedirectResponse("/review/login?expired=1", status_code=303)
             raise
-        workspace = _review_workspace(request)
+        workspace = _review_workspace(request, reviewer)
         reviewer_profile = _reviewer_profile(reviewer)
         try:
             quality_offset = int(request.query_params.get("offset", "0"))
@@ -2077,8 +2188,7 @@ def create_app(
                     logout_available=not settings.local_review_no_auth,
                     workspaces=tuple(
                         (candidate.workspace_id, candidate.name)
-                        for candidate in workspace_store.list_for_consumer(settings.consumer_id)
-                        if candidate.enabled
+                        for candidate in _visible_review_workspaces(reviewer)
                     ),
                 ),
             )
@@ -2144,7 +2254,8 @@ def create_app(
     @app.post("/review/items/{item_id}/quality-label")
     async def label_review_item(item_id: str, request: Request) -> JSONResponse:
         reviewer, session_csrf = require_reviewer(request)
-        workspace = _review_workspace(request)
+        _require_reviewer_roles(reviewer, "senior_reviewer", "admin")
+        workspace = _review_workspace(request, reviewer)
         payload = await read_review_payload(request)
         require_csrf(request, payload.get("csrf_token"), session_csrf)
         try:
@@ -2171,7 +2282,8 @@ def create_app(
     @app.post("/review/items/{item_id}/quality-sample")
     async def sample_review_item(item_id: str, request: Request) -> JSONResponse:
         reviewer, session_csrf = require_reviewer(request)
-        workspace = _review_workspace(request)
+        _require_reviewer_roles(reviewer, "senior_reviewer", "admin")
+        workspace = _review_workspace(request, reviewer)
         payload = await read_review_payload(request)
         require_csrf(request, payload.get("csrf_token"), session_csrf)
         try:
@@ -2200,7 +2312,10 @@ def create_app(
         sample_id: str, request: Request
     ) -> JSONResponse | RedirectResponse:
         reviewer, session_csrf = require_reviewer(request)
-        workspace = _review_workspace(request)
+        _require_reviewer_roles(
+            reviewer, "reviewer", "senior_reviewer", "arbitrator", "admin"
+        )
+        workspace = _review_workspace(request, reviewer)
         payload = await read_review_payload(request)
         require_csrf(request, payload.get("csrf_token"), session_csrf)
         try:
@@ -2240,7 +2355,8 @@ def create_app(
         sample_id: str, request: Request
     ) -> JSONResponse | RedirectResponse:
         reviewer, session_csrf = require_reviewer(request)
-        workspace = _review_workspace(request)
+        _require_reviewer_roles(reviewer, "arbitrator", "admin")
+        workspace = _review_workspace(request, reviewer)
         payload = await read_review_payload(request)
         require_csrf(request, payload.get("csrf_token"), session_csrf)
         try:
@@ -2627,7 +2743,11 @@ def create_app(
 
     async def _review_action(request: Request, item_id: str, action: str) -> JSONResponse | RedirectResponse:
         reviewer, session_csrf = require_reviewer(request)
-        workspace = _review_workspace(request)
+        if action in {"blacklist", "retry"}:
+            _require_reviewer_roles(reviewer, "senior_reviewer", "admin")
+        else:
+            _require_reviewer_roles(reviewer, "reviewer", "senior_reviewer", "admin")
+        workspace = _review_workspace(request, reviewer)
         payload = await read_review_payload(request)
         require_csrf(request, payload.get("csrf_token"), session_csrf)
         raw_version = payload.get("version")
@@ -2705,7 +2825,7 @@ def create_app(
     @app.post("/review/batch", response_model=None)
     async def batch_review_items(request: Request) -> JSONResponse | RedirectResponse:
         reviewer, session_csrf = require_reviewer(request)
-        workspace = _review_workspace(request)
+        workspace = _review_workspace(request, reviewer)
         body = await request.body()
         if len(body) > 64 * 1024:
             raise HTTPException(status_code=413, detail="review payload too large")
@@ -2717,6 +2837,10 @@ def create_app(
         action = (values.get("action") or [""])[-1]
         if action not in {"approve", "reject", "blacklist", "hold"}:
             raise HTTPException(status_code=400, detail="unknown batch review action")
+        if action == "blacklist":
+            _require_reviewer_roles(reviewer, "senior_reviewer", "admin")
+        else:
+            _require_reviewer_roles(reviewer, "reviewer", "senior_reviewer", "admin")
         selected = values.get("selected", [])
         if not selected:
             raise HTTPException(status_code=400, detail="select at least one review item")

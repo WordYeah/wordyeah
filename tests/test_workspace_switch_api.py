@@ -7,7 +7,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 from PIL import Image
 
-from wy_api.app import ApiSettings, create_app
+from wy_api.app import ApiSettings, ReviewerProfile, create_app
 from wy_core.contracts import ModerationResult
 from wy_media.falconsai import ImageScores
 from wy_media.service import MediaModerationService
@@ -107,6 +107,94 @@ def test_reviewer_can_switch_between_isolated_workspace_queues() -> None:
             items = client.get("/review/items").json()["items"]
             assert [item["item_id"] for item in items] == [motu_item.item_id]
             assert client.get("/review/items/" + default_item.item_id).status_code == 404
+
+
+def test_reviewer_workspace_scope_is_enforced_server_side() -> None:
+    with tempfile.TemporaryDirectory() as directory:
+        database = str(Path(directory) / "wordyeah.sqlite3")
+        workspaces = WorkspaceStore(database)
+        for workspace_id in ("default", "motucloud"):
+            workspaces.create(
+                workspace_id=workspace_id,
+                consumer_id="default",
+                name=workspace_id.title(),
+                adapter="generic",
+                policy_profile="avatar-default",
+            )
+        app = create_app(
+            settings=ApiSettings(
+                database_path=database,
+                media_root=Path(directory) / "media",
+                local_review_no_auth=True,
+                reviewer_id="reviewer-a",
+                reviewer_profiles=(
+                    ReviewerProfile(
+                        "reviewer-a",
+                        "alice",
+                        "Alice",
+                        role="reviewer",
+                        workspace_ids=("default",),
+                    ),
+                ),
+            ),
+            service=MediaModerationService(Classifier()),
+            workspace_store=workspaces,
+        )
+        with TestClient(app) as client:
+            csrf = client.post("/review/login").json()["csrf_token"]
+            listing = client.get("/review/workspaces").json()
+            assert [item["workspace_id"] for item in listing["workspaces"]] == ["default"]
+            assert "/review/workspaces/motucloud/select" not in client.get("/review").text
+            denied = client.post(
+                "/review/workspaces/motucloud/select",
+                data={"csrf_token": csrf},
+                headers={"Accept": "text/html"},
+            )
+            assert denied.status_code == 403
+
+
+def test_reviewer_role_blocks_blacklist_but_allows_normal_decision() -> None:
+    with tempfile.TemporaryDirectory() as directory:
+        database = str(Path(directory) / "wordyeah.sqlite3")
+        reviews = ReviewStore(database)
+        item = reviews.enqueue(result("c" * 64), "media://fixture.png", consumer_id="default")
+        item = reviews.apply_route(
+            item.item_id,
+            stage="human_required",
+            final_decision=None,
+            reason_code="fixture",
+            consumer_id="default",
+        )
+        app = create_app(
+            settings=ApiSettings(
+                database_path=database,
+                media_root=Path(directory) / "media",
+                local_review_no_auth=True,
+                reviewer_id="reviewer-a",
+                reviewer_profiles=(
+                    ReviewerProfile(
+                        "reviewer-a", "alice", "Alice", role="reviewer"
+                    ),
+                ),
+            ),
+            service=MediaModerationService(Classifier()),
+            review_store=reviews,
+        )
+        with TestClient(app) as client:
+            csrf = client.post("/review/login").json()["csrf_token"]
+            denied = client.post(
+                f"/review/items/{item.item_id}/blacklist",
+                json={"csrf_token": csrf, "version": item.version},
+                headers={"X-CSRF-Token": csrf},
+            )
+            assert denied.status_code == 403
+            allowed = client.post(
+                f"/review/items/{item.item_id}/approve",
+                json={"csrf_token": csrf, "version": item.version},
+                headers={"X-CSRF-Token": csrf},
+            )
+            assert allowed.status_code == 200
+            assert allowed.json()["final_decision"] == "allow"
 
 
 def test_api_submission_is_persisted_and_routed_to_requested_workspace() -> None:

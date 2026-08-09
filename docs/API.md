@@ -103,6 +103,8 @@ of this PoC and no production decision is changed.
 ## 审核 session 和页面
 
 - `GET /review/login`、`POST /review/login`：使用环境变量中的 reviewer token 建立 HttpOnly、SameSite=Strict session。
+- 登录会话同时登记到 SQLite `reviewer_sessions`；每次有效访问更新最近活动时间，退出后服务端撤销该会话。
+- 配置 reviewer profiles 后，工作区和写动作按账户的 `workspace_ids` 与 `role` 在服务端校验；未配置资料的登录账户按 fail-closed 拒绝。
 - `GET /review`：服务端渲染证据优先页面。
 - `GET /review/items`、`GET /review/items/{id}`：只返回当前 `consumer_id` 的项目和事件。
 - `POST /review/items/{id}/approve|reject|hold|retry`：必须带 session CSRF token 和版本号；冲突返回 `409`。
