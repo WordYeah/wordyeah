@@ -348,6 +348,9 @@ def main() -> int:
                                             - (iconBox.left + iconBox.width / 2)
                                           )
                                         : null,
+                                      checkMenuRightInset: checkBox && menuBox
+                                        ? menuBox.right - checkBox.right
+                                        : null,
                                       textClipped: text
                                         ? text.scrollWidth > text.clientWidth + .5
                                         : null,
@@ -495,7 +498,19 @@ def main() -> int:
                             )
                             and (
                                 option["checkTriggerDelta"] is None
+                                or (
+                                    "audit-filter-menu--actor" in class_name
+                                    and not same_width
+                                )
                                 or option["checkTriggerDelta"] <= 0.75
+                            )
+                            and (
+                                option["checkMenuRightInset"] is None
+                                or not (
+                                    "audit-filter-menu--actor" in class_name
+                                    and not same_width
+                                )
+                                or abs(option["checkMenuRightInset"] - 12.0) <= 0.75
                             )
                             and (
                                 option["checkCenterDelta"] is None
