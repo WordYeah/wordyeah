@@ -103,3 +103,4 @@
 - [CX] 2026-08-09 已完成 reviewer 工作区与动作权限的服务端校验：配置 profile 后缺失资料的账户 fail-closed；普通审核、高级操作、质量抽样和仲裁按角色分离。审核 session 已写入 SQLite 账本并记录建立、最近活动、到期、撤销和 IP 哈希，退出会撤销服务端会话，账户页展示截断 ID 和实际状态。304 个 pytest、12 个 subtest、compileall 和隔离 Chromium reviewer session 验收通过；源数据库未变，生产头像写回仍关闭。
 - [CX] 2026-08-09 已完成 `wp_9_avatar_verify` 首批 1,000 条生产只读 keyset Shadow：995 条 Gravatar、5 条 Cravatar；本地账本终态为 963 collected、27 invalid_metadata、10 fetch_missing，963 条来源映射到 960 个唯一内容。960 个唯一内容已提交本地 WordYeah，失败 0，幂等重跑新增 0；生产查询 4–5ms，业务字段语义摘要前后一致，生产数据库和头像写入均为 0。G2A 真实单图 canary PASS，但整批 AI 队列尚未到终态，且首轮采集缺少完整延迟分位数，因此批次为 INCOMPLETE，不授权 10,000 条阶段。
 - [CX] 2026-08-09 首批提交暴露高级视觉 active job 达 1,000 时 `vision_queue_full` 留置仍返回成功；API 已改为 HTTP 429 背压，同一 source ID 可幂等恢复该类留置，其他 model error 不自动重排。现有留置项的本地调和进程已启动，整批 AI 终态仍未完成。
+- [CX] 2026-08-09 已新增 `docs/HANDOFF.md`，记录提交版本、1,000 条只读 canary 证据、队列调和恢复入口、P3–P6 未完成项、真人质量门槛、目标主机部署缺口和生产非写入边界；运行数字均标注为时间快照，不作为终态。

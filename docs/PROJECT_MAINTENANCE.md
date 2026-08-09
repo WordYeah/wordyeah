@@ -98,6 +98,7 @@ WordYeah 是公司内容审核链路中的长期项目。本文定义代码、�
 
 - `README.md`：项目入口和文档索引。
 - `STATUS.md`：已经实现、已经验证和仍未完成的事实。
+- `HANDOFF.md`：当前运行任务、未完成项、恢复入口和不可突破的边界；运行数字必须标注快照时间。
 - `API.md`：接口与鉴权合同。
 - `REVIEW_WORKBENCH.md`：AI 多级审核和人工交互合同。
 - `ONLINE_DATA_RUNBOOK.md`：在线只读数据接入与分阶段放量。

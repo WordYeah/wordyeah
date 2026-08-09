@@ -50,3 +50,4 @@ Linuxjoy 立项计划：`../linuxjoy/.omx/plans/2026-08-04-wordyeah-kickoff.md`
 - 质量、安全、负载和浏览器验收：`docs/ACCEPTANCE.md`
 - Cravatar/Gravatar 全量历史审核计划：`docs/CRAVATAR_FULL_REGISTRY_REVIEW_PLAN.md`
 - 已实现、已验证和未完成事实：`docs/STATUS.md`
+- 当前运行任务、未完成项和恢复入口：`docs/HANDOFF.md`
