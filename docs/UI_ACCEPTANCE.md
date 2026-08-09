@@ -80,3 +80,10 @@
 - [CX] 340px 以下隐藏重复页面标题并精简页码，只保留上一页、当前页、下一页和每页数量，320px 页面 `scrollWidth` 与 viewport 均为 320。
 - [CX] 工作区弹层按可用边缘对齐，390px 右对齐、340px 以下左对齐并限制宽度；浏览器门闸按真实可见图标测量，隐藏箭头不再形成假错位。
 - [CX] 最终截图：`output/playwright/review-mobile-ux-final-390.png`、`output/playwright/review-mobile-ux-final-320.png`。
+
+## 2026-08-09 Reviewer 资料与头像
+
+- [CX] 顶栏与账户页改用后端 reviewer 资料，不再只能显示 reviewer ID 首字母。
+- [CX] 邮箱在服务端规范化并计算 Cravatar MD5；HTML 只包含哈希头像地址，头像不可用时由 Cravatar 返回默认头像。
+- [CX] 账户页展示显示名称、用户名、邮箱、Reviewer ID、角色、工作区和访问模式；未配置的事实不由 UI 猜测。
+- [CX] 测试资料截图：`output/playwright/reviewer-profile-1440.png`、`output/playwright/reviewer-profile-390.png`；两档宽度均无横向溢出。

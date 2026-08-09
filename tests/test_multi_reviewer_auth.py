@@ -6,7 +6,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 import pytest
 
-from wy_api.app import ApiSettings, create_app
+from wy_api.app import ApiSettings, ReviewerProfile, create_app
 from wy_core.contracts import ModerationResult
 from wy_media.falconsai import ImageScores
 from wy_media.service import MediaModerationService
@@ -150,6 +150,37 @@ def test_multi_reviewer_login_page_requires_reviewer_id() -> None:
             assert 'autocomplete="username"' in page.text
 
 
+def test_authenticated_account_uses_profile_and_cravatar() -> None:
+    token = "token-a-1234567890"
+    profile = ReviewerProfile(
+        reviewer_id="reviewer-a",
+        username="alice",
+        display_name="Alice Chen",
+        email="alice@example.com",
+        role="senior_reviewer",
+        workspace_ids=("default",),
+    )
+    with tempfile.TemporaryDirectory() as directory:
+        app = create_app(
+            settings=ApiSettings(
+                database_path=str(Path(directory) / "wordyeah.sqlite3"),
+                media_root=Path(directory) / "media",
+                reviewer_credentials=(("reviewer-a", token),),
+                reviewer_profiles=(profile,),
+                review_session_secret="session-secret-for-tests",
+            ),
+            service=MediaModerationService(Classifier()),
+        )
+        with TestClient(app) as client:
+            _login(client, "reviewer-a", token)
+            page = client.get("/review/account")
+            assert page.status_code == 200
+            assert "Alice Chen" in page.text
+            assert "alice@example.com" in page.text
+            assert "senior_reviewer" in page.text
+            assert profile.avatar_url.replace("&", "&amp;") in page.text
+
+
 def test_reviewer_credentials_load_from_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv(
         "WORDYEAH_REVIEWERS_JSON",
@@ -163,4 +194,34 @@ def test_reviewer_credentials_load_from_environment(monkeypatch: pytest.MonkeyPa
 
     monkeypatch.setenv("WORDYEAH_REVIEWERS_JSON", '{"reviewer-a":"short"}')
     with pytest.raises(ValueError, match="at least 16 characters"):
+        ApiSettings.from_env()
+
+
+def test_reviewer_profiles_load_and_build_cravatar_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(
+        "WORDYEAH_REVIEWER_PROFILES_JSON",
+        '{"reviewer-a":{"username":"alice","display_name":"Alice Chen",'
+        '"email":"Alice@Example.com","role":"senior_reviewer",'
+        '"workspace_ids":["cravatar","motucloud"]}}',
+    )
+    settings = ApiSettings.from_env()
+    assert settings.reviewer_profiles == (
+        ReviewerProfile(
+            reviewer_id="reviewer-a",
+            username="alice",
+            display_name="Alice Chen",
+            email="alice@example.com",
+            role="senior_reviewer",
+            workspace_ids=("cravatar", "motucloud"),
+        ),
+    )
+    assert settings.reviewer_profiles[0].avatar_url == (
+        "https://cn.cravatar.com/avatar/c160f8cc69a4f0bf2b0362752353d060?s=96&d=mp&r=g"
+    )
+
+    monkeypatch.setenv(
+        "WORDYEAH_REVIEWER_PROFILES_JSON",
+        '{"reviewer-a":{"email":"not-an-email"}}',
+    )
+    with pytest.raises(ValueError, match="invalid profile fields"):
         ApiSettings.from_env()

@@ -31,6 +31,11 @@ from wy_api.review_ui import (
 class ReviewPageContext:
     consumer_id: str = "default"
     reviewer_id: str = "Reviewer"
+    reviewer_username: str | None = None
+    reviewer_display_name: str | None = None
+    reviewer_email: str | None = None
+    reviewer_role: str = "reviewer"
+    reviewer_avatar_url: str | None = None
     csrf_token: str | None = None
     service_ready: bool = True
     service_error: str | None = None
@@ -921,6 +926,19 @@ def _coerce_context(
     return ReviewPageContext(
         consumer_id=_text(raw.get("consumer_id"), "default"),
         reviewer_id=_text(raw.get("reviewer_id"), "Reviewer"),
+        reviewer_username=None
+        if raw.get("reviewer_username") is None
+        else _text(raw.get("reviewer_username")),
+        reviewer_display_name=None
+        if raw.get("reviewer_display_name") is None
+        else _text(raw.get("reviewer_display_name")),
+        reviewer_email=None
+        if raw.get("reviewer_email") is None
+        else _text(raw.get("reviewer_email")),
+        reviewer_role=_text(raw.get("reviewer_role"), "reviewer"),
+        reviewer_avatar_url=None
+        if raw.get("reviewer_avatar_url") is None
+        else _text(raw.get("reviewer_avatar_url")),
         csrf_token=None
         if raw.get("csrf_token") is None
         else _text(raw.get("csrf_token")),
@@ -1236,6 +1254,8 @@ def render_review_page(
 {render_review_toolbar_actions(
     consumer_id=ctx.consumer_id,
     reviewer_id=ctx.reviewer_id,
+    reviewer_display_name=ctx.reviewer_display_name,
+    reviewer_avatar_url=ctx.reviewer_avatar_url,
     workspace_menu=workspace_items,
     csrf_token=ctx.csrf_token or "",
     service_ready=ctx.service_ready,

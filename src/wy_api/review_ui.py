@@ -1175,7 +1175,9 @@ details[open] > .dropdown-trigger > .dropdown-trigger__chevron > .icon {
   color: var(--accent);
   font-size: 12px;
   font-weight: 750;
+  overflow: hidden;
 }
+.reviewer-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .account-popover {
   position: absolute;
   z-index: 10;
@@ -3539,6 +3541,8 @@ def render_review_toolbar_actions(
     *,
     consumer_id: str,
     reviewer_id: str,
+    reviewer_display_name: str | None = None,
+    reviewer_avatar_url: str | None = None,
     workspace_menu: str,
     csrf_token: str = "",
     service_ready: bool = True,
@@ -3551,14 +3555,20 @@ def render_review_toolbar_actions(
     service_tone = "success" if service_ready else "danger"
     service_title = service_title or service_label
     session_label = "受限审核会话" if logout_available else "本地开发免登录"
+    display_name = reviewer_display_name or reviewer_id
+    avatar = (
+        f'<span class="reviewer-avatar"><img src="{escape(reviewer_avatar_url, quote=True)}" alt=""></span>'
+        if reviewer_avatar_url
+        else f'<span class="reviewer-avatar">{escape(display_name[:1].upper() or "R")}</span>'
+    )
     return f'''<div class="toolbar-actions">
 <details class="mobile-workspace-switcher" name="review-dropdown"><summary class="dropdown-trigger" aria-label="切换工作区"><span class="dropdown-trigger__label">{escape(consumer_id)}</span><span class="dropdown-trigger__chevron">{icon("chevron-down")}</span></summary><div class="consumer-popover-menu"><div class="consumer-popover-header">切换工作区</div><div class="consumer-popover-list">{workspace_menu}</div></div></details>
 <button class="theme-toggle-btn" type="button" data-action="toggle-layout" title="切换全宽/盒装居中" aria-label="切换全宽/盒装居中">{icon("layout")}</button>
 <button class="theme-toggle-btn" type="button" data-action="toggle-theme" title="切换深色/浅色模式" aria-label="切换深色/浅色模式"><span class="theme-icon-sun">{icon("sun")}</span><span class="theme-icon-moon">{icon("moon")}</span></button>
 <span class="topbar-icon service-status" data-tone="{service_tone}" role="status" title="{escape(service_title)}" aria-label="{escape(service_title)}">{icon("spark")}</span>
 <a class="topbar-icon" href="/review/guide" title="审核说明" aria-label="审核说明">{icon("guide")}</a>
-<details class="account-menu" name="review-dropdown"><summary class="dropdown-trigger"><span class="reviewer-avatar">{escape(reviewer_id[:1].upper() or "R")}</span><span class="dropdown-trigger__label">{escape(reviewer_id)}</span><span class="chevron dropdown-trigger__chevron">{icon("chevron-down")}</span></summary>
-<div class="account-popover"><p>{escape(consumer_id)} · {session_label}</p>{'<form class="toolbar-logout" method="post" action="/review/logout"><input type="hidden" name="csrf_token" value="' + escape(csrf_token) + '"><button type="submit">安全退出</button></form>' if csrf_token and logout_available else '<a class="toolbar-link" href="/review/account">账户与会话</a>'}</div></details></div>'''
+<details class="account-menu" name="review-dropdown"><summary class="dropdown-trigger">{avatar}<span class="dropdown-trigger__label">{escape(display_name)}</span><span class="chevron dropdown-trigger__chevron">{icon("chevron-down")}</span></summary>
+<div class="account-popover"><p><strong>{escape(display_name)}</strong><br>{escape(consumer_id)} · {session_label}</p>{'<form class="toolbar-logout" method="post" action="/review/logout"><input type="hidden" name="csrf_token" value="' + escape(csrf_token) + '"><button type="submit">安全退出</button></form>' if csrf_token and logout_available else '<a class="toolbar-link" href="/review/account">账户与会话</a>'}</div></details></div>'''
 
 
 def render_review_workbench(
@@ -3568,6 +3578,8 @@ def render_review_workbench(
     csrf_token: str,
     consumer_id: str,
     reviewer_id: str = "Reviewer",
+    reviewer_display_name: str | None = None,
+    reviewer_avatar_url: str | None = None,
     policy_profile: str,
     service_ready: bool,
     service_error: str | None,
@@ -3791,6 +3803,8 @@ def render_review_workbench(
         {render_review_toolbar_actions(
           consumer_id=consumer_id,
           reviewer_id=reviewer_id,
+          reviewer_display_name=reviewer_display_name,
+          reviewer_avatar_url=reviewer_avatar_url,
           workspace_menu=workspace_menu,
           csrf_token=csrf_token,
             service_ready=service_ready,

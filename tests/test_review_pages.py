@@ -277,6 +277,28 @@ class ReviewPagesTest(unittest.TestCase):
         self.assertIn('action="/review/logout"', with_session)
         self.assertIn('value="token&quot;&gt;&lt;script&gt;"', with_session)
 
+    def test_account_renders_verified_profile_and_cravatar(self) -> None:
+        avatar = "https://cn.cravatar.com/avatar/c160f8cc69a4f0bf2b0362752353d060?s=96&d=mp&r=g"
+        page = render_account_page(
+            {
+                "avatar_url": avatar,
+                "profile": {
+                    "显示名称": "Alice Chen",
+                    "用户名": "alice",
+                    "邮箱": "alice@example.com",
+                    "角色": "senior_reviewer",
+                },
+            },
+            context={
+                "reviewer_id": "reviewer-a",
+                "reviewer_display_name": "Alice Chen",
+                "reviewer_avatar_url": avatar,
+            },
+        )
+        self.assertIn("Alice Chen", page)
+        self.assertIn("alice@example.com", page)
+        self.assertGreaterEqual(page.count(avatar.replace("&", "&amp;")), 2)
+
     def test_login_page_stays_minimal_and_access_focused(self) -> None:
         page = render_login_page()
         self.assertIn("审核登录", page)

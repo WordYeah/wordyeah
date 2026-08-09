@@ -11,6 +11,7 @@
 
 ```bash
 WORDYEAH_REVIEWERS_JSON='{"reviewer-a":"runtime-secret-a","reviewer-b":"runtime-secret-b","arbitrator":"runtime-secret-c"}'
+WORDYEAH_REVIEWER_PROFILES_JSON='{"reviewer-a":{"username":"alice","display_name":"Alice Chen","email":"alice@example.com","role":"senior_reviewer","workspace_ids":["cravatar"]}}'
 WORDYEAH_REVIEW_SESSION_SECRET='independent-runtime-session-secret'
 ```
 

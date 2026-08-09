@@ -45,6 +45,23 @@ IMAGE_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif", "im
 APP_VERSION = "0.1.0"
 
 
+@dataclass(frozen=True)
+class ReviewerProfile:
+    reviewer_id: str
+    username: str
+    display_name: str
+    email: str | None = None
+    role: str = "reviewer"
+    workspace_ids: tuple[str, ...] = ()
+
+    @property
+    def avatar_url(self) -> str | None:
+        if self.email is None:
+            return None
+        digest = hashlib.md5(self.email.strip().lower().encode("utf-8")).hexdigest()  # noqa: S324
+        return f"https://cn.cravatar.com/avatar/{digest}?s=96&d=mp&r=g"
+
+
 class _UnavailableService:
     """Fail-closed placeholder so config errors surface through readiness."""
 
@@ -77,6 +94,7 @@ class ApiSettings:
     review_session_secret: str | None = None
     reviewer_id: str = "reviewer"
     reviewer_credentials: tuple[tuple[str, str], ...] = ()
+    reviewer_profiles: tuple[ReviewerProfile, ...] = ()
     local_review_no_auth: bool = False
     workspace_definitions: tuple[tuple[str, str, str, str, bool], ...] = ()
     model_path: str | None = None
@@ -121,6 +139,54 @@ class ApiSettings:
                     )
                 normalized.append((reviewer, token))
             reviewer_credentials = tuple(sorted(normalized))
+        reviewer_profiles: tuple[ReviewerProfile, ...] = ()
+        raw_profiles = os.getenv("WORDYEAH_REVIEWER_PROFILES_JSON", "").strip()
+        if raw_profiles:
+            try:
+                parsed_profiles = json.loads(raw_profiles)
+            except json.JSONDecodeError as exc:
+                raise ValueError("WORDYEAH_REVIEWER_PROFILES_JSON must be valid JSON") from exc
+            if not isinstance(parsed_profiles, dict) or not parsed_profiles:
+                raise ValueError("WORDYEAH_REVIEWER_PROFILES_JSON must be a non-empty object")
+            normalized_profiles: list[ReviewerProfile] = []
+            allowed_roles = {"reviewer", "senior_reviewer", "arbitrator", "admin"}
+            for reviewer, raw_profile in parsed_profiles.items():
+                if (
+                    not isinstance(reviewer, str)
+                    or not reviewer.strip()
+                    or len(reviewer) > 128
+                    or not isinstance(raw_profile, dict)
+                ):
+                    raise ValueError("WORDYEAH_REVIEWER_PROFILES_JSON contains an invalid reviewer")
+                username = raw_profile.get("username", reviewer)
+                display_name = raw_profile.get("display_name", username)
+                email = raw_profile.get("email")
+                role = raw_profile.get("role", "reviewer")
+                workspace_ids = raw_profile.get("workspace_ids", [])
+                if (
+                    not isinstance(username, str)
+                    or not username.strip()
+                    or len(username) > 128
+                    or not isinstance(display_name, str)
+                    or not display_name.strip()
+                    or len(display_name) > 256
+                    or (email is not None and (not isinstance(email, str) or "@" not in email or len(email) > 320))
+                    or role not in allowed_roles
+                    or not isinstance(workspace_ids, list)
+                    or any(not isinstance(item, str) or not item.strip() or len(item) > 128 for item in workspace_ids)
+                ):
+                    raise ValueError("WORDYEAH_REVIEWER_PROFILES_JSON contains invalid profile fields")
+                normalized_profiles.append(
+                    ReviewerProfile(
+                        reviewer_id=reviewer,
+                        username=username.strip(),
+                        display_name=display_name.strip(),
+                        email=email.strip().lower() if isinstance(email, str) else None,
+                        role=role,
+                        workspace_ids=tuple(sorted(set(workspace_ids))),
+                    )
+                )
+            reviewer_profiles = tuple(sorted(normalized_profiles, key=lambda item: item.reviewer_id))
         workspace_definitions: tuple[tuple[str, str, str, str, bool], ...] = ()
         raw_workspaces = os.getenv("WORDYEAH_WORKSPACES_JSON", "").strip()
         if raw_workspaces:
@@ -180,6 +246,7 @@ class ApiSettings:
             review_session_secret=os.getenv("WORDYEAH_REVIEW_SESSION_SECRET") or None,
             reviewer_id=os.getenv("WORDYEAH_REVIEWER_ID", "reviewer"),
             reviewer_credentials=reviewer_credentials,
+            reviewer_profiles=reviewer_profiles,
             local_review_no_auth=os.getenv("WORDYEAH_LOCAL_REVIEW_NO_AUTH", "").strip().lower()
             in {"1", "true", "yes", "on"},
             workspace_definitions=workspace_definitions,
@@ -389,6 +456,17 @@ def create_app(
         ).hexdigest()
     else:
         review_secret = None
+    reviewer_profiles = {profile.reviewer_id: profile for profile in settings.reviewer_profiles}
+
+    def _reviewer_profile(reviewer_id: str) -> ReviewerProfile:
+        return reviewer_profiles.get(
+            reviewer_id,
+            ReviewerProfile(
+                reviewer_id=reviewer_id,
+                username=reviewer_id,
+                display_name=reviewer_id,
+            ),
+        )
     failed_logins: dict[str, list[float]] = {}
     session_ttl_seconds = 3600
     local_review_csrf = base64.urlsafe_b64encode(os.urandom(18)).decode("ascii").rstrip("=")
@@ -1311,6 +1389,7 @@ def create_app(
         except ValueError:
             per_page = 20
         workspace = _review_workspace(request)
+        reviewer_profile = _reviewer_profile(reviewer)
         items = review_store.list_items(
             status=None, consumer_id=workspace.workspace_id, limit=5000
         )
@@ -1322,6 +1401,8 @@ def create_app(
                 csrf_token=csrf_token,
                 consumer_id=workspace.workspace_id,
                 reviewer_id=reviewer,
+                reviewer_display_name=reviewer_profile.display_name,
+                reviewer_avatar_url=reviewer_profile.avatar_url,
                 policy_profile=workspace.policy_profile,
                 service_ready=bool(app.state.ready),
                 service_error=app.state.ready_error,
@@ -1916,14 +1997,20 @@ def create_app(
             }
         if page == "account":
             local_access = settings.local_review_no_auth
+            profile = _reviewer_profile(reviewer_id or settings.reviewer_id)
             return {
                 "exceptions": common_exceptions,
+                "avatar_url": profile.avatar_url,
                 "profile": {
-                    "Reviewer": reviewer_id or settings.reviewer_id,
-                    "Consumer": consumer_id,
-                    "角色": "reviewer",
+                    "显示名称": profile.display_name,
+                    "用户名": profile.username,
+                    "邮箱": profile.email or "未配置",
+                    "Reviewer ID": profile.reviewer_id,
+                    "角色": profile.role,
+                    "当前工作区": consumer_id,
                     "访问模式": "本地开发免登录" if local_access else "受限审核会话",
                 },
+                "permissions": profile.workspace_ids or (consumer_id,),
                 "sessions": () if local_access else {
                     "columns": ("会话", "有效期", "权限范围"),
                     "rows": (("当前浏览器", "1 小时", consumer_id),),
@@ -1949,6 +2036,7 @@ def create_app(
                 return RedirectResponse("/review/login?expired=1", status_code=303)
             raise
         workspace = _review_workspace(request)
+        reviewer_profile = _reviewer_profile(reviewer)
         try:
             quality_offset = int(request.query_params.get("offset", "0"))
         except ValueError:
@@ -1978,6 +2066,11 @@ def create_app(
                 context=ReviewPageContext(
                     consumer_id=workspace.workspace_id,
                     reviewer_id=reviewer,
+                    reviewer_username=reviewer_profile.username,
+                    reviewer_display_name=reviewer_profile.display_name,
+                    reviewer_email=reviewer_profile.email,
+                    reviewer_role=reviewer_profile.role,
+                    reviewer_avatar_url=reviewer_profile.avatar_url,
                     csrf_token=csrf_token,
                     service_ready=bool(app.state.ready),
                     service_error=app.state.ready_error,

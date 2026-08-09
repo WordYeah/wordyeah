@@ -31,6 +31,12 @@ CSS = """
 .account-guide__fact-card { padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-soft); display: flex; flex-direction: column; gap: 4px; }
 .account-guide__facts dt { color: var(--muted); font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: 0.04em; }
 .account-guide__facts dd { margin: 0; font-size: 14px; font-weight: 650; font-family: var(--mono); color: var(--text); word-break: break-all; }
+.account-profile { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-soft); }
+.account-profile__avatar { width: 52px; height: 52px; flex: 0 0 52px; overflow: hidden; border-radius: 50%; background: var(--panel); }
+.account-profile__avatar img { width: 100%; height: 100%; object-fit: cover; }
+.account-profile__copy { min-width: 0; }
+.account-profile__copy strong { display: block; font-size: 15px; }
+.account-profile__copy span { display: block; margin-top: 3px; color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .account-guide__list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
 .account-guide__item { padding: 12px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-soft); display: flex; justify-content: space-between; align-items: center; }
 .account-guide__item strong { font-size: 13px; font-weight: 650; }
@@ -171,6 +177,17 @@ def render_account_content(data: object = None, *, csrf_token: str | None = None
 
     account = _mapping(data)
     identity = _mapping(account.get("identity") or account.get("profile"))
+    avatar_url = _text(account.get("avatar_url"))
+    identity_intro = ""
+    if avatar_url:
+        identity_intro = (
+            '<div class="account-profile">'
+            f'<span class="account-profile__avatar"><img src="{escape(avatar_url, quote=True)}" alt=""></span>'
+            '<span class="account-profile__copy">'
+            f'<strong>{escape(_text(identity.get("显示名称"), identity.get("用户名") or "Reviewer"))}</strong>'
+            f'<span>{escape(_text(identity.get("邮箱"), identity.get("Reviewer ID") or ""))}</span>'
+            "</span></div>"
+        )
     permissions = account.get("permissions")
     sessions_value = account.get("sessions")
     sessions_table = _mapping(sessions_value)
@@ -220,7 +237,7 @@ def render_account_content(data: object = None, *, csrf_token: str | None = None
         '<header><h2 class="account-guide__heading" id="account-title">账户与访问</h2>'
         '<p class="account-guide__copy">核对当前请求对应的身份、权限范围与活动会话；本页不推断未提供的账户事实。</p></header>'
         '<div class="account-guide__body">'
-        + _section("account-identity", "身份", _facts(identity, "未提供已验证的 reviewer 身份。"))
+        + _section("account-identity", "身份", identity_intro + _facts(identity, "未提供已验证的 reviewer 身份。"))
         + _section(
             "account-permissions",
             "权限范围",
