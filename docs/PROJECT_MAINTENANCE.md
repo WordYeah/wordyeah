@@ -106,5 +106,6 @@ WordYeah 是公司内容审核链路中的长期项目。本文定义代码、�
 - `ACCEPTANCE.md`：质量、安全、负载和浏览器门槛。
 - `CRAVATAR_FULL_REGISTRY_REVIEW_PLAN.md`：首次全量历史审核计划，不构成执行授权。
 - `adr/`：会影响长期实现方向且已经确定的决策。
+- `adr/0002-enable-g2a-web-vision.md`：启用 G2A Web 一审外呼（运行时 ENABLED=true；不授权 enforce）。
 
 文档中的计划、样本、结构检查和只读 canary 都不能替代实际完成证据；事实变化时同时更新 `STATUS.md`，不要在多份文档中复制不同版本的状态数字。

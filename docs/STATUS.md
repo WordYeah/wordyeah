@@ -2,6 +2,7 @@
 
 - 名称：WordYeah（无言会语）
 - 阶段：头像 MVP AI 多级审核与 Cravatar shadow canary 实施中
+- [决策 2026-08-10] **打开 G2A Web 一审外呼**：`WORDYEAH_G2A_ENABLED=true`（ADR-0002）。 代码已具备；运行时由专员写仓库外 env 并重启。**不**授权 enforce。 推荐模型 `grok-chat-fast` @ `127.0.0.1:18000`。执行清单见 `HANDOFF.md` §3b。
 - [CX] 已完成：P0 规格、头像 OpenAPI 草案、配置示例、验收门槛、第三方资产登记、SQLite schema、结果持久化、job lease、图片资源限制和审核 API/Web 页面
 - [CX] 已验证：真实 Uvicorn API 进程 `/health/live`、`/health/ready` 和本地模型预热
 - [CX] 已验证：真实图片 POST 返回本地 Falconsai 结果；独立 worker 处理持久 job 后状态为 `succeeded`

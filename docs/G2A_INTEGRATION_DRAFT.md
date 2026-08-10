@@ -1,5 +1,13 @@
 # G2A 高级视觉模型接入草案
 
+> **实现状态（2026-08-10）**  
+> - 代码与 adapter 已合入；默认配置仍为关闭。  
+> - **产品决策**：开发/shadow 链路应打开 `WORDYEAH_G2A_ENABLED=true`（见 [`adr/0002-enable-g2a-web-vision.md`](./adr/0002-enable-g2a-web-vision.md)）。  
+> - **执行**：由负责 WordYeah 运行时的专员在仓库外 env 写入并重启服务；本文件不代替 env。  
+> - **仍不授权** `enforce` 或 Cravatar 生产写回。  
+> - 一审模型：G2A Web `grok-chat-fast`（可选同池 `g2a-web-fast`）；**不要**默认 Build `grok-4.5`。  
+> - 2026-08-10 本机只读：`/health/ready` 曾见 `advanced_vision.enabled=false`——打开前以此为准复核。
+
 本草案定义 provider-neutral 接口、G2A HTTP adapter，以及审核路由的受控调用入口。真实调用默认关闭，当前代码不会自动发送生产流量。
 
 ## 配置

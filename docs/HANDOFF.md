@@ -1,6 +1,6 @@
 # WordYeah 工作交接
 
-更新：2026-08-09 18:42 Asia/Shanghai `[CX]`
+更新：2026-08-10 Asia/Shanghai · 增补 G2A ENABLED 决策（ADR-0002）；运行时仍待专员执行
 
 本文只记录可接续执行的事实、未完成项和边界。长期设计分别见
 `PRODUCTION_READINESS_PLAN.md`、`ONLINE_DATA_RUNBOOK.md` 和
@@ -69,6 +69,44 @@ PY
 不得删除 cursor 或重新创建来源 ID。启动方式以 `ONLINE_DATA_RUNBOOK.md` 的 loopback、0600、
 失败重放约束为准。
 
+
+## 3b. G2A Web 一审运行时启用（决策已定 · 待专员执行）
+
+**决策**：接受 [`adr/0002-enable-g2a-web-vision.md`](./adr/0002-enable-g2a-web-vision.md)——将 **shadow/开发** 链路的 `WORDYEAH_G2A_ENABLED` 设为 **`true`**，一审走本机 g2a 转发 Web 池（推荐模型 `grok-chat-fast`）。  
+**本会话未改仓库外 env、未重启服务。**
+
+### 接手时现状（2026-08-10 只读，数字会变）
+
+- API 示例：`http://127.0.0.1:18767`
+- `GET /health/live`：曾见 `external_model_calls=false`，`advanced_vision_provider=g2a`
+- `GET /health/ready`：曾见 `advanced_vision.enabled=false`
+- 上游 g2a：`http://127.0.0.1:18000/healthz` 可达；Web 识图冒烟对 `grok-chat-fast` 为 200（毕方侧验证，非 WordYeah 队列终态）
+- 多个 vision worker 进程可能在跑，**不等于** G2A 外呼已开
+
+### 专员最小步骤
+
+1. 在**仓库外** 0600 运行配置中设置（勿提交 Git、勿贴聊天）：
+   - `WORDYEAH_G2A_ENABLED=true`
+   - `WORDYEAH_G2A_ENDPOINT=http://127.0.0.1:18000/v1/chat/completions`（或经批准的等价 g2a 入口）
+   - `WORDYEAH_G2A_MODEL=grok-chat-fast`
+   - `WORDYEAH_G2A_API_KEY`（secret store / 0600 文件注入）
+   - 私网 IP 字面量 HTTP 时：`WORDYEAH_G2A_ALLOW_PRIVATE_HTTP=true`
+   - 建议同时确认 Ollama 一审兜底与二审开关按 `docs/G2A_INTEGRATION_DRAFT.md` / env.example
+2. 重启 `wordyeah-api` 与相关 `--vision` worker，使 env 生效。
+3. 复核：
+   - `curl -fsS http://127.0.0.1:18767/health/ready` → `advanced_vision.enabled` 为 true
+   - 可选：`scripts/run_vision_canary.py` 单图，证据只保留哈希/决定/耗时
+4. 回退：`WORDYEAH_G2A_ENABLED=false` 后重启。
+
+### 仍禁止
+
+- `enforce=true` 或任何 Cravatar/生产写回
+- 默认改用 Build `grok-4.5` / junsen 作为审核主上游
+- 腾讯云或其他第三方内容审核 API 作为默认路径
+- 在文档或工单粘贴 API key
+
+合同：`docs/G2A_INTEGRATION_DRAFT.md` · 实现：`src/wy_media/g2a.py`
+
 ## 4. 未完成项
 
 ### P3：先完成本批次
@@ -88,6 +126,14 @@ PY
 - 固定 10% 独立双审仍为 0/110，分歧仲裁尚未发生。
 - 在真人标签、双审和仲裁完成前，不能计算可用于放量的误杀、漏放和人工介入率，也不能开启
   自动生产处置。
+
+### P5b：G2A ENABLED 运行时（决策 ADR-0002）
+
+- [ ] 仓库外 env：`WORDYEAH_G2A_ENABLED=true` 及 endpoint/model/key（见 §3b）
+- [ ] 重启 API + vision worker
+- [ ] `health/ready` 显示 advanced_vision.enabled=true
+- [ ] 可选单图 canary；确认失败不放行 allow
+- [ ] **不**借此打开 enforce
 
 ### P5：目标主机运行
 
