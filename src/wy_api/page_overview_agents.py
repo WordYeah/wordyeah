@@ -60,7 +60,9 @@ CSS = """
 .oa-page .oa-links { display: flex; flex-wrap: wrap; gap: 8px; }
 .oa-page .oa-link { display: inline-flex; min-height: 34px; align-items: center; padding: 0 13px; border: 1px solid var(--line); border-radius: 999px; color: var(--text); font-size: 11px; font-weight: 650; text-decoration: none; }
 .oa-page .oa-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.oa-page .oa-charts { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(260px, .8fr); gap: 18px; }
+.oa-page .oa-charts { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
+.oa-page .oa-charts--single { margin-top: 4px; }
+.oa-page .oa-charts--single .oa-chart-card { max-width: none; }
 .oa-page .oa-overview-summary .oa-charts { margin: 18px 20px; }
 .oa-page .oa-overview-summary > .oa-links { padding: 0 20px 20px; }
 .oa-page .oa-chart-card { min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
@@ -230,88 +232,53 @@ def _integer(value: object) -> int:
 
 def _overview_charts(data: Mapping[str, object]) -> str:
     series = [_mapping(item) for item in _sequence(data.get("volume_series"))]
-    distribution = [_mapping(item) for item in _sequence(data.get("decision_distribution"))]
-    if not series and not distribution:
+    if not series:
         return ""
 
-    chart_cards: list[str] = []
-    if series:
-        values = [max(_integer(item.get("incoming")), _integer(item.get("decided"))) for item in series]
-        maximum = max(values, default=0)
-        scale_max = max(1, maximum)
-        plot_left, plot_top, plot_width, plot_height = 38, 18, 500, 126
-        slot = plot_width / max(1, len(series))
-        bar_width = max(4.0, min(11.0, slot * .27))
-        grid = []
-        for index, ratio in enumerate((0.0, .5, 1.0)):
-            y = plot_top + plot_height * ratio
-            label = round(scale_max * (1 - ratio))
-            grid.append(
-                f'<line class="oa-chart-grid" x1="{plot_left}" y1="{y:.1f}" x2="{plot_left + plot_width}" y2="{y:.1f}"/>'
-                f'<text class="oa-axis-label" x="{plot_left - 7}" y="{y + 3:.1f}" text-anchor="end">{label}</text>'
-            )
-        bars: list[str] = []
-        labels: list[str] = []
-        for index, item in enumerate(series):
-            incoming = _integer(item.get("incoming"))
-            decided = _integer(item.get("decided"))
-            center = plot_left + slot * index + slot / 2
-            incoming_height = plot_height * incoming / scale_max
-            decided_height = plot_height * decided / scale_max
-            bars.append(
-                f'<rect class="oa-bar-incoming" x="{center - bar_width - 1:.1f}" y="{plot_top + plot_height - incoming_height:.1f}" '
-                f'width="{bar_width:.1f}" height="{incoming_height:.1f}" rx="2"><title>{escape(_text(item.get("label")))}：模型处理 {incoming}</title></rect>'
-                f'<rect class="oa-bar-decided" x="{center + 1:.1f}" y="{plot_top + plot_height - decided_height:.1f}" '
-                f'width="{bar_width:.1f}" height="{decided_height:.1f}" rx="2"><title>{escape(_text(item.get("label")))}：完成判定 {decided}</title></rect>'
-            )
-            if index % 2 == 0 or index == len(series) - 1:
-                labels.append(
-                    f'<text class="oa-axis-label" x="{center:.1f}" y="162" text-anchor="middle">{escape(_text(item.get("label")))}</text>'
-                )
-        total_incoming = sum(_integer(item.get("incoming")) for item in series)
-        total_decided = sum(_integer(item.get("decided")) for item in series)
-        chart_cards.append(
-            '<section class="oa-chart-card" aria-labelledby="oa-volume-title">'
-            '<header class="oa-chart-head"><div><h2 id="oa-volume-title">Daily Processing Volume <span lang="zh-CN">（每日处理趋势）</span></h2>'
-            '<p>数据库记录的模型处理量与人工最终结论量（最近 14 天）。</p></div>'
-            f'<span class="oa-chart-total">模型 {total_incoming} · 人工 {total_decided}</span></header>'
-            '<svg class="oa-bar-chart" viewBox="0 0 560 178" role="img" aria-label="最近十四天审核处理趋势">'
-            + "".join(grid + bars + labels)
-            + '</svg><ul class="oa-chart-legend" hidden><li>模型处理</li><li>人工结论</li></ul></section>'
+    values = [max(_integer(item.get("incoming")), _integer(item.get("decided"))) for item in series]
+    maximum = max(values, default=0)
+    scale_max = max(1, maximum)
+    plot_left, plot_top, plot_width, plot_height = 38, 18, 500, 126
+    slot = plot_width / max(1, len(series))
+    bar_width = max(4.0, min(11.0, slot * .27))
+    grid = []
+    for index, ratio in enumerate((0.0, .5, 1.0)):
+        y = plot_top + plot_height * ratio
+        label = round(scale_max * (1 - ratio))
+        grid.append(
+            f'<line class="oa-chart-grid" x1="{plot_left}" y1="{y:.1f}" x2="{plot_left + plot_width}" y2="{y:.1f}"/>'
+            f'<text class="oa-axis-label" x="{plot_left - 7}" y="{y + 3:.1f}" text-anchor="end">{label}</text>'
         )
-
-    if distribution:
-        total = sum(_integer(item.get("value")) for item in distribution)
-        colors = ("var(--accent)", "var(--green)", "var(--red)", "var(--amber)", "var(--quiet)")
-        circumference = 276.46
-        offset = 0.0
-        segments: list[str] = []
-        legend: list[str] = []
-        for index, item in enumerate(distribution):
-            value = _integer(item.get("value"))
-            length = circumference * value / total if total else 0
-            color = colors[index % len(colors)]
-            if value:
-                segments.append(
-                    f'<circle class="oa-donut-segment" cx="60" cy="60" r="44" stroke="{color}" '
-                    f'stroke-dasharray="{length:.2f} {circumference - length:.2f}" stroke-dashoffset="{-offset:.2f}"/>'
-                )
-            offset += length
-            legend.append(
-                f'<li style="--legend-color:{color}"><span class="oa-legend-dot"></span>'
-                f'<span>{escape(_text(item.get("label"), "未命名"))}</span><strong>{value}</strong></li>'
-            )
-        chart_cards.append(
-            '<section class="oa-chart-card" aria-labelledby="oa-decision-title">'
-            '<header class="oa-chart-head"><div><h2 id="oa-decision-title">Decision Split <span lang="zh-CN">（决策分布）</span></h2>'
-            '<p>当前 consumer 的真实审核项目状态。</p></div></header>'
-            '<div class="oa-donut-body"><svg class="oa-donut" viewBox="0 0 120 120" role="img" aria-label="审核状态分布">'
-            '<g transform="rotate(-90 60 60)"><circle class="oa-donut-track" cx="60" cy="60" r="44"/>'
-            + "".join(segments)
-            + f'</g><text class="oa-donut-center" x="60" y="59">{total}</text><text class="oa-donut-caption" x="60" y="73">审核项目</text></svg>'
-            f'<ul class="oa-chart-legend">{"".join(legend)}</ul></div></section>'
+    bars: list[str] = []
+    labels: list[str] = []
+    for index, item in enumerate(series):
+        incoming = _integer(item.get("incoming"))
+        decided = _integer(item.get("decided"))
+        center = plot_left + slot * index + slot / 2
+        incoming_height = plot_height * incoming / scale_max
+        decided_height = plot_height * decided / scale_max
+        bars.append(
+            f'<rect class="oa-bar-incoming" x="{center - bar_width - 1:.1f}" y="{plot_top + plot_height - incoming_height:.1f}" '
+            f'width="{bar_width:.1f}" height="{incoming_height:.1f}" rx="2"><title>{escape(_text(item.get("label")))}：模型处理 {incoming}</title></rect>'
+            f'<rect class="oa-bar-decided" x="{center + 1:.1f}" y="{plot_top + plot_height - decided_height:.1f}" '
+            f'width="{bar_width:.1f}" height="{decided_height:.1f}" rx="2"><title>{escape(_text(item.get("label")))}：完成判定 {decided}</title></rect>'
         )
-    return f'<div class="oa-charts">{"".join(chart_cards)}</div>'
+        if index % 2 == 0 or index == len(series) - 1:
+            labels.append(
+                f'<text class="oa-axis-label" x="{center:.1f}" y="162" text-anchor="middle">{escape(_text(item.get("label")))}</text>'
+            )
+    total_incoming = sum(_integer(item.get("incoming")) for item in series)
+    total_decided = sum(_integer(item.get("decided")) for item in series)
+    chart = (
+        '<section class="oa-chart-card" aria-labelledby="oa-volume-title">'
+        '<header class="oa-chart-head"><div><h2 id="oa-volume-title">处理趋势</h2>'
+        '<p>最近 14 天模型处理量与人工结论量。</p></div>'
+        f'<span class="oa-chart-total">模型 {total_incoming} · 人工 {total_decided}</span></header>'
+        '<svg class="oa-bar-chart" viewBox="0 0 560 178" role="img" aria-label="最近十四天审核处理趋势">'
+        + "".join(grid + bars + labels)
+        + '</svg></section>'
+    )
+    return f'<div class="oa-charts oa-charts--single">{chart}</div>'
 
 
 def render_overview_body(data: Mapping[str, object] | None = None) -> str:

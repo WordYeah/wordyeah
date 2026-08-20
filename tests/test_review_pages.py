@@ -181,7 +181,7 @@ class ReviewPagesTest(unittest.TestCase):
         )
         self.assertIn("二审积压", page)
         self.assertIn("人工介入率", page)
-        self.assertIn("vision_review_2", page)
+        self.assertIn("视觉二审", page)
         self.assertNotIn('type="submit"', page)
 
     def test_support_pages_show_explicit_uncollected_states_instead_of_fake_dashboards(
@@ -208,20 +208,21 @@ class ReviewPagesTest(unittest.TestCase):
     ) -> None:
         overview = render_overview_page(
             {
-                "overview_metrics": [
-                    {"label": "审核总量", "value": 16, "detail": "当前工作区"},
-                    {"label": "通过率", "value": "0.0%", "detail": "1 条已有最终结论"},
+                "metrics": [
+                    {"label": "待处理", "value": 16, "detail": "全部 AI 与人工阶段"},
+                    {"label": "需人工", "value": 1, "detail": "AI 二审后仍不确定"},
                 ],
                 "volume_series": [{"label": "8/4", "incoming": 16, "decided": 1}],
                 "decision_distribution": [
-                    {"label": "待处理", "value": 14},
-                    {"label": "已拒绝", "value": 1},
-                    {"label": "留置", "value": 1},
+                    {"label": "模型通过", "value": 12},
+                    {"label": "进入复核", "value": 3},
                 ],
             }
         )
-        self.assertIn(">16</strong>", overview)
-        self.assertIn("0.0%", overview)
+        self.assertIn(">16<", overview)
+        self.assertIn("处理趋势", overview)
+        self.assertIn("决策分布", overview)
+        self.assertIn("dashboard-grid", overview)
         self.assertNotIn("12,840", overview)
         self.assertNotIn("94.80%", overview)
         self.assertNotIn("<h2>运营概览</h2>", overview)
@@ -292,12 +293,25 @@ class ReviewPagesTest(unittest.TestCase):
             context={
                 "reviewer_id": "reviewer-a",
                 "reviewer_display_name": "Alice Chen",
-                "reviewer_avatar_url": avatar,
+                "reviewer_email": "alice@example.com",
             },
         )
         self.assertIn("Alice Chen", page)
         self.assertIn("alice@example.com", page)
         self.assertGreaterEqual(page.count(avatar.replace("&", "&amp;")), 2)
+
+    def test_support_page_toolbar_resolves_cravatar_from_email(self) -> None:
+        avatar = "https://cn.cravatar.com/avatar/c160f8cc69a4f0bf2b0362752353d060?s=96&d=mp&r=g"
+        page = render_overview_page(
+            {"metrics": [], "pipeline": []},
+            context={
+                "reviewer_id": "alice",
+                "reviewer_display_name": "Alice Chen",
+                "reviewer_email": "alice@example.com",
+            },
+        )
+        self.assertIn(avatar.replace("&", "&amp;"), page)
+        self.assertIn('class="reviewer-avatar"', page)
 
     def test_login_page_stays_minimal_and_access_focused(self) -> None:
         page = render_login_page()

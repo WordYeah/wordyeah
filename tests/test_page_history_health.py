@@ -5,10 +5,14 @@ import unittest
 from wy_api.page_history_health import (
     CSS,
     PAGE_HISTORY_HEALTH_CSS,
+    action_label,
+    actor_label,
+    reason_label,
     render_health_body,
     render_health_content,
     render_history_body,
     render_history_content,
+    stage_label,
 )
 from wy_api.review_ui import CSS as REVIEW_CSS
 
@@ -78,7 +82,53 @@ class PageHistoryHealthTest(unittest.TestCase):
         self.assertIn("1 / 2", page)
         self.assertIn("显示 1–50", page)
         self.assertIn("2026-08-05 02:00:00", page)
+        self.assertIn("创建尝试", page)
+        self.assertIn("视觉一审", page)
         self.assertNotIn("<table", page)
+
+    def test_history_maps_audit_enums_to_chinese_labels(self) -> None:
+        page = render_history_content(
+            {
+                "actions": ["route", "approve"],
+                "stages": ["human_decided", "vision_review_1"],
+                "actors": ["review-router", "reviewer"],
+                "events": [
+                    {
+                        "created_at": "2026-08-05T02:00:00Z",
+                        "item_id": "avatar-17",
+                        "actor": "review-router",
+                        "action": "route",
+                        "stage": "vision_review_1",
+                        "detail": "fast_scan_uncertain",
+                    },
+                    {
+                        "created_at": "2026-08-05T03:00:00Z",
+                        "item_id": "avatar-18",
+                        "actor": "reviewer",
+                        "action": "approve",
+                        "stage": "human_decided",
+                        "detail": "human_approve",
+                    },
+                ],
+                "total": 2,
+                "start": 1,
+                "end": 2,
+            }
+        )
+        self.assertIn("自动路由", page)
+        self.assertIn("人工通过", page)
+        self.assertIn("审核路由", page)
+        self.assertIn("人工已定", page)
+        self.assertIn("快速扫描结果不确定", page)
+        self.assertIn('href="/review/history?actor=review-router"', page)
+        self.assertEqual(action_label("approve"), "人工通过")
+        self.assertEqual(stage_label("human_decided"), "人工已定")
+        self.assertEqual(actor_label("review-router"), "审核路由")
+        self.assertEqual(reason_label("human_approve"), "人工通过")
+        self.assertEqual(
+            reason_label("quality_ai_prelabel_model_retries_exhausted"),
+            "质量预标注：模型重试次数耗尽",
+        )
 
     def test_history_accepts_legacy_mapping_rows_and_escapes_every_value(self) -> None:
         attack = '<img src=x onerror="alert(1)">'

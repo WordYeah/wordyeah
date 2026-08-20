@@ -39,7 +39,9 @@ from wy_review.corpus_ai_prelabels import (
 )
 from wy_review.workspace import Workspace, WorkspaceStore
 from wy_cravatar.writeback import post_blacklist
+from wy_api.cravatar_identity import normalize_reviewer_email, reviewer_avatar_url
 from wy_api.login_ui import render_login_page
+from wy_api.page_history_health import stage_label
 from wy_api.review_pages import ReviewPageContext, render_review_page
 from wy_api.review_ui import WORKBENCH_JS, _filter_items, render_review_workbench
 
@@ -57,11 +59,33 @@ class ReviewerProfile:
     workspace_ids: tuple[str, ...] = ()
 
     @property
-    def avatar_url(self) -> str | None:
-        if self.email is None:
-            return None
-        digest = hashlib.md5(self.email.strip().lower().encode("utf-8")).hexdigest()  # noqa: S324
-        return f"https://cn.cravatar.com/avatar/{digest}?s=96&d=mp&r=g"
+    def avatar_url(self) -> str:
+        return reviewer_avatar_url(
+            email=self.email,
+            username=self.username,
+            reviewer_id=self.reviewer_id,
+        )
+
+
+def _load_local_reviewer_identity() -> tuple[str | None, str | None]:
+    """Load optional local reviewer email/display name for dev or single-user setups."""
+    email = normalize_reviewer_email(os.getenv("WORDYEAH_REVIEWER_EMAIL", "").strip() or None)
+    display_name: str | None = None
+    config_path = Path(
+        os.getenv("WORDYEAH_REVIEWER_LOCAL_CONFIG", "config/reviewer.local.json")
+    ).expanduser()
+    if config_path.is_file():
+        try:
+            payload = json.loads(config_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            payload = None
+        if isinstance(payload, dict):
+            if email is None:
+                email = normalize_reviewer_email(str(payload.get("email") or ""))
+            raw_name = payload.get("display_name")
+            if isinstance(raw_name, str) and raw_name.strip():
+                display_name = raw_name.strip()
+    return email, display_name
 
 
 class _UnavailableService:
@@ -95,6 +119,7 @@ class ApiSettings:
     reviewer_token: str | None = None
     review_session_secret: str | None = None
     reviewer_id: str = "reviewer"
+    reviewer_email: str | None = None
     reviewer_credentials: tuple[tuple[str, str], ...] = ()
     reviewer_profiles: tuple[ReviewerProfile, ...] = ()
     local_review_no_auth: bool = False
@@ -230,6 +255,7 @@ class ApiSettings:
                     (workspace_id, name, adapter, policy_profile, enabled)
                 )
             workspace_definitions = tuple(sorted(normalized_workspaces))
+        local_reviewer_email, _ = _load_local_reviewer_identity()
         return cls(
             bind=os.getenv("WORDYEAH_BIND", "127.0.0.1"),
             database_path=os.getenv("WORDYEAH_DATABASE", "./var/wordyeah.sqlite3"),
@@ -247,6 +273,7 @@ class ApiSettings:
             reviewer_token=os.getenv("WORDYEAH_REVIEWER_TOKEN") or None,
             review_session_secret=os.getenv("WORDYEAH_REVIEW_SESSION_SECRET") or None,
             reviewer_id=os.getenv("WORDYEAH_REVIEWER_ID", "reviewer"),
+            reviewer_email=local_reviewer_email,
             reviewer_credentials=reviewer_credentials,
             reviewer_profiles=reviewer_profiles,
             local_review_no_auth=os.getenv("WORDYEAH_LOCAL_REVIEW_NO_AUTH", "").strip().lower()
@@ -295,6 +322,27 @@ def _error_result(source: ModerationResult, reason: str, error: str) -> Moderati
         elapsed_ms=source.elapsed_ms,
         error=error,
     )
+
+
+def _oldest_pending_age_minutes(items: list[Any]) -> int | None:
+    """Return the age in minutes of the oldest pending review item."""
+    now = datetime.now(timezone.utc)
+    oldest: datetime | None = None
+    for item in items:
+        created_at = getattr(item, "created_at", None)
+        if not created_at:
+            continue
+        try:
+            parsed = datetime.fromisoformat(str(created_at).replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        if oldest is None or parsed < oldest:
+            oldest = parsed
+    if oldest is None:
+        return None
+    return max(0, int((now - oldest.astimezone(timezone.utc)).total_seconds() // 60))
 
 
 def create_app(
@@ -483,13 +531,18 @@ def create_app(
         )
 
     def _reviewer_profile(reviewer_id: str) -> ReviewerProfile:
-        return reviewer_profiles.get(
-            reviewer_id,
-            ReviewerProfile(
-                reviewer_id=reviewer_id,
-                username=reviewer_id,
-                display_name=reviewer_id,
-            ),
+        configured = reviewer_profiles.get(reviewer_id)
+        if configured is not None:
+            return configured
+        fallback_email = settings.reviewer_email
+        if fallback_email is None:
+            fallback_email = normalize_reviewer_email(reviewer_id)
+        _, fallback_display_name = _load_local_reviewer_identity()
+        return ReviewerProfile(
+            reviewer_id=reviewer_id,
+            username=reviewer_id,
+            display_name=fallback_display_name or reviewer_id,
+            email=fallback_email,
         )
 
     def _reviewer_session_rows(reviewer_id: str) -> tuple[tuple[str, str, str, str], ...]:
@@ -1554,7 +1607,9 @@ def create_app(
                 csrf_token=csrf_token,
                 consumer_id=workspace.workspace_id,
                 reviewer_id=reviewer,
+                reviewer_username=reviewer_profile.username,
                 reviewer_display_name=reviewer_profile.display_name,
+                reviewer_email=reviewer_profile.email,
                 reviewer_avatar_url=reviewer_profile.avatar_url,
                 policy_profile=workspace.policy_profile,
                 service_ready=bool(app.state.ready),
@@ -1622,11 +1677,47 @@ def create_app(
         common_exceptions: list[dict[str, str]] = []
         if not app.state.ready:
             common_exceptions.append(
-                {"title": "模型服务未就绪", "detail": app.state.ready_error or "readiness 检查失败", "tone": "danger"}
+                {
+                    "title": "模型服务未就绪",
+                    "detail": app.state.ready_error or "readiness 检查失败",
+                    "tone": "danger",
+                    "href": "/review/health",
+                    "action": "查看系统健康",
+                }
             )
         if held:
             common_exceptions.append(
-                {"title": "存在留置项目", "detail": f"{len(held)} 条需要检查错误或证据", "tone": "warning"}
+                {
+                    "title": "存在留置项目",
+                    "detail": f"{len(held)} 条需要检查错误或证据",
+                    "tone": "warning",
+                    "href": "/review?status=held",
+                    "action": "查看留置队列",
+                }
+            )
+        if human:
+            wait_detail = f"{len(human)} 条等待人工"
+            oldest_wait = _oldest_pending_age_minutes(human)
+            if oldest_wait is not None:
+                wait_detail += f"，最老已等待 {oldest_wait} 分钟"
+            common_exceptions.append(
+                {
+                    "title": "人工队列有待处理",
+                    "detail": wait_detail,
+                    "tone": "warning",
+                    "href": "/review?status=pending",
+                    "action": "打开需人工队列",
+                }
+            )
+        if failed_attempts:
+            common_exceptions.append(
+                {
+                    "title": "模型 attempt 失败",
+                    "detail": f"{len(failed_attempts)} 条失败记录需排查",
+                    "tone": "warning",
+                    "href": "/review/agents",
+                    "action": "查看 AI 任务",
+                }
             )
         metrics = [
             {"label": "待处理", "value": len(pending), "detail": "全部 AI 与人工阶段"},
@@ -1710,24 +1801,52 @@ def create_app(
                 + result_summary["block"]
             )
             incoming_14d = sum(incoming_by_day.values())
+            today_key = today.isoformat()
+            today_incoming = incoming_by_day.get(today_key, 0)
+            today_decided = decided_by_day.get(today_key, 0)
+            auto_ratio = (
+                f"{max(0, today_incoming - today_decided) * 100 / today_incoming:.0f}%"
+                if today_incoming
+                else "—"
+            )
+            intervention_rate = (
+                f"{len(human) * 100 / len(pending):.1f}%" if pending else "—"
+            )
             return {
                 "exceptions": common_exceptions,
                 "metrics": metrics,
+                "today_summary": {
+                    "incoming": today_incoming,
+                    "decided": today_decided,
+                    "auto_ratio": auto_ratio,
+                },
                 "overview_metrics": (
                     {"label": "审核总量", "value": result_summary["total"], "detail": "当前工作区全部模型结果"},
-                    {"label": "14 天处理", "value": incoming_14d, "detail": "按模型运行时间统计"},
+                    {"label": "今日入队", "value": today_incoming, "detail": "按模型运行时间统计"},
                     {
                         "label": "通过率",
                         "value": f"{result_summary['allow'] * 100 / classified_count:.1f}%" if classified_count else "—",
                         "detail": f"{classified_count} 条有效模型结论",
                     },
-                    {"label": "人工待审", "value": len(human), "detail": "AI 二审后仍不确定"},
+                    {
+                        "label": "人工待审",
+                        "value": len(human),
+                        "detail": f"介入率 {intervention_rate}" if pending else "AI 二审后仍不确定",
+                    },
                 ),
                 "volume_series": [
                     {
                         "label": f"{day.month}/{day.day}",
                         "incoming": incoming_by_day[day.isoformat()],
                         "decided": decided_by_day[day.isoformat()],
+                        "intervention_pct": round(
+                            decided_by_day[day.isoformat()]
+                            * 100
+                            / incoming_by_day[day.isoformat()],
+                            1,
+                        )
+                        if incoming_by_day[day.isoformat()]
+                        else 0.0,
                     }
                     for day in days
                 ],
@@ -1741,7 +1860,7 @@ def create_app(
                     {
                         "stage": stage,
                         "count": count,
-                        "title": stage,
+                        "title": stage_label(stage),
                         "detail": f"{count} 个待处理",
                         "meta": "live",
                     }

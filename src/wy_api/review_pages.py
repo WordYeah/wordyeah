@@ -11,10 +11,11 @@ from html import escape
 from typing import Mapping, Sequence
 
 from wy_api.icons import icon
+from wy_api.cravatar_identity import reviewer_avatar_url
 from wy_api.page_account_guide import CSS as ACCOUNT_GUIDE_CSS
 from wy_api.page_account_guide import render_account_content, render_guide_content
 from wy_api.page_history_health import CSS as HISTORY_HEALTH_CSS
-from wy_api.page_history_health import render_health_content, render_history_content
+from wy_api.page_history_health import render_health_content, render_history_content, stage_label
 from wy_api.page_overview_agents import CSS as OVERVIEW_AGENTS_CSS
 from wy_api.page_overview_agents import render_agents_body
 from wy_api.page_policy_quality import CSS as POLICY_QUALITY_CSS
@@ -207,6 +208,17 @@ _CSS = (
 .donut-legend i { width: 8px; height: 8px; border-radius: 2px; }
 .donut-legend strong { color: var(--text); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .donut-legend small { color: var(--quiet); font-size: 9px; font-weight: 500; }
+.charts-row--intervention { grid-template-columns: minmax(0, 1fr); margin-top: 14px; }
+.chart-card--compact .svg-bar-chart { margin-top: 0; }
+.notice-action { margin: 8px 0 0; }
+.notice-action .deep-link { min-height: 30px; padding-inline: 11px; font-size: 11px; }
+.overview-links { margin-top: 14px; }
+.overview-summary-line {
+  margin: 0 0 14px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
 
 body {
   font-family: var(--font-body);
@@ -751,9 +763,16 @@ def _render_notices(value: object) -> str:
         item = _mapping(raw)
         title = escape(_text(item.get("title") or item.get("label"), "未命名异常"))
         detail = escape(_text(item.get("detail") or item.get("message")))
+        href = _text(item.get("href"))
+        action = escape(_text(item.get("action") or "查看详情"))
+        link_html = (
+            f'<p class="notice-action"><a class="deep-link" href="{escape(href)}">{action}</a></p>'
+            if href
+            else ""
+        )
         rendered.append(
             f'<article class="notice" data-tone="{_tone(item.get("tone"))}"><strong>{title}</strong>'
-            f"{f'<p>{detail}</p>' if detail else ''}</article>"
+            f"{f'<p>{detail}</p>' if detail else ''}{link_html}</article>"
         )
     return f'<div class="notice-stack" aria-label="需要关注">{"".join(rendered)}</div>'
 
@@ -838,6 +857,9 @@ def _render_records(value: object, empty: str) -> str:
         title = escape(
             _text(item.get("title") or item.get("name") or item.get("label"), "—")
         )
+        stage_key = _text(item.get("stage") or item.get("title") or item.get("name"))
+        if stage_key and title == escape(stage_key):
+            title = escape(stage_label(stage_key))
         detail = escape(
             _text(item.get("detail") or item.get("description") or item.get("status"))
         )
@@ -907,12 +929,12 @@ def _panel(title: str, description: str, body: str) -> str:
     )
 
 
-def _link_row(*links: tuple[str, str]) -> str:
+def _link_row(*links: tuple[str, str], class_name: str = "link-row") -> str:
     rendered = [
         f'<a class="deep-link" href="{escape(href)}">{escape(label)}</a>'
         for href, label in links
     ]
-    return f'<div class="link-row">{"".join(rendered)}</div>' if rendered else ""
+    return f'<div class="{class_name}">{"".join(rendered)}</div>' if rendered else ""
 
 
 def _coerce_context(
@@ -923,22 +945,26 @@ def _coerce_context(
     if isinstance(context, ReviewPageContext):
         return context
     raw = _mapping(context)
+    reviewer_email = None if raw.get("reviewer_email") is None else _text(raw.get("reviewer_email"))
+    reviewer_id = _text(raw.get("reviewer_id"), "Reviewer")
+    reviewer_username = None if raw.get("reviewer_username") is None else _text(raw.get("reviewer_username"))
+    explicit_avatar = None if raw.get("reviewer_avatar_url") is None else _text(raw.get("reviewer_avatar_url"))
+    resolved_avatar = reviewer_avatar_url(
+        email=reviewer_email,
+        username=reviewer_username,
+        reviewer_id=reviewer_id,
+        explicit_url=explicit_avatar,
+    )
     return ReviewPageContext(
         consumer_id=_text(raw.get("consumer_id"), "default"),
-        reviewer_id=_text(raw.get("reviewer_id"), "Reviewer"),
-        reviewer_username=None
-        if raw.get("reviewer_username") is None
-        else _text(raw.get("reviewer_username")),
+        reviewer_id=reviewer_id,
+        reviewer_username=reviewer_username,
         reviewer_display_name=None
         if raw.get("reviewer_display_name") is None
         else _text(raw.get("reviewer_display_name")),
-        reviewer_email=None
-        if raw.get("reviewer_email") is None
-        else _text(raw.get("reviewer_email")),
+        reviewer_email=reviewer_email,
         reviewer_role=_text(raw.get("reviewer_role"), "reviewer"),
-        reviewer_avatar_url=None
-        if raw.get("reviewer_avatar_url") is None
-        else _text(raw.get("reviewer_avatar_url")),
+        reviewer_avatar_url=resolved_avatar,
         csrf_token=None
         if raw.get("csrf_token") is None
         else _text(raw.get("csrf_token")),
@@ -962,6 +988,64 @@ def _dashboard_integer(value: object) -> int:
         return max(0, int(value))
     except (TypeError, ValueError):
         return 0
+
+
+def _dashboard_percent(value: object) -> float:
+    try:
+        return max(0.0, min(100.0, float(value)))
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _render_intervention_chart(series: list[Mapping[str, object]]) -> str:
+    if not series:
+        return ""
+    values = [_dashboard_percent(item.get("intervention_pct")) for item in series]
+    scale_max = max(10.0, max(values, default=0.0))
+    plot_left, plot_top, plot_width, plot_height = 36, 12, 480, 72
+    slot = plot_width / max(1, len(series))
+    bar_width = max(4.0, min(10.0, slot * 0.42))
+    bars: list[str] = []
+    labels: list[str] = []
+    for index, item in enumerate(series):
+        pct = _dashboard_percent(item.get("intervention_pct"))
+        center = plot_left + slot * index + slot / 2
+        bar_height = plot_height * pct / scale_max
+        day_label = escape(_text(item.get("label")))
+        bars.append(
+            f'<rect fill="var(--amber)" opacity="0.82" x="{center - bar_width / 2:.1f}" '
+            f'y="{plot_top + plot_height - bar_height:.1f}" width="{bar_width:.1f}" '
+            f'height="{bar_height:.1f}" rx="2"><title>{day_label} 人工介入率 {pct:.1f}%</title></rect>'
+        )
+        if index % 2 == 0 or index == len(series) - 1:
+            labels.append(
+                f'<text x="{center:.1f}" y="104" fill="var(--muted)" font-size="9" '
+                f'text-anchor="middle" font-family="var(--mono)">{day_label}</text>'
+            )
+    average = sum(values) / len(values) if values else 0.0
+    return (
+        '<div class="charts-row charts-row--intervention">'
+        '<section class="chart-card chart-card--compact">'
+        '<header class="chart-card-header"><div><h4>人工介入率趋势</h4>'
+        "<p>最近 14 天人工结论占模型处理量的比例。</p></div>"
+        f'<span>均值 {average:.1f}%</span></header>'
+        '<svg class="svg-bar-chart" viewBox="0 0 530 112" role="img" aria-label="最近十四天人工介入率趋势">'
+        + "".join(bars + labels)
+        + "</svg></section></div>"
+    )
+
+
+def _overview_summary_line(data: Mapping[str, object]) -> str:
+    summary = _mapping(data.get("today_summary"))
+    if not summary:
+        return ""
+    incoming = _text(summary.get("incoming"), "0")
+    decided = _text(summary.get("decided"), "0")
+    auto_ratio = _text(summary.get("auto_ratio"), "—")
+    return (
+        '<p class="overview-summary-line" role="status">'
+        f"今日模型处理 {incoming} 条 · 人工定论 {decided} 条 · 自动处理约 {auto_ratio}</p>"
+    )
 
 
 def _render_dashboard_charts(data: Mapping[str, object]) -> str:
@@ -1124,7 +1208,8 @@ def _render_dashboard_charts(data: Mapping[str, object]) -> str:
         )
 
     charts_html = f'<div class="charts-row">{"".join(charts)}</div>' if charts else ""
-    return metrics_html + charts_html
+    intervention_html = _render_intervention_chart(series)
+    return _overview_summary_line(data) + metrics_html + charts_html + intervention_html
 
 
 def _page_body(
@@ -1150,6 +1235,14 @@ def _page_body(
         sections: list[str] = []
         if charts_html:
             sections.append(charts_html)
+            sections.append(
+                _link_row(
+                    ("/review?status=pending", "打开需人工队列"),
+                    ("/review/history", "查看审计历史"),
+                    ("/review/health", "系统健康"),
+                    class_name="link-row overview-links",
+                )
+            )
         else:
             sections.append(_panel("概览数据", "后端未提供趋势数据。", metrics_block))
         if _sequence(data.get("exceptions") or data.get("attention")):
@@ -1255,6 +1348,8 @@ def render_review_page(
     consumer_id=ctx.consumer_id,
     reviewer_id=ctx.reviewer_id,
     reviewer_display_name=ctx.reviewer_display_name,
+    reviewer_username=ctx.reviewer_username,
+    reviewer_email=ctx.reviewer_email,
     reviewer_avatar_url=ctx.reviewer_avatar_url,
     workspace_menu=workspace_items,
     csrf_token=ctx.csrf_token or "",

@@ -7,7 +7,10 @@ from html import escape
 from typing import Iterable, Mapping
 from urllib.parse import urlencode
 
+from wy_api.cravatar_identity import reviewer_avatar_url as resolve_reviewer_avatar_url
+from wy_api.cravatar_identity import cravatar_default_avatar_url
 from wy_api.icons import icon
+from wy_api.page_history_health import action_label, actor_label
 from wy_review.store import ReviewEvent, ReviewItem
 
 LANE_ORDER: tuple[str, ...] = ("auto-approve", "auto-reject", "escalate", "error")
@@ -546,124 +549,86 @@ details[open] > .dropdown-trigger > .dropdown-trigger__chevron > .icon {
 }
 .chevron .icon { width: 15px; height: 15px; }
 
-/* Usage Limits Widget in Side-Nav (Windsor Style) */
+/* Compact engine status in side-nav */
 .usage-widget {
-  display: grid;
-  gap: 8px;
-  padding: 14px;
-  border-radius: var(--radius-card);
-  background: var(--panel-soft);
-  border: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
   margin-top: auto;
-}
-.usage-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.usage-header .usage-icon {
-  display: grid;
-  width: 24px;
-  height: 24px;
-  place-items: center;
-  border-radius: 6px;
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-.usage-header .usage-icon svg { width: 14px; height: 14px; stroke-width: 2; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; }
-.usage-header .usage-title {
-  font-size: 12.5px;
-  font-weight: 700;
-  color: var(--text);
-}
-.usage-gear-btn {
-  margin-left: auto;
-  border: 0;
-  background: transparent;
-  color: var(--quiet);
-  padding: 2px;
-  border-radius: 4px;
-  cursor: pointer;
-  display: grid;
-  place-items: center;
-}
-.usage-gear-btn:hover { color: var(--text); background: var(--panel-muted); }
-.usage-gear-btn svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; }
-.usage-subtitle {
-  margin: 0;
-  font-size: 11px;
-  color: var(--quiet);
-}
-.usage-progress-box {
-  width: 100%;
-  height: 6px;
-  border-radius: 999px;
-  background: var(--line);
-  overflow: hidden;
-  margin: 2px 0;
-}
-.usage-progress-bar {
-  height: 100%;
-  border-radius: 999px;
-  background: linear-gradient(90deg, var(--accent) 0%, #818cf8 100%);
-  transition: width 300ms ease;
-}
-.usage-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 11px;
-  color: var(--muted);
-}
-.usage-count strong {
-  color: var(--text);
-  font-weight: 700;
-}
-.usage-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 10.5px;
-  color: var(--quiet);
-}
-.usage-tag .dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--quiet);
-}
-.usage-upgrade-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 30px;
-  margin-top: 4px;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
   border-radius: var(--radius-control);
-  border: 1px solid var(--line-strong);
+  background: var(--panel-soft);
+  color: inherit;
+  text-decoration: none;
+  transition: background-color 140ms ease, border-color 140ms ease;
+}
+.usage-widget:hover,
+.usage-widget:focus-visible {
   background: var(--panel);
+  border-color: var(--line-strong);
+}
+.usage-status-dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+  border-radius: 50%;
+}
+.usage-compact-copy {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.usage-compact-copy strong {
+  overflow: hidden;
   color: var(--text);
   font-size: 11.5px;
-  font-weight: 600;
-  text-decoration: none;
-  box-shadow: var(--shadow-sm);
-  transition: all 140ms ease;
+  font-weight: 700;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.usage-compact-copy small {
+  overflow: hidden;
+  color: var(--quiet);
+  font-size: 10.5px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.usage-compact-icon {
+  display: grid;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  place-items: center;
+  color: var(--quiet);
+}
+.usage-compact-icon svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 .empty-state {
-  grid-column: 1 / -1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   text-align: center;
-  padding: 56px 24px;
-  margin: 16px auto;
-  width: 100%;
-  max-width: 580px;
-  border: 1px dashed var(--line);
-  border-radius: 16px;
-  background: var(--panel);
-  box-shadow: var(--shadow-sm);
+  padding: 48px 28px 52px;
+  margin: 0;
+  width: min(520px, 100%);
+  max-width: 520px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
   box-sizing: border-box;
 }
 .empty-state-icon {
@@ -671,33 +636,46 @@ details[open] > .dropdown-trigger > .dropdown-trigger__chevron > .icon {
   width: 68px;
   height: 68px;
   place-items: center;
-  border-radius: 20px;
-  background: var(--accent-soft);
   color: var(--accent);
   margin-bottom: 18px;
-  box-shadow: 0 0 20px rgba(99, 102, 241, 0.12);
-  border: 1px solid rgba(99, 102, 241, 0.2);
 }
-.empty-state h3 { margin: 0 0 8px; font-size: 18px; font-weight: 700; color: var(--text); letter-spacing: -0.01em; }
-.empty-state p { margin: 0 0 18px; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.empty-state-icon .icon {
+  width: 44px;
+  height: 44px;
+  opacity: 0.9;
+}
+.empty-state h3 {
+  margin: 0 0 10px;
+  font-size: 17px;
+  font-weight: 650;
+  color: var(--text);
+  letter-spacing: -0.015em;
+}
+.empty-state p {
+  margin: 0 0 20px;
+  max-width: 42ch;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.65;
+}
 .empty-state-badge {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 14px;
-  border-radius: 999px;
-  background: var(--panel-soft);
-  border: 1px solid var(--line);
-  font-size: 11.5px;
+  gap: 7px;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  border: none;
+  font-size: 11px;
   color: var(--quiet);
-  font-weight: 600;
+  font-weight: 500;
 }
 .empty-state-badge .status-dot {
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: var(--green);
-  box-shadow: 0 0 8px var(--green);
+  flex: 0 0 auto;
 }
 
 /* Consumer Dropdown Popover (Windsor Multi-Account) */
@@ -1438,6 +1416,12 @@ details[open] > .dropdown-trigger > .dropdown-trigger__chevron > .icon {
   background: var(--app);
 }
 .queue-list[data-view="list"] { padding: 12px 0; }
+.queue-list:has(.empty-state) {
+  display: flex;
+  justify-content: center;
+  padding: 36px 24px 44px;
+  border-bottom-color: transparent;
+}
 
 .queue-tools {
   display: flex;
@@ -1765,8 +1749,8 @@ details[open] > .dropdown-trigger > .dropdown-trigger__chevron > .icon {
 
 .review-row-link {
   display: grid;
-  grid-template-columns: 64px minmax(160px, 1.2fr) minmax(200px, 2fr) minmax(130px, 1fr) 28px;
-  gap: 14px;
+  grid-template-columns: 64px minmax(0, 1.35fr) minmax(0, 1fr) minmax(96px, auto) 24px;
+  gap: 12px 14px;
   align-items: center;
   min-height: 86px;
   padding: 14px 16px;
@@ -1923,13 +1907,39 @@ details[open] > .dropdown-trigger > .dropdown-trigger__chevron > .icon {
 
 .row-decision {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 4px;
 }
 
 .row-decision small {
   color: var(--muted);
   font-size: 11px;
+  white-space: nowrap;
+}
+
+.row-intent-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.row-code-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+  margin-top: 2px;
+}
+
+.row-code-tags .code-chip {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -2037,6 +2047,7 @@ details[open] > .dropdown-trigger > .dropdown-trigger__chevron > .icon {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 292px;
   gap: 0;
+  min-height: 0;
 }
 
 .detail-sidebar {
@@ -2112,10 +2123,11 @@ details[open] > .dropdown-trigger > .dropdown-trigger__chevron > .icon {
 }
 
 .detail-stage {
-  order: 1;
   display: grid;
-  gap: 18px;
+  align-content: start;
+  gap: 16px;
   padding: 24px 28px 30px;
+  min-width: 0;
 }
 
 .preview-panel {
@@ -2179,7 +2191,7 @@ details[open] > .dropdown-trigger > .dropdown-trigger__chevron > .icon {
 
 .media-preview img {
   width: 100%;
-  max-height: clamp(300px, calc(100vh - 530px), 440px);
+  max-height: clamp(320px, calc(100vh - 360px), 520px);
   object-fit: contain;
   background: transparent;
   transition: filter 200ms ease;
@@ -2583,7 +2595,8 @@ details[open] > .dropdown-trigger > .dropdown-trigger__chevron > .icon {
 .action-form {
   position: sticky;
   z-index: 4;
-  bottom: 16px;
+  top: 12px;
+  bottom: auto;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px 14px;
@@ -3028,14 +3041,13 @@ details[open] > .dropdown-trigger > .dropdown-trigger__chevron > .icon {
   .row-open { grid-column: 3; grid-row: 1 / span 2; align-self: center; width: 16px; height: 16px; }
   .row-open svg { width: 14px; height: 14px; }
   .detail-layout { grid-template-columns: 1fr; }
-  .detail-stage { order: 1; }
+  .detail-stage { order: 1; padding: 22px 20px 24px; }
   .detail-sidebar {
     order: 2;
     padding: 22px 20px;
-    border-right: 0;
+    border-left: 0;
     border-bottom: 1px solid var(--line);
   }
-  .detail-stage { padding: 22px 20px 24px; }
   .media-preview img { max-height: 220px; }
   .detail-header { position: relative; padding-right: 64px; }
   .detail-header p:not(.detail-kicker) { overflow-wrap: anywhere; }
@@ -3132,7 +3144,7 @@ WORKBENCH_JS = r"""
     const themeBtn = e.target.closest('[data-action="toggle-theme"]');
     if (themeBtn) {
       e.preventDefault();
-      const current = document.documentElement.getAttribute('data-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      const current = document.documentElement.getAttribute('data-theme') || 'light';
       const next = current === 'dark' ? 'light' : 'dark';
       document.documentElement.setAttribute('data-theme', next);
       localStorage.setItem('wy-theme', next);
@@ -3522,37 +3534,31 @@ def render_review_sidebar(
         f'<button class="popover-action-btn logout-btn" type="submit">{icon("logout")}<span>退出登录</span></button>'
         "</form>"
         if csrf_token and logout_available
-        else '<a class="popover-action-btn" href="/review/account">Account Details</a>'
+        else '<a class="popover-action-btn" href="/review/account">账户详情</a>'
     )
 
     return f'''<aside class="side-nav" aria-label="审核导航">
   <a class="brand" href="/review/overview" aria-label="WordYeah 图像审核">
-    <span class="brand-mark">wy</span><span>wordyeah</span>
+    <span class="brand-mark">wy</span><span>WordYeah</span>
   </a>
   <div class="nav-scroll">
-    <nav class="nav-section" aria-label="工作区"><p class="nav-label">Workspace</p>{workspace_nav}</nav>
-    <nav class="nav-section" aria-label="设置"><p class="nav-label">Settings</p>{settings_nav}</nav>
+    <nav class="nav-section" aria-label="工作区"><p class="nav-label">工作区</p>{workspace_nav}</nav>
+    <nav class="nav-section" aria-label="设置"><p class="nav-label">设置</p>{settings_nav}</nav>
   </div>
-  <div class="usage-widget">
-    <div class="usage-header">
-      <span class="usage-icon">{icon("spark")}</span>
-      <span class="usage-title">审查引擎状态</span>
-      <a class="usage-gear-btn" href="/review/health" title="查看策略与健康状态" aria-label="查看策略与健康状态">{icon("settings")}</a>
-    </div>
-    <p class="usage-subtitle">当前 consumer 的审核流水线</p>
-    <div class="usage-meta"><span class="usage-count">工作区 <strong>{escape(consumer_id)}</strong></span></div>
-    <div class="usage-tag"><span class="dot" style="background: {status_color};"></span>{status_text}</div>
-    <a class="usage-upgrade-btn" href="/review/health">检查系统健康</a>
-  </div>
+  <a class="usage-widget" href="/review/health" aria-label="查看系统健康">
+    <span class="usage-status-dot" style="background: {status_color};"></span>
+    <span class="usage-compact-copy"><strong>{escape(status_text)}</strong><small>{escape(consumer_id)}</small></span>
+    <span class="usage-compact-icon">{icon("chevron-right")}</span>
+  </a>
   <div class="nav-spacer"></div>
   <details class="consumer-popover-wrapper" name="review-dropdown">
     <summary class="consumer-switcher dropdown-trigger">
       <span class="consumer-avatar">{escape(consumer_id[:1].upper() or "W")}</span>
-      <span class="consumer-copy"><strong>{escape(consumer_id)}</strong><small>Consumer workspace</small></span>
+      <span class="consumer-copy"><strong>{escape(consumer_id)}</strong><small>消费者工作区</small></span>
       <span class="chevron dropdown-trigger__chevron">{icon("chevron-down")}</span>
     </summary>
     <div class="consumer-popover-menu">
-      <div class="consumer-popover-header">Reviewer: {escape(reviewer_id)}</div>
+      <div class="consumer-popover-header">审核员：{escape(reviewer_id)}</div>
       <div class="consumer-popover-list">{workspace_menu}</div>
       <div class="consumer-popover-actions">
         <a class="popover-action-btn" href="/review/account">{icon("settings")}<span>账户与会话</span></a>
@@ -3568,6 +3574,8 @@ def render_review_toolbar_actions(
     consumer_id: str,
     reviewer_id: str,
     reviewer_display_name: str | None = None,
+    reviewer_username: str | None = None,
+    reviewer_email: str | None = None,
     reviewer_avatar_url: str | None = None,
     workspace_menu: str,
     csrf_token: str = "",
@@ -3582,10 +3590,17 @@ def render_review_toolbar_actions(
     service_title = service_title or service_label
     session_label = "受限审核会话" if logout_available else "本地开发免登录"
     display_name = reviewer_display_name or reviewer_id
+    avatar_url = resolve_reviewer_avatar_url(
+        email=reviewer_email,
+        username=reviewer_username,
+        reviewer_id=reviewer_id,
+        explicit_url=reviewer_avatar_url,
+        size=96,
+    )
+    avatar_alt = escape(display_name)
     avatar = (
-        f'<span class="reviewer-avatar"><img src="{escape(reviewer_avatar_url, quote=True)}" alt=""></span>'
-        if reviewer_avatar_url
-        else f'<span class="reviewer-avatar">{escape(display_name[:1].upper() or "R")}</span>'
+        f'<span class="reviewer-avatar"><img src="{escape(avatar_url, quote=True)}" '
+        f'alt="{avatar_alt}" loading="lazy" decoding="async" referrerpolicy="no-referrer"></span>'
     )
     return f'''<div class="toolbar-actions">
 <details class="mobile-workspace-switcher" name="review-dropdown"><summary class="dropdown-trigger" aria-label="切换工作区"><span class="dropdown-trigger__label">{escape(consumer_id)}</span><span class="dropdown-trigger__chevron">{icon("chevron-down")}</span></summary><div class="consumer-popover-menu"><div class="consumer-popover-header">切换工作区</div><div class="consumer-popover-list">{workspace_menu}</div></div></details>
@@ -3605,6 +3620,8 @@ def render_review_workbench(
     consumer_id: str,
     reviewer_id: str = "Reviewer",
     reviewer_display_name: str | None = None,
+    reviewer_username: str | None = None,
+    reviewer_email: str | None = None,
     reviewer_avatar_url: str | None = None,
     policy_profile: str,
     service_ready: bool,
@@ -3706,7 +3723,7 @@ def render_review_workbench(
             '<p>AI Agent 自动化规则引擎正在后台稳定运行，常规审核项目已实时放行。<br>任何低置信度、存在模型分歧或需要人工决断的例外项将出现在这里。</p>'
             '<div class="empty-state-badge">'
             '<span class="status-dot"></span>'
-            '<span>AI 规则与 Vision 引擎就绪 · 无滞留异常</span>'
+            '<span>AI 规则与视觉引擎就绪 · 无滞留异常</span>'
             '</div>'
             '</div>'
         )
@@ -3830,6 +3847,8 @@ def render_review_workbench(
           consumer_id=consumer_id,
           reviewer_id=reviewer_id,
           reviewer_display_name=reviewer_display_name,
+          reviewer_username=reviewer_username,
+          reviewer_email=reviewer_email,
           reviewer_avatar_url=reviewer_avatar_url,
           workspace_menu=workspace_menu,
           csrf_token=csrf_token,
@@ -3910,7 +3929,7 @@ def render_review_workbench(
 THEME_INIT_JS = """
   <script>
     (function() {
-      var savedTheme = localStorage.getItem('wy-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      var savedTheme = localStorage.getItem('wy-theme') || 'light';
       document.documentElement.setAttribute('data-theme', savedTheme);
       var savedLayout = localStorage.getItem('wy-layout') || 'fluid';
       if (savedLayout === 'boxed') {
@@ -4209,9 +4228,9 @@ def _review_card(
         </div>
         <div class="row-ai">
           <span class="row-intent-label">{escape(_decision_label(item.decision_hint))}{divergence_badge}</span>
-          <div class="row-code-tags" style="display: flex; gap: 4px; margin-top: 4px;">
-            <span class="code-chip">{escape(item.policy_version or "avatar-v1")}</span>
-            <span class="code-chip">{escape(view.lane)}</span>
+          <div class="row-code-tags">
+            <span class="code-chip" title="{escape(item.policy_version or "avatar-v1")}">{escape(_policy_chip_label(item.policy_version))}</span>
+            <span class="code-chip">{escape(_lane_label(view.lane))}</span>
           </div>
         </div>
         <div class="row-decision">
@@ -4459,8 +4478,7 @@ def _avatar_state(state: str, *, size: int, source: str | None = None) -> str:
 
 
 def _default_avatar_url(*, size: int) -> str:
-    bounded_size = min(max(size, 16), 1024)
-    return f"https://cn.cravatar.com/avatar/{'0' * 32}?s={bounded_size}&f=y"
+    return cravatar_default_avatar_url(size=size)
 
 
 def _blocked_avatar_url() -> str:
@@ -4531,11 +4549,11 @@ def _detail_events(events: tuple[ReviewEvent, ...], current_ts: datetime) -> str
         rows.append(
             f"""<li class="event-item">
               <div class="top">
-                <strong class="event-action" data-action="{escape(_event_tone(event.action))}">{escape(event.action)}</strong>
+                <strong class="event-action" data-action="{escape(_event_tone(event.action))}">{escape(action_label(event.action))}</strong>
                 <span class="sub">{escape(_time_text(event.created_at, current_ts))}</span>
               </div>
-              <div class="sub">审核员：{escape(event.reviewer)} · request <code>{escape(event.request_id or "—")}</code></div>
-              <div class="sub">{escape(event.before_status or "—")} → {escape(event.after_status or "—")}</div>
+              <div class="sub">审核员：{escape(actor_label(event.reviewer))} · request <code>{escape(event.request_id or "—")}</code></div>
+              <div class="sub">{escape(_status_label(event.before_status or "—"))} → {escape(_status_label(event.after_status or "—"))}</div>
               {avatar_transition}
               {f'<div class="sub">备注：{escape(event.note)}</div>' if event.note else ""}
             </li>"""
@@ -4729,6 +4747,23 @@ def _status_label(status: str) -> str:
         "approved": "已通过",
         "rejected": "已拒绝",
     }.get(status, status)
+
+
+def _policy_chip_label(policy_version: str | None) -> str:
+    """Return a compact policy label for queue rows."""
+    value = policy_version or "avatar-v1"
+    if len(value) <= 18:
+        return value
+    return f"{value[:8]}…{value[-6:]}"
+
+
+def _lane_label(lane: str) -> str:
+    return {
+        "auto-approve": "自动通过",
+        "auto-reject": "自动拒绝",
+        "escalate": "升级人工",
+        "error": "模型异常",
+    }.get(lane, lane)
 
 
 def _decision_label(decision: str) -> str:

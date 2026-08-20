@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from wy_api.review_ui import WORKBENCH_JS, _product_reason, _queue_time_text
+from wy_api.review_ui import WORKBENCH_JS, _lane_label, _policy_chip_label, _product_reason, _queue_time_text
 from wy_review.store import ReviewItem
 
 
@@ -60,6 +60,13 @@ def test_queue_time_text_uses_completion_time_for_reviewed_items() -> None:
     assert _queue_time_text(approved).startswith("完成于 ")
     assert "等待" not in _queue_time_text(approved)
     assert _queue_time_text(pending).startswith("等待 ")
+
+
+def test_policy_and_lane_labels_compact_for_queue_rows() -> None:
+    assert _policy_chip_label("avatar-v1") == "avatar-v1"
+    assert _policy_chip_label("policy-1-89ab7166f5c269e2") == "policy-1…c269e2"
+    assert _lane_label("auto-approve") == "自动通过"
+    assert _lane_label("escalate") == "升级人工"
 
 
 def test_lightbox_declares_modal_semantics_and_focus_management() -> None:

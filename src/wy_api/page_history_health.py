@@ -323,7 +323,9 @@ def _history_filter_menu(
     filters: Mapping[str, str],
 ) -> str:
     selected_text = _text(selected)
-    choices = [("", label)] + [(_text(raw), _text(raw)) for raw in _sequence(values)]
+    choices = [("", label)] + [
+        (_text(raw), _filter_choice_label(name, _text(raw))) for raw in _sequence(values)
+    ]
     current_label = next(
         (choice_label for value, choice_label in choices if value == selected_text),
         label,
@@ -364,6 +366,8 @@ _ACTION_LABELS = {
     "hold": "留置复核",
     "retry": "重新执行",
     "submit": "提交任务",
+    "attempt.created": "创建尝试",
+    "decision.changed": "决策变更",
 }
 
 _STAGE_LABELS = {
@@ -371,10 +375,90 @@ _STAGE_LABELS = {
     "vision_review_1": "视觉一审",
     "vision_review_2": "视觉二审",
     "human_required": "等待人工",
+    "human_decided": "人工已定",
     "auto_approved": "自动通过",
     "auto_rejected": "自动拒绝",
     "model_error": "模型异常",
 }
+
+_ACTOR_LABELS = {
+    "system": "系统",
+    "review-router": "审核路由",
+}
+
+_REASON_LABELS = {
+    "fast_scan_required": "需要快速扫描",
+    "fast_scan_risk_below_allow_threshold": "风险分低于通过阈值",
+    "fast_scan_risk_above_reject_threshold": "风险分高于拒绝阈值",
+    "fast_scan_boundary_score": "快速扫描边界分数",
+    "fast_scan_high_confidence": "快速扫描高置信",
+    "fast_scan_uncertain": "快速扫描结果不确定",
+    "vision_review_1_uncertain": "视觉一审不确定",
+    "vision_review_1_low_confidence": "视觉一审置信度不足",
+    "fast_scan_disagreement": "快速扫描与一审不一致",
+    "vision_review_1_high_confidence": "视觉一审高置信",
+    "vision_review_2_uncertain": "视觉二审不确定",
+    "vision_review_2_low_confidence": "视觉二审置信度不足",
+    "vision_review_disagreement": "视觉一审与二审不一致",
+    "vision_review_2_high_confidence": "视觉二审高置信",
+    "category_requires_human": "类别需人工复核",
+    "attempt_not_complete": "尝试尚未完成",
+    "model_retry_required": "模型需重试",
+    "model_retries_exhausted": "模型重试次数耗尽",
+    "first_review_required": "需先完成一审",
+    "ready": "预标注就绪",
+    "needs_second_review": "需二审确认",
+    "consensus": "预标注共识达成",
+    "requires_human": "预标注需人工确认",
+    "vision_queue_full": "视觉队列已满",
+    "source_requires_ai_review": "来源需 AI 审核",
+    "manual_retry_enqueue_failed": "手动重试入队失败",
+}
+
+
+def action_label(value: str) -> str:
+    """Return a Chinese label for an audit action enum."""
+    return _ACTION_LABELS.get(value, value)
+
+
+def stage_label(value: str) -> str:
+    """Return a Chinese label for a pipeline stage enum."""
+    if not value:
+        return "未记录阶段"
+    return _STAGE_LABELS.get(value, value)
+
+
+def actor_label(value: str) -> str:
+    """Return a Chinese label for a known system actor id."""
+    return _ACTOR_LABELS.get(value, value)
+
+
+def reason_label(value: str) -> str:
+    """Return a Chinese label for a route or decision reason code."""
+    if not value or value == "—":
+        return value or "—"
+    if value in _REASON_LABELS:
+        return _REASON_LABELS[value]
+    if value.startswith("human_"):
+        return action_label(value.removeprefix("human_"))
+    if value.startswith("quality_ai_prelabel_"):
+        inner = value.removeprefix("quality_ai_prelabel_")
+        inner_label = _REASON_LABELS.get(inner, inner.replace("_", " "))
+        return f"质量预标注：{inner_label}"
+    if value.startswith("vision_") and value.endswith("_exhausted"):
+        kind = value.removeprefix("vision_").removesuffix("_exhausted")
+        return f"视觉模型 {kind.replace('_', ' ')} 重试耗尽"
+    return value
+
+
+def _filter_choice_label(name: str, value: str) -> str:
+    if name == "action":
+        return action_label(value)
+    if name == "stage":
+        return stage_label(value)
+    if name == "actor":
+        return actor_label(value)
+    return value
 
 
 def _format_timestamp(value: str) -> str:
@@ -519,8 +603,10 @@ def render_history_content(data: Mapping[str, object]) -> str:
             or event.get("note")
         )
         tone = _tone(event.get("tone") or event.get("status") or action_text)
-        action_label = _ACTION_LABELS.get(action_text, action_text)
-        stage_label = _STAGE_LABELS.get(stage_text, stage_text or "未记录阶段")
+        action_display = action_label(action_text)
+        stage_display = stage_label(stage_text)
+        actor_display = actor_label(actor_text)
+        detail_display = reason_label(detail)
         object_html = (
             f'<a class="audit-object" title="{escape(object_text)}" '
             f'href="/review?status=all&amp;risk=all&amp;view=focus&amp;focus={quote(object_text)}">'
@@ -529,15 +615,15 @@ def render_history_content(data: Mapping[str, object]) -> str:
             else '<span class="audit-object">—</span>'
         )
         detail_html = (
-            f'<p class="audit-event-detail" title="{escape(detail)}">{escape(detail)}</p>'
+            f'<p class="audit-event-detail" title="{escape(detail)}">{escape(detail_display)}</p>'
             if detail
             else '<p class="audit-event-detail">—</p>'
         )
         rendered.append(
             f'<li class="audit-event" data-tone="{tone}">'
             f'<time class="audit-time" datetime="{escape(timestamp)}">{escape(_format_timestamp(timestamp))}</time>'
-            f'<span class="audit-action" data-tone="{tone}" title="{escape(action_text)}">{escape(action_label)}</span>'
-            f'<span class="audit-context"><strong>{escape(actor_text)}</strong><small>{escape(stage_label)}</small></span>'
+            f'<span class="audit-action" data-tone="{tone}" title="{escape(action_text)}">{escape(action_display)}</span>'
+            f'<span class="audit-context"><strong>{escape(actor_display)}</strong><small>{escape(stage_display)}</small></span>'
             f"{object_html}{detail_html}</li>"
         )
     stream = (
@@ -688,10 +774,14 @@ __all__ = [
     "CSS",
     "PAGE_CSS",
     "PAGE_HISTORY_HEALTH_CSS",
+    "action_label",
+    "actor_label",
+    "reason_label",
     "render_history",
     "render_history_body",
     "render_history_content",
     "render_health",
     "render_health_body",
     "render_health_content",
+    "stage_label",
 ]

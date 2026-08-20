@@ -16,6 +16,7 @@ output/
 /artifacts/*
 !/artifacts/avatar-service-benchmark.json
 !/artifacts/model-card-wordyeah.json
+var/
 models/
 datasets/
 *.sqlite3
