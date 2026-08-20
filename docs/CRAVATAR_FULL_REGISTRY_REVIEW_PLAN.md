@@ -1,7 +1,7 @@
 # Cravatar / Gravatar 首次全量头像审查计划
 
 > 状态：**第一阶段工具已实现；1,000 条只读 Shadow canary 已执行，整体 INCOMPLETE**<br>
-> 编制：2026-08-05 `[CX]`；执行更新：2026-08-09 `[CX]`<br>
+> 编制：2026-08-05 `[CX]`；执行更新：2026-08-20 `[CX]`<br>
 > 范围：`wp_9_avatar_verify` 中 Cravatar 原生头像与 Gravatar 镜像头像的首次全量审查<br>
 > 明确边界：本次仅授权并完成 1,000 条生产只读 keyset canary；不授权 10,000 条及以上放量，不授权生产写回。
 
@@ -11,17 +11,19 @@
 - 采集账本终态 1,000 行：963 collected、27 invalid_metadata、10 fetch_missing；
   963 条来源映射到 960 个唯一当前内容。
 - 960 个唯一内容已提交本地 WordYeah，失败 0；同批次重跑新增结果 0。
-- G2A Web `grok-chat-fast` 单图真实 canary 为 PASS；四个 G2A 一审 worker 与一个
-  Ollama 二审 worker 已启动，但整批 AI 处理尚未到终态。
+- 2026-08-20 只读终态复核：960/960 个唯一内容已终审，自动通过 864、自动拒绝 3、人工通过
+  92、人工拒绝 1；G2A 一审 302、Ollama 一审 658、Ollama 二审 160，活动任务 0。
 - 首次批量提交发现既有 active job 达 1,000 时部分新项目进入 `vision_queue_full` 留置，
   但提交端仍收到成功。API 已改为 HTTP 429 背压；同一 source ID 只恢复该原因造成的留置，
-  其他模型错误不会被自动重排。本地队列调和仍在运行。
+  其他模型错误不会被自动重排。调和现已完成 960/960、失败 0。
 - 生产查询前后业务字段语义摘要一致；相同最终导出器的 after/verify 文件 SHA-256 一致。
   未发生生产数据库、WordPress、头像状态或黑名单写入。
-- 结论为 `INCOMPLETE`：首轮采集在延迟分位数埋点定稿前启动，只有 27 条重试记录了
-  p50=285ms、p95=725ms；AI 队列也未处理完。因此本 canary **不授权** 10,000 条阶段。
+- 结论仍为 `INCOMPLETE`：首轮采集在延迟分位数埋点定稿前启动，只有 27 条重试记录了
+  p50=285ms、p95=725ms；队列终态已完成，但缺少完整采集性能与代表性准确率真值。因此本
+  canary **不授权** 10,000 条阶段。
 - 完整本地证据位于仓库外
-  `/Users/feibisi-studio/data/wordyeah/registry-shadow/20260809-canary-1000/registry-canary-evidence.json`。
+  `/Users/feibisi-studio/data/wordyeah/registry-shadow/20260809-canary-1000/registry-canary-evidence.json`；
+  终态补充为同目录 `registry-canary-terminal-evidence-20260820.json`。
 
 ## 1. 背景与事实基线
 

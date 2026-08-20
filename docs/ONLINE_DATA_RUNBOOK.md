@@ -76,9 +76,11 @@ python scripts/cravatar_registry_collect.py export.jsonl \
 2026-08-09 的 1,000 条 canary 已完成采集与本地提交完整性检查，但整体仍为 `INCOMPLETE`：
 963 条来源采集成功，27 条 metadata 无效，10 条 CDN 404；960 个唯一内容提交失败 0，幂等
 重跑新增 0。首次提交暴露了既有队列达到 1,000 active job 时仍返回成功的问题；API 已改为
-429 背压，并启动本地幂等调和，把仅因 `vision_queue_full` 留置的项目随水位下降重新排队。
-首轮采集缺少完整延迟分位数且 AI 队列未到终态，因此不能进入 10,000 条阶段。
-证据保存在仓库外 `registry-canary-evidence.json`，不得提交图片、manifest、cursor 或运行数据库。
+429 背压，并以本地幂等调和把仅因 `vision_queue_full` 留置的项目随水位下降重新排队。
+2026-08-20 只读终态复核为 960/960 完成、活动任务 0、调和失败 0、错误路径 allow 0；队列终态
+已完成。首轮采集仍缺少完整延迟分位数和代表性准确率真值，因此不能进入 10,000 条阶段。
+原始证据为仓库外 `registry-canary-evidence.json`，终态补充为
+`registry-canary-terminal-evidence-20260820.json`；不得提交图片、manifest、cursor 或运行数据库。
 
 ### B. 10,000 条 pilot
 

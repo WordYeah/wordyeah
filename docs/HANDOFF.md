@@ -1,6 +1,6 @@
 # WordYeah 工作交接
 
-更新：2026-08-10 Asia/Shanghai · 增补 G2A ENABLED 决策（ADR-0002）；运行时仍待专员执行
+更新：2026-08-20 Asia/Shanghai · 本地头像 Shadow MVP 自动化链收口
 
 本文只记录可接续执行的事实、未完成项和边界。长期设计分别见
 `PRODUCTION_READINESS_PLAN.md`、`ONLINE_DATA_RUNBOOK.md` 和
@@ -23,9 +23,11 @@
 - 来源查询耗时：4–5ms；前后业务字段语义摘要一致；生产数据库和头像写入均为 0。
 - 来源终态：963 `collected`、27 `invalid_metadata`、10 `fetch_missing`。
 - 963 条来源映射为 960 个唯一当前内容；本地 WordYeah 已保存 960 个来源审核对象。
-- G2A `grok-chat-fast` 单图真实 canary 为 PASS；这不代表整批 AI 已完成。
+- 960 个唯一内容现已全部终审：自动通过 864、自动拒绝 3、人工通过 92、人工拒绝 1；
+  G2A 一审成功 302、Ollama 一审成功 658、Ollama 二审成功 160，活动任务 0。
+- 调和 cursor 完成 960/960、失败 0；SQLite integrity=`ok`，错误路径产生 allow=0。
 - 首轮完整采集发生在延迟分位数埋点定稿前，只有 27 条重试保留 p50=285ms、p95=725ms。
-  因此该批结论仍是 `INCOMPLETE`，不能授权 10,000 条阶段。
+  因此数据与队列终态 PASS，但该批仍不能充当完整采集性能或准确率 PASS，也不授权 10,000 条阶段。
 
 仓库外证据目录：
 
@@ -33,21 +35,19 @@
 /Users/feibisi-studio/data/wordyeah/registry-shadow/20260809-canary-1000/
 ```
 
-总证据文件：`registry-canary-evidence.json`。目录、数据库、媒体、manifest 和 cursor 均不得
-提交到 Git。
+原始总证据为 `registry-canary-evidence.json`；2026-08-20 只读终态补充为
+`registry-canary-terminal-evidence-20260820.json`。目录、数据库、媒体、manifest 和 cursor
+均不得提交到 Git。
 
 ## 3. 正在运行的本地任务
 
-- API：`http://127.0.0.1:18767`；代码已加载 `5ee5ea6`。
-- 四个 G2A 一审 worker 和一个 Ollama 二审 worker 通过仓库外 PID 文件管理。
-- 队列调和进程的 PID 文件：
-  `.../20260809-canary-1000/queue-reconcile.pid`。
+- API：`http://127.0.0.1:18767`；2026-08-20 已重启并加载 `ff9bda6`。
+- `/health/ready` 为 ready，`advanced_vision.provider=g2a-web+ollama`、`enabled=true`；审核页 200。
+- Cravatar 活动 job 为 0；此前的一审、二审和调和批次均已结束，不需要保持批次 worker 常驻。
 - 调和 cursor：`queue-reconcile-cursor.json`；状态输出：`queue-reconcile-status.json`；
   日志：`queue-reconcile.log`。
-- 2026-08-09 18:42 快照：960 个对象中 593 个处于 `vision_review_1/pending`，367 个因
-  `vision_queue_full` 仍为 `model_error/held`；Cravatar active job 为 999。数字会随 worker
-  消费而变化，接手时必须重新查询，不能把本快照当成终态。
-- 调和只重放最新 route reason 为 `vision_queue_full` 的对象；其他模型错误保持留置。
+- 调和只重放最新 route reason 为 `vision_queue_full` 的对象；其他模型错误保持留置。该规则
+  继续适用于后续批次。
 
 只读检查：
 
@@ -70,32 +70,30 @@ PY
 失败重放约束为准。
 
 
-## 3b. G2A Web 一审运行时启用（决策已定 · 待专员执行）
+## 3b. G2A Web 一审运行时启用（已执行）
 
 **决策**：接受 [`adr/0002-enable-g2a-web-vision.md`](./adr/0002-enable-g2a-web-vision.md)——将 **shadow/开发** 链路的 `WORDYEAH_G2A_ENABLED` 设为 **`true`**，一审走本机 g2a 转发 Web 池（推荐模型 `grok-chat-fast`）。  
-**本会话未改仓库外 env、未重启服务。**
+本地运行时已使用仓库外配置启用，并保留 Ollama 兜底；secret 未进入仓库或证据。
 
-### 接手时现状（2026-08-10 只读，数字会变）
+### 接手时现状（2026-08-20）
 
-- API 示例：`http://127.0.0.1:18767`
-- `GET /health/live`：曾见 `external_model_calls=false`，`advanced_vision_provider=g2a`
-- `GET /health/ready`：曾见 `advanced_vision.enabled=false`
-- 上游 g2a：`http://127.0.0.1:18000/healthz` 可达；Web 识图冒烟对 `grok-chat-fast` 为 200（毕方侧验证，非 WordYeah 队列终态）
-- 多个 vision worker 进程可能在跑，**不等于** G2A 外呼已开
+- API：`http://127.0.0.1:18767`
+- `GET /health/live`：`external_model_calls=true`、`advanced_vision_provider=g2a-web+ollama`
+- `GET /health/ready`：`advanced_vision.enabled=true`
+- G2A 串行探针曾为 2/3，第三次 429；独立 G2A canary 超时后，完整链由本机
+  `qwen3-vl:8b` 兜底得到真实 `allow/1.0`。这证明故障转移可用，不证明 G2A 池稳定。
 
-### 专员最小步骤
+### 已执行配置与回退
 
-1. 在**仓库外** 0600 运行配置中设置（勿提交 Git、勿贴聊天）：
+1. **仓库外**运行配置已设置（勿提交 Git、勿贴聊天）：
    - `WORDYEAH_G2A_ENABLED=true`
    - `WORDYEAH_G2A_ENDPOINT=http://127.0.0.1:18000/v1/chat/completions`（或经批准的等价 g2a 入口）
    - `WORDYEAH_G2A_MODEL=grok-chat-fast`
    - `WORDYEAH_G2A_API_KEY`（secret store / 0600 文件注入）
    - 私网 IP 字面量 HTTP 时：`WORDYEAH_G2A_ALLOW_PRIVATE_HTTP=true`
    - 建议同时确认 Ollama 一审兜底与二审开关按 `docs/G2A_INTEGRATION_DRAFT.md` / env.example
-2. 重启 `wordyeah-api` 与相关 `--vision` worker，使 env 生效。
-3. 复核：
-   - `curl -fsS http://127.0.0.1:18767/health/ready` → `advanced_vision.enabled` 为 true
-   - 可选：`scripts/run_vision_canary.py` 单图，证据只保留哈希/决定/耗时
+2. `wordyeah-api` 已重启；当前批次无活动 vision job，不保留空转批次 worker。
+3. readiness 与完整链 canary 已复核，证据只保存哈希、决定、provider、回退和耗时。
 4. 回退：`WORDYEAH_G2A_ENABLED=false` 后重启。
 
 ### 仍禁止
@@ -111,34 +109,36 @@ PY
 
 ### P3：先完成本批次
 
-1. 等待调和 cursor 的 `failed=0`，核对 960 个唯一内容均已进入 AI 队列且没有重复 job。
-2. 等待一审、二审和自动路由到终态；分别统计自动通过、自动拒绝、二审、人工、模型错误。
-3. 核对错误路径没有产生 `allow`，SQLite integrity 为 `ok`，worker 租约、死信和队列年龄可解释。
-4. 更新 `registry-canary-evidence.json`、`STATUS.md` 和本交接中的终态数字。
-5. 使用定稿后的采集埋点完成一个有完整 p50/p95、错误率和总耗时的独立有界样本。新的生产
-   读取批次需要另行确认，不能用本批缓存数据冒充 CDN 采集性能。
+- [x] 调和 cursor `failed=0`；960 个唯一内容全部进入队列并到达终态。
+- [x] 已分别统计自动通过、自动拒绝、一审、二审和人工结论。
+- [x] 错误路径 allow=0，SQLite integrity=`ok`，活动任务=0。
+- [x] `STATUS.md`、本交接和仓库外只读终态证据已更新。
+- [ ] 进入 10,000 条前，另做一个具有完整 p50/p95、错误率和总耗时的独立有界采集样本；
+  不用旧缓存冒充新的 CDN 采集性能。
 
 只有以上五项完成，才可评审是否进入 10,000 条；现阶段不允许启动。
 
 ### P4：质量门槛
 
-- 1,100 条冻结 corpus 的 AI 建议已完成，但人工主审仍为 0/1,100。
+- 1,100 条冻结 corpus 的 AI 建议已完成，但独立人工真值仍为 0/1,100。
 - 固定 10% 独立双审仍为 0/110，分歧仲裁尚未发生。
 - 在真人标签、双审和仲裁完成前，不能计算可用于放量的误杀、漏放和人工介入率，也不能开启
   自动生产处置。
+- 该门槛不会再要求项目负责人逐项人工标注；它保持为未来独立质量评测/生产 enforce 门闸，
+  不阻塞当前 `enforce=false` 的本地与只读 Shadow MVP。
 
 ### P5b：G2A ENABLED 运行时（决策 ADR-0002）
 
-- [ ] 仓库外 env：`WORDYEAH_G2A_ENABLED=true` 及 endpoint/model/key（见 §3b）
-- [ ] 重启 API + vision worker
-- [ ] `health/ready` 显示 advanced_vision.enabled=true
-- [ ] 可选单图 canary；确认失败不放行 allow
-- [ ] **不**借此打开 enforce
+- [x] 仓库外 env：`WORDYEAH_G2A_ENABLED=true` 及 endpoint/model/key（见 §3b）
+- [x] 重启 API；按批次启动 vision worker，空队列不保留批次 worker
+- [x] `health/ready` 显示 advanced_vision.enabled=true
+- [x] 完整主链 canary 验证 G2A 失败可回退 Ollama，失败不会默认放行
+- [x] `enforce=false`，未配置 Cravatar 生产写回变量
 
 ### P5：目标主机运行
 
-- API、快速 worker、高级视觉 worker、增量采集和调和目前只在本机运行，尚未安装为目标主机
-  受管服务。
+- API、快速 worker、高级视觉 worker、增量采集和调和目前只在本机运行；目标主机受管部署不在
+  本地 Shadow MVP 完成范围内，也没有据本地完成状态擅自选择生产主机。
 - 仍需确定目标主机、0600 运行配置、服务用户、备份恢复、磁盘水位、队列年龄、provider 错误、
   死信和模型超时告警。
 - 部署前需重做进程重启、数据库恢复、G2A 不可用、Ollama 回退和队列背压演练。
