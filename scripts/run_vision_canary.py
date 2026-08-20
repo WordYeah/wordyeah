@@ -16,6 +16,7 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+from wy_media.failover import build_primary_vision_provider  # noqa: E402
 from wy_media.g2a import G2AConfig, G2AVisionProvider  # noqa: E402
 from wy_media.vision_provider import VisionProviderError, VisionReviewRequest  # noqa: E402
 
@@ -39,11 +40,19 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("image", type=Path)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--with-fallback",
+        action="store_true",
+        help="exercise the configured G2A-to-Ollama primary chain instead of G2A alone",
+    )
     args = parser.parse_args()
     try:
         payload = args.image.read_bytes()
-        config = G2AConfig.from_env()
-        provider = G2AVisionProvider(config)
+        if args.with_fallback:
+            provider = build_primary_vision_provider()
+        else:
+            config = G2AConfig.from_env()
+            provider = G2AVisionProvider(config)
         started = time.monotonic()
         conclusion = provider.review(
             VisionReviewRequest(
@@ -68,6 +77,7 @@ def main() -> int:
             "image_count": 1,
             "image_sha256": hashlib.sha256(payload).hexdigest(),
             "provider": conclusion.provider,
+            "configured_provider": provider.provider_name,
             "model_id": conclusion.model_id,
             "prompt_version": conclusion.prompt_version,
             "decision": conclusion.decision,
@@ -75,6 +85,9 @@ def main() -> int:
             "reason_count": len(conclusion.reasons),
             "finding_count": len(conclusion.findings),
             "evidence_count": len(conclusion.evidence),
+            "fallback_used": any(
+                item.kind == "provider_failover" for item in conclusion.evidence
+            ),
             "elapsed_seconds": round(time.monotonic() - started, 3),
         }
         code = 0

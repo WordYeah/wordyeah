@@ -85,7 +85,7 @@ API 接线位于 `POST /v1/review/items/{item_id}/advanced-vision`。接口只�
 - `grok-chat-fast` 通过现有 G2A 网关对两张合成图片返回可解析的结构化视觉结论，决定均为 `allow`，单次延迟约 5.6–5.9 秒；验收证据只保存图片哈希、模型、决定、置信度和计数，不保存 API key 或原始响应。
 - `grok-chat-fast` 对一张 Cravatar 受控头像预览返回 `allow`、置信度 `0.95`；同一队列任务在 G2A Web 未能给出可用结论时由本机 `qwen3-vl:8b` 成功兜底，attempt 保留实际 provider 和模型。
 - `grok-4.3`、`grok-4.5` 仍返回 HTTP 429，原因是现有 Build 池可用账号为 0；错误被正确分类为可重试限流。Web 池的 `grok-chat-fast` 可用不代表 Build 模型恢复。
-- 真实调用脚本为 `scripts/run_vision_canary.py`；仍需显式设置 `WORDYEAH_G2A_ENABLED=true`，默认不会访问网络。
+- 真实调用脚本为 `scripts/run_vision_canary.py`；仍需显式设置 `WORDYEAH_G2A_ENABLED=true`，默认不会访问网络。默认只验 G2A；增加 `--with-fallback` 时按运行配置验 G2A → Ollama 主链，并在无密钥证据中记录 `configured_provider`、实际 `provider` 与 `fallback_used`。
 
 以下尚未验证：
 

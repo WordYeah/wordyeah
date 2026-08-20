@@ -105,3 +105,6 @@
 - [CX] 2026-08-09 已完成 `wp_9_avatar_verify` 首批 1,000 条生产只读 keyset Shadow：995 条 Gravatar、5 条 Cravatar；本地账本终态为 963 collected、27 invalid_metadata、10 fetch_missing，963 条来源映射到 960 个唯一内容。960 个唯一内容已提交本地 WordYeah，失败 0，幂等重跑新增 0；生产查询 4–5ms，业务字段语义摘要前后一致，生产数据库和头像写入均为 0。G2A 真实单图 canary PASS，但整批 AI 队列尚未到终态，且首轮采集缺少完整延迟分位数，因此批次为 INCOMPLETE，不授权 10,000 条阶段。
 - [CX] 2026-08-09 首批提交暴露高级视觉 active job 达 1,000 时 `vision_queue_full` 留置仍返回成功；API 已改为 HTTP 429 背压，同一 source ID 可幂等恢复该类留置，其他 model error 不自动重排。现有留置项的本地调和进程已启动，整批 AI 终态仍未完成。
 - [CX] 2026-08-09 已新增 `docs/HANDOFF.md`，记录提交版本、1,000 条只读 canary 证据、队列调和恢复入口、P3–P6 未完成项、真人质量门槛、目标主机部署缺口和生产非写入边界；运行数字均标注为时间快照，不作为终态。
+- [CX] 2026-08-20 本地审核运行时已显式启用 `g2a-web+ollama`，`/health/ready` 返回 `advanced_vision.enabled=true`；G2A 串行探针为 2/3（第三次 429），单独 G2A 合成图 canary 超时，完整主链随后由本机 `qwen3-vl:8b` 兜底得到真实 `allow/1.0`，耗时 32.165 秒。该结果证明故障转移可用，不代表 G2A 池稳定。
+- [CX] 2026-08-20 审核列表不再把已终审记录写成“等待人工确认”，大图预览补齐 dialog 语义、焦点进入/返回与 Tab 约束；隔离 Chromium 验收重新覆盖九个页面、响应式下拉、质量分页和受控人工流程，报告 PASS，源 SQLite、审核决定和生产头像均未写入。
+- [CX] 2026-08-20 只读质量重算仍为主审 0/1,100、双审 0/110、可评测样本 0，五个分层均为 SKIP；聚合验收除代表性 corpus 外其余门闸均 PASS，整体继续 `INCOMPLETE`，不得开启自动生产处置。

@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from PIL import Image
@@ -279,6 +280,50 @@ def test_vision_canary_failure_keeps_safe_upstream_status(monkeypatch, tmp_path:
     evidence = json.loads(output.read_text())
     assert evidence["status_code"] == 503
     assert evidence["retry_after_seconds"] == 7
+    assert "api_key" not in evidence
+
+
+def test_vision_canary_can_exercise_configured_failover_chain(
+    monkeypatch, tmp_path: Path
+) -> None:
+    module = _load_script("run_vision_canary.py")
+    image = tmp_path / "canary.png"
+    Image.new("RGB", (8, 8), "white").save(image)
+    output = tmp_path / "vision.json"
+
+    class ChainProvider:
+        provider_name = "g2a-web+ollama"
+
+        def review(self, request: object) -> object:
+            return SimpleNamespace(
+                provider="ollama",
+                model_id="qwen3-vl:8b",
+                prompt_version="wordyeah-avatar-review-ollama-v1",
+                decision="allow",
+                confidence=0.97,
+                reasons=("synthetic_safe",),
+                findings=(),
+                evidence=(SimpleNamespace(kind="provider_failover"),),
+            )
+
+    monkeypatch.setattr(module, "build_primary_vision_provider", ChainProvider)
+    monkeypatch.setattr(
+        module.sys,
+        "argv",
+        [
+            "run_vision_canary.py",
+            str(image),
+            "--output",
+            str(output),
+            "--with-fallback",
+        ],
+    )
+
+    assert module.main() == 0
+    evidence = json.loads(output.read_text())
+    assert evidence["configured_provider"] == "g2a-web+ollama"
+    assert evidence["provider"] == "ollama"
+    assert evidence["fallback_used"] is True
     assert "api_key" not in evidence
 
 

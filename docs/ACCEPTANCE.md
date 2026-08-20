@@ -86,7 +86,11 @@ shadow 规模门槛默认至少 1,100 条，与代表性 corpus 五个分层的�
 ```bash
 python -m pip install -e '.[api,browser]'
 python -m playwright install chromium
+export WORDYEAH_ACCEPTANCE_PORT="$(joy-port free mac)"
+joy-port claim "$WORDYEAH_ACCEPTANCE_PORT" \
+  --service wordyeah-browser-acceptance --owner "${USER}" --ttl 1
 python scripts/run_isolated_browser_acceptance.py \
+  --port "$WORDYEAH_ACCEPTANCE_PORT" \
   --source-database /path/to/private/wordyeah.sqlite3 \
   --media-root /path/to/private/media \
   --runtime /path/to/private/reviewer-runtime.json \

@@ -162,12 +162,14 @@ def _run_browser_audit(
     screenshot_dir: Path,
     reviewer: str,
     headed: bool,
+    port: int,
 ) -> int:
+    if port < 1 or port > 65535:
+        raise ValueError("browser acceptance port must be between 1 and 65535")
     listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    listener.bind(("127.0.0.1", 0))
+    listener.bind(("127.0.0.1", port))
     listener.listen(128)
-    port = int(listener.getsockname()[1])
     config = uvicorn.Config(
         app,
         host="127.0.0.1",
@@ -271,6 +273,12 @@ def main() -> int:
     )
     parser.add_argument("--consumer-id", default="corpus-avatar")
     parser.add_argument("--reviewer", default="reviewer-a")
+    parser.add_argument(
+        "--port",
+        type=int,
+        required=True,
+        help="pre-claimed loopback port for the disposable acceptance server",
+    )
     parser.add_argument("--headed", action="store_true")
     args = parser.parse_args()
 
@@ -322,6 +330,7 @@ def main() -> int:
             screenshot_dir=screenshot_dir,
             reviewer=args.reviewer,
             headed=args.headed,
+            port=args.port,
         )
         if not output.is_file():
             raise RuntimeError("browser audit did not create its report")

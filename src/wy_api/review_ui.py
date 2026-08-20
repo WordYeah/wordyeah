@@ -3206,6 +3206,7 @@ WORKBENCH_JS = r"""
 
   window.lightboxScale = 1;
   let lightboxBaseWidth = 0;
+  let lightboxReturnFocus = null;
 
   window.setLightboxScale = (nextScale) => {
     const img = document.querySelector('#lightbox-img');
@@ -3255,10 +3256,13 @@ WORKBENCH_JS = r"""
     if (!modal) {
       modal = document.createElement('div');
       modal.className = 'lightbox-modal';
+      modal.setAttribute('role', 'dialog');
+      modal.setAttribute('aria-modal', 'true');
+      modal.setAttribute('aria-labelledby', 'lightbox-title');
       modal.innerHTML = `
         <div class="lightbox-content">
           <div class="lightbox-toolbar">
-            <strong>受控大图预览<span class="lightbox-zoom-hint">滚轮缩放</span></strong>
+            <strong id="lightbox-title">受控大图预览<span class="lightbox-zoom-hint">滚轮缩放</span></strong>
             <div class="lightbox-toolbar-actions">
               <button type="button" onclick="window.setLightboxScale(window.lightboxScale - .25)" aria-label="缩小">__WY_ICON_ZOOM_OUT__</button>
               <button type="button" data-lightbox-scale onclick="window.resetLightboxScale()" aria-label="适应窗口">适应</button>
@@ -3279,6 +3283,9 @@ WORKBENCH_JS = r"""
         window.zoomLightboxAtPoint(window.lightboxScale + direction * .2, event.clientX, event.clientY);
       }, { passive: false });
     }
+    if (document.activeElement instanceof HTMLElement && !modal.contains(document.activeElement)) {
+      lightboxReturnFocus = document.activeElement;
+    }
     const img = modal.querySelector('#lightbox-img');
     const stage = modal.querySelector('.lightbox-stage');
     if (stage) stage.classList.toggle('is-blocked', Boolean(blocked));
@@ -3289,12 +3296,17 @@ WORKBENCH_JS = r"""
     }
     modal.classList.add('is-open');
     document.body.style.overflow = 'hidden';
+    modal.querySelector('.lightbox-close')?.focus();
   };
 
   window.closeLightbox = () => {
     const modal = document.querySelector('.lightbox-modal');
     if (modal) modal.classList.remove('is-open');
     document.body.style.overflow = '';
+    if (lightboxReturnFocus instanceof HTMLElement && lightboxReturnFocus.isConnected) {
+      lightboxReturnFocus.focus();
+    }
+    lightboxReturnFocus = null;
   };
 
   // Keyboard navigation & Shortcuts
@@ -3317,6 +3329,20 @@ WORKBENCH_JS = r"""
     const target = event.target;
     if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) return;
     const key = event.key.toLowerCase();
+
+    const openLightbox = document.querySelector('.lightbox-modal.is-open');
+    if (openLightbox && event.key === 'Tab') {
+      const controls = [...openLightbox.querySelectorAll('button:not([disabled])')];
+      if (controls.length) {
+        const currentIndex = controls.indexOf(document.activeElement);
+        const nextIndex = event.shiftKey
+          ? (currentIndex <= 0 ? controls.length - 1 : currentIndex - 1)
+          : (currentIndex < 0 || currentIndex === controls.length - 1 ? 0 : currentIndex + 1);
+        event.preventDefault();
+        controls[nextIndex].focus();
+      }
+      return;
+    }
 
     if (event.key === 'Escape') {
       window.closeLightbox();
@@ -4191,7 +4217,7 @@ def _review_card(
         <div class="row-decision">
           <span class="status-pill status-{escape(item.status)}">{status_icon}{escape(_status_label(item.status))}</span>
           <span class="batch-lock-note">需单项审核</span>
-          <small>等待 {escape(_time_text(item.created_at).replace(' 前', ''))}</small>
+          <small>{escape(_queue_time_text(item))}</small>
         </div>
         <span class="row-open" aria-hidden="true">{icon("arrow")}</span>
       </a>
@@ -4575,6 +4601,20 @@ def _reason_summary(item: ReviewItem) -> str:
 
 def _product_reason(item: ReviewItem) -> str:
     reasons = {reason.lower() for reason in item.reasons}
+    if item.status == "approved":
+        return (
+            "AI 自动判定为安全头像"
+            if item.stage == "auto_approved"
+            else "人工审核确认通过"
+        )
+    if item.status == "rejected":
+        return (
+            "AI 自动判定为高风险头像"
+            if item.stage == "auto_rejected"
+            else "人工审核确认拒绝"
+        )
+    if item.status == "held":
+        return "审核已留置，等待补充证据"
     if "nsfw_score_at_or_above_review_threshold" in reasons:
         return "敏感内容置信度接近审核阈值"
     if item.decision_hint == "error":
@@ -4582,8 +4622,20 @@ def _product_reason(item: ReviewItem) -> str:
     if item.decision_hint == "block":
         return "高风险内容等待最终确认"
     if item.decision_hint == "allow":
-        return "质量抽检需要人工确认"
+        return (
+            "质量抽检需要人工确认"
+            if item.quality_sample
+            else "模型建议通过，等待人工确认"
+        )
     return "模型置信度不足，需要人工确认"
+
+
+def _queue_time_text(item: ReviewItem) -> str:
+    if item.status in {"approved", "rejected"}:
+        return f"完成于 {_time_text(item.reviewed_at or item.updated_at or item.created_at)}"
+    if item.status == "held":
+        return f"留置 {_time_text(item.updated_at or item.created_at)}"
+    return f"等待 {_time_text(item.created_at).replace(' 前', '')}"
 
 
 def _model_split(item: ReviewItem) -> float | None:
