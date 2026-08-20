@@ -145,10 +145,14 @@ PY
 
 ### P6：生产处置
 
-- `allow/reject/default-avatar/blacklist/hold` 到 Cravatar 动作的写回适配器尚未实现。
-- 当前没有 WordPress、头像状态、默认头像或黑名单写入权限，也没有批准生产 canary。
-- 写回必须独立进程、最小权限、逐项幂等、内容身份复核、审计、限速和可回滚；黑名单不得因
-  AI 单轮结论直接执行。
+- 人工「加黑名单」写回适配器已实现：`wy_cravatar.writeback.post_blacklist`，默认关闭。
+  仅当 `CRAVATAR_BAN_URL` + `CRAVATAR_BAN_TOKEN` 同时设置，且审核员点了 blacklist 才 POST
+  到 Cravatar `/wp-json/cravatar/console/bans`。reject / AI 结论不会写。
+- 未设置 token 时审核动作照常成功，响应带 `cravatar_writeback.status=skipped`。
+- 适配器只接受 `cravatar` 工作区、已终审 `block/blacklist` 项和固定 bans 路径；公网只允许
+  HTTPS 443，拒绝重定向、userinfo、query、fragment 与非白名单主机，并发送幂等键。上游
+  非 2xx 响应正文不回显。当前运行环境未设置写回变量。
+- 仍不批准 AI 自动 enforce，也不把 G2A 单轮结论写成生产封禁。
 
 ## 5. 其他未完成事实
 

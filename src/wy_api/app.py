@@ -38,6 +38,7 @@ from wy_review.corpus_ai_prelabels import (
     is_corpus_ai_prelabel,
 )
 from wy_review.workspace import Workspace, WorkspaceStore
+from wy_cravatar.writeback import post_blacklist
 from wy_api.login_ui import render_login_page
 from wy_api.review_pages import ReviewPageContext, render_review_page
 from wy_api.review_ui import WORKBENCH_JS, _filter_items, render_review_workbench
@@ -2822,6 +2823,9 @@ def create_app(
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        writeback = None
+        if action == "blacklist":
+            writeback = post_blacklist(item)
         if action == "retry":
             try:
                 if job_store.count_active(workspace.workspace_id) >= settings.max_queue_depth:
@@ -2842,7 +2846,13 @@ def create_app(
                     )
         if "text/html" in request.headers.get("Accept", ""):
             return RedirectResponse(return_to or "/review", status_code=303)
-        return JSONResponse(item.to_dict())
+        body = item.to_dict()
+        if writeback is not None:
+            body["cravatar_writeback"] = {
+                "status": writeback.status,
+                "detail": writeback.detail,
+            }
+        return JSONResponse(body)
 
     @app.post("/review/items/{item_id}/approve", response_model=None)
     async def approve_review_item(item_id: str, request: Request) -> JSONResponse | RedirectResponse:

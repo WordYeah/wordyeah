@@ -1,6 +1,7 @@
 """Cravatar integration contracts; no production connector is enabled."""
 
 from .adapter import CravatarAction, CravatarAdapter
+from .writeback import BanWritebackConfig, BanWritebackResult, config_from_env, payload_from_item, post_blacklist
 from .shadow import CravatarShadowConnector, ShadowRecord
 from .backlog import (
     CravatarBacklog,
@@ -31,4 +32,6 @@ __all__ = [
     "IncrementalOutcome", "IncrementalRun", "WatermarkSummary",
     "InvalidRegistryRecord", "RegistryExportPage", "RegistryLedger", "RegistryRecord",
     "collect_registry_export", "read_registry_export",
+    "BanWritebackConfig", "BanWritebackResult", "config_from_env",
+    "payload_from_item", "post_blacklist",
 ]
